@@ -76,8 +76,33 @@ const HINT_DELAY=5000;
 // isBusyNormal: true면 일반 연출 중이지만 조작 가능
 let isBusyRainbow=false;
 let isBusyNormal=false;
-let swapLock=false;       // trySwap 동시 실행 방지 락
-let pendingSwap=null;     // 락 중 들어온 swap 요청 {c1,r1,c2,r2}
+
+// ── 애니메이션 직렬화 큐 ──
+const animQueue=[];  // [{fn, ts}, ...]
+let animRunning=false;
+let skipDelay=false; // true면 delay()가 즉시 resolve → 연출 빠르게 감기
+const SWAP_EXPIRE_MS=1500; // 입력 만료 시간
+
+function enqueueAnim(asyncFn){
+  animQueue.push({fn:asyncFn, ts:Date.now()});
+  if(animRunning) skipDelay=true;
+  if(!animRunning) drainAnimQueue();
+}
+
+async function drainAnimQueue(){
+  animRunning=true;
+  while(animQueue.length>0){
+    const item=animQueue.shift();
+    if(Date.now()-item.ts>SWAP_EXPIRE_MS){
+      console.log('[animQueue] 만료된 입력 버림');
+      continue;
+    }
+    skipDelay=animQueue.length>0;
+    try{ await item.fn(); }catch(e){ console.error('[animQueue]',e); }
+  }
+  skipDelay=false;
+  animRunning=false;
+}
 
 // ── 헬퍼 ──
 function makeCell(color,type,dir){ return {color,type:type||'normal',dir:dir||null}; }
@@ -99,7 +124,7 @@ function getNeighbors(col,row){
   return off.map(([dc,dr])=>[col+dc,row+dr]).filter(([c,r])=>isValid(c,r));
 }
 function isAdjacent(c1,r1,c2,r2){ return getNeighbors(c1,r1).some(([c,r])=>c===c2&&r===r2); }
-function delay(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function delay(ms){ return new Promise(r=>setTimeout(r, skipDelay?0:ms)); }
 function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
 
 // ── 6방향 이동 ──
@@ -736,93 +761,71 @@ function findNeighborByAngle(col,row,dx,dy){
 }
 
 // ── 스왑 ──
-async function trySwap(c1,r1,c2,r2){
-  // 동시 실행 방지: 이미 swap 처리 중이면 대기열에 저장
-  if(swapLock){
-    pendingSwap={c1,r1,c2,r2};
-    return;
-  }
-  swapLock=true;
+function trySwap(c1,r1,c2,r2){
+  if(isBusyRainbow) return;
 
-  try{
-  busy=true;isBusyNormal=true;
+  enqueueAnim(async()=>{
+    busy=true;isBusyNormal=true;
 
-  // ① 로직 즉시 실행 (동기 — board 교환 + 매치 판정 + 실패 시 원복)
-  const result=executeSwap(c1,r1,c2,r2);
+    const result=executeSwap(c1,r1,c2,r2);
 
-  // ② swap 애니메이션 (board는 이미 확정된 상태)
-  await animateSwap(c1,r1,c2,r2);
-
-  // ③ 매치 실패 → 되돌리기 애니메이션 (board는 executeSwap에서 이미 원복됨)
-  if(!result.valid){
-    await animateSwap(c1,r1,c2,r2); // blockEls 원복 (2회 호출로 원위치)
-    busy=false;isBusyNormal=false;isBusyRainbow=false;
-    return;
-  }
-
-  movesLeft--;updateMovesUI();
-
-  // ④ 특수블록 교차 효과 (무지개볼 차단은 handleCrossEffect 내부에서 관리)
-  if(result.type==='cross'){
-    await handleCrossEffect(c1,r1,c2,r2);
-    isBusyRainbow=false;isBusyNormal=true;
-    await applyGravity();await fillEmpty();
-    let {lines:cl,cells:cc,clusters:ccl}=findAllMatches();
-    let combo=0;
-    while(cc.length>0||ccl.length>0){
-      combo++;
-      await processMatchStep(cl,cc,ccl,false,c1,r1,c2,r2,null,combo);
-      await applyGravity();await fillEmpty();
-      const chain=findAllMatches();cl=chain.lines;cc=chain.cells;ccl=chain.clusters;
+    if(!result.valid){
+      await animateSwap(c1,r1,c2,r2);
+      await animateSwap(c1,r1,c2,r2);
+      busy=false;isBusyNormal=false;
+      return;
     }
-    checkGameEnd();busy=false;isBusyNormal=false;
-    return;
-  }
 
-  // ⑤ 무지개볼 (입력 차단은 activateRainbow 내부에서 관리)
-  if(result.type==='rainbow'){
-    const cnt=await activateRainbow(result.rainbowPos.col,result.rainbowPos.row,result.targetColor);
-    score+=cnt*100;updateScoreUI();
-    isBusyRainbow=false;isBusyNormal=true;
-    await applyGravity();await fillEmpty();
-    let {lines:cl,cells:cc,clusters:ccl}=findAllMatches();
-    let combo=1;
-    while(cc.length>0||ccl.length>0){
-      combo++;
-      await processMatchStep(cl,cc,ccl,false,c1,r1,c2,r2,null,combo);
+    await animateSwap(c1,r1,c2,r2);
+    movesLeft--;updateMovesUI();
+
+    if(result.type==='cross'){
+      await handleCrossEffect(c1,r1,c2,r2);
+      isBusyRainbow=false;isBusyNormal=true;
       await applyGravity();await fillEmpty();
-      const chain=findAllMatches();cl=chain.lines;cc=chain.cells;ccl=chain.clusters;
-    }
-    checkGameEnd();busy=false;isBusyNormal=false;
-    return;
-  }
-
-  // ⑥ 일반 매치
-  const {lines,cells,clusters,swapDir}=result;
-  let combo=0,curLines=lines,curCells=cells,curClusters=clusters,isFirst=true;
-  while(curCells.length>0||curClusters.length>0){
-    combo++;
-    await processMatchStep(curLines,curCells,curClusters,isFirst,c1,r1,c2,r2,swapDir,combo);
-    isFirst=false;
-    await applyGravity();await fillEmpty();
-    const chain=findAllMatches();curLines=chain.lines;curCells=chain.cells;curClusters=chain.clusters;
-  }
-  checkGameEnd();busy=false;isBusyNormal=false;
-
-  }finally{
-    // 락 해제 후 대기 중인 swap 처리
-    swapLock=false;
-    if(pendingSwap){
-      const ps=pendingSwap; pendingSwap=null;
-      if(playing&&board[ps.c1]?.[ps.r1]&&board[ps.c2]?.[ps.r2]&&isAdjacent(ps.c1,ps.r1,ps.c2,ps.r2)){
-        trySwap(ps.c1,ps.r1,ps.c2,ps.r2);
-      }else{
-        startHintTimer();
+      let {lines:cl,cells:cc,clusters:ccl}=findAllMatches();
+      let combo=0;
+      while(cc.length>0||ccl.length>0){
+        combo++;
+        await processMatchStep(cl,cc,ccl,false,c1,r1,c2,r2,null,combo);
+        await applyGravity();await fillEmpty();
+        const chain=findAllMatches();cl=chain.lines;cc=chain.cells;ccl=chain.clusters;
       }
-    }else{
+      checkGameEnd();busy=false;isBusyNormal=false;
       startHintTimer();
+      return;
     }
-  }
+
+    if(result.type==='rainbow'){
+      const cnt=await activateRainbow(result.rainbowPos.col,result.rainbowPos.row,result.targetColor);
+      score+=cnt*100;updateScoreUI();
+      isBusyRainbow=false;isBusyNormal=true;
+      await applyGravity();await fillEmpty();
+      let {lines:cl,cells:cc,clusters:ccl}=findAllMatches();
+      let combo=1;
+      while(cc.length>0||ccl.length>0){
+        combo++;
+        await processMatchStep(cl,cc,ccl,false,c1,r1,c2,r2,null,combo);
+        await applyGravity();await fillEmpty();
+        const chain=findAllMatches();cl=chain.lines;cc=chain.cells;ccl=chain.clusters;
+      }
+      checkGameEnd();busy=false;isBusyNormal=false;
+      startHintTimer();
+      return;
+    }
+
+    const {lines,cells,clusters,swapDir}=result;
+    let combo=0,curLines=lines,curCells=cells,curClusters=clusters,isFirst=true;
+    while(curCells.length>0||curClusters.length>0){
+      combo++;
+      await processMatchStep(curLines,curCells,curClusters,isFirst,c1,r1,c2,r2,swapDir,combo);
+      isFirst=false;
+      await applyGravity();await fillEmpty();
+      const chain=findAllMatches();curLines=chain.lines;curCells=chain.cells;curClusters=chain.clusters;
+    }
+    checkGameEnd();busy=false;isBusyNormal=false;
+    startHintTimer();
+  });
 }
 
 // ── 특수블록 효과 범위 계산 (순수 로직, DOM 무관) ──
@@ -1563,7 +1566,8 @@ function hideConfirm(){document.getElementById('confirm-overlay').classList.add(
 
 function resetToStart(){
   hideEndScreen();hideConfirm();clearHint();
-  playing=false;busy=false;isBusyRainbow=false;isBusyNormal=false;swapLock=false;pendingSwap=null;dragState=null;
+  playing=false;busy=false;isBusyRainbow=false;isBusyNormal=false;dragState=null;
+  animQueue.length=0;animRunning=false;skipDelay=false;
   debugPlaceType=null;
   document.querySelectorAll('.debug-btn').forEach(b=>{b.classList.remove('active');b.textContent=b.textContent.replace(' \u2705','');});
   clearAllBlocks();

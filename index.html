@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>헥사 3매치 퍼즐</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="game-container">
+    <div id="theme-toggle" class="theme-btn">🌙</div>
+    <div id="dev-mode-btn">개발자 모드</div>
+    <h1>헥사 3매치 퍼즐</h1>
+
+    <div id="high-score-bar">최고 점수: <span id="high-score-value">0</span>점</div>
+
+    <!-- 설정 바 (Play 전) -->
+    <div id="settings-bar">
+      <div class="setting-group">
+        <span class="label">블록 종류</span>
+        <button class="opt-btn color-btn selected" data-count="5">5</button>
+        <button class="opt-btn color-btn" data-count="6">6</button>
+        <button class="opt-btn color-btn" data-count="7">7</button>
+      </div>
+      <div class="setting-group">
+        <span class="label">Move 수</span>
+        <button class="opt-btn move-btn" data-moves="20">20</button>
+        <button class="opt-btn move-btn selected" data-moves="30">30</button>
+        <button class="opt-btn move-btn" data-moves="50">50</button>
+      </div>
+      <button id="play-btn">PLAY</button>
+    </div>
+
+    <!-- 게임 정보 바 (Play 후) -->
+    <div id="info-bar" class="hidden">
+      <div class="info-item">
+        <span class="info-label">SCORE</span>
+        <span id="score-value" class="info-value">0</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">TARGET</span>
+        <span id="target-value" class="info-value">20,000</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">MOVES</span>
+        <span id="moves-value" class="info-value">30</span>
+      </div>
+      <button id="stop-btn">STOP</button>
+    </div>
+
+    <!-- Stop 확인 팝업 -->
+    <div id="confirm-overlay" class="hidden">
+      <div id="confirm-panel">
+        <div id="confirm-msg">정말 그만하시겠어요?</div>
+        <div id="confirm-buttons">
+          <button id="confirm-yes" class="confirm-btn yes">네</button>
+          <button id="confirm-no" class="confirm-btn no">아니오</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="grid-wrapper">
+      <div id="grid-container">
+        <div id="combo-display" class="hidden"></div>
+      </div>
+      <div id="dev-panel" class="hidden">
+        <div class="dev-section">
+          <div class="dev-section-title">특수블록 배치</div>
+          <div class="dev-place-btns">
+            <button class="debug-btn" data-type="stripe">줄볼</button>
+            <button class="debug-btn" data-type="target">타겟볼</button>
+            <button class="debug-btn" data-type="bomb">폭탄볼</button>
+            <button class="debug-btn" data-type="rainbow">무지개볼</button>
+          </div>
+        </div>
+        <div class="dev-section">
+          <div class="dev-place-btns">
+            <button id="coord-toggle-btn" class="debug-btn">좌표 보기</button>
+          </div>
+        </div>
+        <div class="dev-section">
+          <div class="dev-section-title">인스펙터</div>
+          <div id="dev-inspector"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 개발자 모드 비밀번호 팝업 -->
+    <div id="dev-pw-overlay" class="hidden">
+      <div id="dev-pw-panel">
+        <div id="dev-pw-title">개발자 모드</div>
+        <input type="password" id="dev-pw-input" placeholder="비밀번호 입력" autocomplete="off">
+        <div id="dev-pw-error" class="hidden">비밀번호가 틀렸습니다</div>
+        <div id="dev-pw-buttons">
+          <button id="dev-pw-ok" class="confirm-btn yes">확인</button>
+          <button id="dev-pw-cancel" class="confirm-btn no">취소</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 인스펙터 초기화 확인 팝업 -->
+    <div id="insp-confirm-overlay" class="hidden">
+      <div id="insp-confirm-panel">
+        <div id="insp-confirm-msg">정말 초기화 하시겠습니까?</div>
+        <div id="insp-confirm-buttons">
+          <button id="insp-confirm-yes" class="confirm-btn yes">확인</button>
+          <button id="insp-confirm-no" class="confirm-btn no">취소</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 게임 종료 오버레이 -->
+    <div id="end-overlay" class="hidden">
+      <div id="end-panel">
+        <div id="end-icon"></div>
+        <div id="end-title"></div>
+        <div id="end-score"></div>
+        <div id="end-detail"></div>
+        <div id="new-record" class="hidden"></div>
+        <button id="restart-btn">다시 하기</button>
+      </div>
+    </div>
+  </div>
+  <script src="game.js"></script>
+</body>
+</html>

@@ -449,6 +449,7 @@ const boardData = {
 
   // ── 보드 조작 ──
   swapBoard, executeSwap, hasClusterAt, initBoard,
+  computeGravity, computeFill, computeSpecialEffect,
 
   // ── 점수 계산 ──
   calcLineScore, calcComboBonus,
@@ -660,6 +661,8 @@ async function fireTargetProjectile(fromCol,fromRow,toCol,toRow,color){
 
 // ── 무지개볼 발동 ──
 async function activateRainbow(col,row,targetColor){
+  const prevRainbow=isBusyRainbow;
+  isBusyRainbow=true; // 무지개볼 연출 중 입력 차단
   const targets=[];
   for(let c=0;c<COLS_PATTERN.length;c++)
     for(let r=0;r<COLS_PATTERN[c];r++)
@@ -683,6 +686,7 @@ async function activateRainbow(col,row,targetColor){
   for(const [c,r] of targets){
     if(blockEls[c][r]){blockEls[c][r].remove();blockEls[c][r]=null;}
   }
+  isBusyRainbow=prevRainbow; // 호출자의 상태 복원
   return targets.length;
 }
 
@@ -758,9 +762,8 @@ async function trySwap(c1,r1,c2,r2){
 
   movesLeft--;updateMovesUI();
 
-  // ④ 특수블록 교차 효과
+  // ④ 특수블록 교차 효과 (무지개볼 차단은 handleCrossEffect 내부에서 관리)
   if(result.type==='cross'){
-    if(getType(c1,r1)==='rainbow'||getType(c2,r2)==='rainbow'){isBusyNormal=false;isBusyRainbow=true;}
     await handleCrossEffect(c1,r1,c2,r2);
     isBusyRainbow=false;isBusyNormal=true;
     await applyGravity();await fillEmpty();
@@ -776,9 +779,8 @@ async function trySwap(c1,r1,c2,r2){
     return;
   }
 
-  // ⑤ 무지개볼
+  // ⑤ 무지개볼 (입력 차단은 activateRainbow 내부에서 관리)
   if(result.type==='rainbow'){
-    isBusyNormal=false;isBusyRainbow=true;
     const cnt=await activateRainbow(result.rainbowPos.col,result.rainbowPos.row,result.targetColor);
     score+=cnt*100;updateScoreUI();
     isBusyRainbow=false;isBusyNormal=true;
@@ -823,114 +825,102 @@ async function trySwap(c1,r1,c2,r2){
   }
 }
 
-// ── 개별 특수블록 발동 (swap 교차용) ──
-async function activateSpecialAt(col,row){
-  const cell=board[col][row]; if(!cell) return;
-  const t=cell.type;
-  // 제거
-  if(blockEls[col][row]) blockEls[col][row].classList.add('matched');
-  board[col][row]=null;
-  await delay(CFG.specialActivateDelay);
-  if(blockEls[col][row]){blockEls[col][row].remove();blockEls[col][row]=null;}
-
+// ── 특수블록 효과 범위 계산 (순수 로직, DOM 무관) ──
+// 특수블록의 효과 범위를 계산하고 board에서 제거, 연쇄 정보 반환
+// cell: {type,color,dir} — 이미 제거된 특수블록의 스냅샷
+function computeSpecialEffect(col,row,cell){
   const destroyed=[];
-  if(t==='stripe'){
-    showStripeBeam(col,row,cell.dir);
-    for(const [sc,sr] of getStripeLine(col,row,cell.dir)){
-      if(board[sc][sr]!==null) destroyed.push([sc,sr]);
-    }
-  } else if(t==='bomb'){
-    showBombExplosion(col,row);
-    for(const [nc,nr] of getNeighbors(col,row)){
-      if(board[nc][nr]!==null) destroyed.push([nc,nr]);
-    }
-  } else if(t==='target'){
-    const rnd=getRandomBlockPos(null);
-    if(rnd){
-      await fireTargetProjectile(col,row,rnd[0],rnd[1],cell.color);
-      destroyed.push(rnd);
-    }
-  } else if(t==='rainbow'){
-    const rnd=getRandomBlockPos(null);
-    if(rnd){
-      const tc=board[rnd[0]][rnd[1]].color;
-      for(let c=0;c<COLS_PATTERN.length;c++)
-        for(let r=0;r<COLS_PATTERN[c];r++)
-          if(board[c][r]&&board[c][r].color===tc&&board[c][r].type==='normal')
-            destroyed.push([c,r]);
-    }
-  }
-
-  // 파괴 + 연쇄 (파괴 대상 중 특수블록이 있으면 재귀)
-  const chainSpecials=[];
-  for(const [dc,dr] of destroyed){
-    if(!board[dc][dr]) continue;
-    if(isSpecial(dc,dr)) chainSpecials.push([dc,dr,board[dc][dr]]);
-    if(blockEls[dc][dr]) blockEls[dc][dr].classList.add('matched');
-    board[dc][dr]=null;
-  }
-  await delay(CFG.specialActivateDelay);
-  for(const [dc,dr] of destroyed){
-    if(blockEls[dc][dr]){blockEls[dc][dr].remove();blockEls[dc][dr]=null;}
-  }
-  score+=destroyed.length*100;updateScoreUI();
-
-  // 예외1: 연쇄 발동
-  for(const [sc,sr,scell] of chainSpecials){
-    // 임시 복원 후 발동 (이미 제거됨이므로 직접 효과만)
-    await activateSpecialEffect(sc,sr,scell);
-  }
-}
-
-// 이미 제거된 특수블록의 효과만 발동
-async function activateSpecialEffect(col,row,cell){
-  const destroyed=[];
+  const effects=[]; // 애니메이션 이벤트
   if(cell.type==='stripe'){
-    showStripeBeam(col,row,cell.dir);
+    effects.push({type:'stripe',col,row,dir:cell.dir});
     for(const [sc,sr] of getStripeLine(col,row,cell.dir))
       if(board[sc][sr]!==null) destroyed.push([sc,sr]);
   } else if(cell.type==='bomb'){
-    showBombExplosion(col,row);
+    effects.push({type:'bomb',col,row});
     for(const [nc,nr] of getNeighbors(col,row))
       if(board[nc][nr]!==null) destroyed.push([nc,nr]);
   } else if(cell.type==='target'){
     const rnd=getRandomBlockPos(null);
     if(rnd){
-      await fireTargetProjectile(col,row,rnd[0],rnd[1],cell.color);
+      effects.push({type:'target',fromCol:col,fromRow:row,toCol:rnd[0],toRow:rnd[1],color:cell.color});
       destroyed.push(rnd);
     }
   } else if(cell.type==='rainbow'){
     const rnd=getRandomBlockPos(null);
     if(rnd){
       const tc=board[rnd[0]][rnd[1]].color;
+      effects.push({type:'rainbow',col,row,targetColor:tc});
       for(let c=0;c<COLS_PATTERN.length;c++)
         for(let r=0;r<COLS_PATTERN[c];r++)
           if(board[c][r]&&board[c][r].color===tc&&board[c][r].type==='normal')
             destroyed.push([c,r]);
     }
   }
+  // board에서 제거 + 연쇄 특수블록 수집
   const chainSpecials=[];
   for(const [dc,dr] of destroyed){
     if(!board[dc][dr]) continue;
-    if(isSpecial(dc,dr)) chainSpecials.push([dc,dr,board[dc][dr]]);
-    if(blockEls[dc][dr]) blockEls[dc][dr].classList.add('matched');
+    if(isSpecial(dc,dr)) chainSpecials.push({col:dc,row:dr,cell:{...board[dc][dr]}});
     board[dc][dr]=null;
   }
+  // 재귀적으로 연쇄 처리
+  const allSteps=[{col,row,cell,destroyed,effects,chainSpecials}];
+  for(const cs of chainSpecials){
+    const sub=computeSpecialEffect(cs.col,cs.row,cs.cell);
+    allSteps.push(...sub);
+  }
+  return allSteps;
+}
+
+// 특수블록 효과 애니메이션 재생 (DOM만 조작, board 건드리지 않음)
+async function animateSpecialSteps(steps){
+  for(const step of steps){
+    // 이펙트 표시
+    for(const fx of step.effects){
+      if(fx.type==='stripe') showStripeBeam(fx.col,fx.row,fx.dir);
+      if(fx.type==='bomb') showBombExplosion(fx.col,fx.row);
+      if(fx.type==='target') await fireTargetProjectile(fx.fromCol,fx.fromRow,fx.toCol,fx.toRow,fx.color);
+    }
+    // 파괴 블록 DOM 제거
+    for(const [dc,dr] of step.destroyed){
+      if(blockEls[dc]?.[dr]) blockEls[dc][dr].classList.add('matched');
+    }
+    await delay(CFG.specialActivateDelay);
+    for(const [dc,dr] of step.destroyed){
+      if(blockEls[dc]?.[dr]){blockEls[dc][dr].remove();blockEls[dc][dr]=null;}
+    }
+    score+=step.destroyed.length*100;updateScoreUI();
+  }
+}
+
+// ── 개별 특수블록 발동 (swap 교차용) — 래퍼 ──
+async function activateSpecialAt(col,row){
+  const cell=board[col][row]; if(!cell) return;
+  const cellSnap={...cell}; // 스냅샷 (board에서 제거 전)
+  // board에서 자기 자신 제거
+  board[col][row]=null;
+  // 자기 자신 DOM 제거 연출
+  if(blockEls[col][row]) blockEls[col][row].classList.add('matched');
   await delay(CFG.specialActivateDelay);
-  for(const [dc,dr] of destroyed){
-    if(blockEls[dc][dr]){blockEls[dc][dr].remove();blockEls[dc][dr]=null;}
-  }
-  score+=destroyed.length*100;updateScoreUI();
-  // 재귀 연쇄
-  for(const [sc,sr,scell] of chainSpecials){
-    await activateSpecialEffect(sc,sr,scell);
-  }
+  if(blockEls[col][row]){blockEls[col][row].remove();blockEls[col][row]=null;}
+  // 효과 계산 (로직) → 애니메이션 재생
+  const steps=computeSpecialEffect(col,row,cellSnap);
+  await animateSpecialSteps(steps);
+}
+
+// 이미 제거된 특수블록의 효과만 발동 — 래퍼
+async function activateSpecialEffect(col,row,cell){
+  const steps=computeSpecialEffect(col,row,cell);
+  await animateSpecialSteps(steps);
 }
 
 // ── 교차 효과 처리 (특수블록 2개 swap) ──
 async function handleCrossEffect(c1,r1,c2,r2){
   const cell1={...board[c1][r1]},cell2={...board[c2][r2]};
   const t1=cell1.type,t2=cell2.type;
+  // 무지개볼 포함 시 입력 차단
+  const hasRainbow=t1==='rainbow'||t2==='rainbow';
+  if(hasRainbow) isBusyRainbow=true;
   const priority={rainbow:0,bomb:1,stripe:2,target:3};
   let typeA,typeB,cA,rA,cB,rB,cellA,cellB;
   if(priority[t1]<=priority[t2]){
@@ -1172,6 +1162,7 @@ async function handleCrossEffect(c1,r1,c2,r2){
     score+=converts.length*100;updateScoreUI();
     await destroyCells([...allDestroy].map(k=>k.split(',').map(Number)));
   }
+  if(hasRainbow) isBusyRainbow=false;
 }
 
 // ── 매치 1단계 처리 ──
@@ -1391,61 +1382,90 @@ async function animateSwap(c1,r1,c2,r2){
   blockEls[c1][r1]=el2;blockEls[c2][r2]=el1;
 }
 
-// ── 낙하 ──
-async function applyGravity(){
-  let moved=false;
+// ── 낙하 로직 (순수, DOM 무관) ──
+// board 배열만 업데이트, 이동 정보 반환
+function computeGravity(){
+  const moves=[];
   for(let col=0;col<COLS_PATTERN.length;col++){
     let wr=COLS_PATTERN[col]-1;
     for(let row=COLS_PATTERN[col]-1;row>=0;row--){
       if(board[col][row]!==null){
         if(row!==wr){
           board[col][wr]=board[col][row];board[col][row]=null;
-          blockEls[col][wr]=blockEls[col][row];blockEls[col][row]=null;
-          const el=blockEls[col][wr];
-          if(el){
-            el.dataset.row=wr;
-            const pos=getBlockPos(col,wr);
-            el.style.transition=`top ${CFG.gravityTransition}s ease-in`;el.style.top=`${pos.y}px`;
-          }
-          moved=true;
+          moves.push({col,fromRow:row,toRow:wr});
         }
         wr--;
       }
     }
   }
-  if(moved) await delay(CFG.gravityDelay);
+  return moves;
+}
+
+// 낙하 애니메이션 (DOM만 조작, board 건드리지 않음)
+async function animateGravity(moves){
+  for(const {col,fromRow,toRow} of moves){
+    blockEls[col][toRow]=blockEls[col][fromRow];blockEls[col][fromRow]=null;
+    const el=blockEls[col][toRow];
+    if(el){
+      el.dataset.row=toRow;
+      const pos=getBlockPos(col,toRow);
+      el.style.transition=`top ${CFG.gravityTransition}s ease-in`;el.style.top=`${pos.y}px`;
+    }
+  }
+  if(moves.length>0) await delay(CFG.gravityDelay);
   refreshBlockElsCoordinates();
 }
 
-// ── 보충 ──
-async function fillEmpty(){
-  const container=document.getElementById('grid-container');
-  let filled=false;
+// 기존 호환 래퍼
+async function applyGravity(){
+  const moves=computeGravity();
+  await animateGravity(moves);
+}
+
+// ── 충전 로직 (순수, DOM 무관) ──
+// board 배열에 새 블록 배치, 충전 정보 반환
+function computeFill(){
+  const fills=[];
   for(let col=0;col<COLS_PATTERN.length;col++){
-    let empty=0;
-    for(let r=0;r<COLS_PATTERN[col];r++) if(board[col][r]===null) empty++;
+    let emptyCount=0;
+    for(let r=0;r<COLS_PATTERN[col];r++) if(board[col][r]===null) emptyCount++;
     for(let row=0;row<COLS_PATTERN[col];row++){
       if(board[col][row]===null){
         const ci=Math.floor(Math.random()*numColors);
         board[col][row]=makeCell(ci);
-        const pos=getBlockPos(col,row);
-        const el=createBlockEl(col,row,board[col][row]);
-        if(el){
-          el.style.top=`${pos.y-empty*ROW_SPACING}px`;el.style.transition='none';
-          container.appendChild(el);blockEls[col][row]=el;
-          el.offsetHeight;
-          el.style.transition=`top ${CFG.fillTransition}s ease-in`;el.style.top=`${pos.y}px`;
-        } else {
-          blockEls[col][row] = null;
-        }
-        filled=true;
+        fills.push({col,row,color:ci,emptyCount});
       }
     }
   }
-  if(filled){
+  return fills;
+}
+
+// 충전 애니메이션 (DOM만 조작, board 건드리지 않음)
+async function animateFill(fills){
+  const container=document.getElementById('grid-container');
+  for(const {col,row,emptyCount} of fills){
+    const pos=getBlockPos(col,row);
+    // board[col][row]는 이미 computeFill에서 설정됨 — 해당 cell 사용
+    const el=createBlockEl(col,row,board[col][row]);
+    if(el){
+      el.style.top=`${pos.y-emptyCount*ROW_SPACING}px`;el.style.transition='none';
+      container.appendChild(el);blockEls[col][row]=el;
+      el.offsetHeight;
+      el.style.transition=`top ${CFG.fillTransition}s ease-in`;el.style.top=`${pos.y}px`;
+    }else{
+      blockEls[col][row]=null;
+    }
+  }
+  if(fills.length>0){
     await delay(CFG.fillDelay);
     refreshBlockElsCoordinates();
   }
+}
+
+// 기존 호환 래퍼
+async function fillEmpty(){
+  const fills=computeFill();
+  await animateFill(fills);
 }
 
 function refreshBlockElsCoordinates(){

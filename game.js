@@ -124,7 +124,9 @@ function getNeighbors(col,row){
   return off.map(([dc,dr])=>[col+dc,row+dr]).filter(([c,r])=>isValid(c,r));
 }
 function isAdjacent(c1,r1,c2,r2){ return getNeighbors(c1,r1).some(([c,r])=>c===c2&&r===r2); }
-function delay(ms){ return new Promise(r=>setTimeout(r, skipDelay?0:ms)); }
+let gameSpeed=1; // 게임 배속 (0.5~5x)
+const SPEED_STEPS=[0.5,1,2,3,4,5];
+function delay(ms){ return new Promise(r=>setTimeout(r, skipDelay?0:Math.round(ms/gameSpeed))); }
 function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
 
 // ── 6방향 이동 ──
@@ -188,44 +190,50 @@ function findAllMatches(){
   const cellSet=new Set();
   for(const l of lines) l.forEach(([c,r])=>cellSet.add(`${c},${r}`));
 
-  // 4+ 동색 인접 클러스터 감지 (BFS) — 타겟볼/폭탄볼 감지용
-  // 클러스터 셀은 cellSet에 추가하지 않음 (제거 범위는 특수블록 종류에 따라 결정)
+  // 타겟볼 감지: 3가지 평행사변형 패턴 (4셀) + 확장 (5셀)
+  // 평행사변형 = 기준점에서 두 방향(dirA, dirB)으로 각각 1칸 + 대각(dirA+dirB) 1칸
   const clusters=[];
-  const clVisited=new Set();
+  const foundKeys=new Set(); // 중복 방지
+  // 3가지 방향 쌍: (up,ne), (up,nw), (ne,nw)
+  const paraDirs=[['up','ne'],['up','nw'],['ne','nw']];
   for(let col=0;col<COLS_PATTERN.length;col++){
     for(let row=0;row<COLS_PATTERN[col];row++){
-      const k=`${col},${row}`;
-      if(clVisited.has(k)) continue;
       const cell=board[col][row];
-      if(!cell||cell.type!=='normal'){clVisited.add(k);continue;}
+      if(!cell||cell.type!=='normal') continue;
       const color=cell.color;
-      const group=[];
-      const stk=[[col,row]];
-      while(stk.length){
-        const [c,r]=stk.pop();
-        const ck=`${c},${r}`;
-        if(clVisited.has(ck)) continue;
-        const cc=board[c]?.[r];
-        if(!cc||cc.type!=='normal'||cc.color!==color) continue;
-        clVisited.add(ck);
-        group.push([c,r]);
-        for(const [nc,nr] of getNeighbors(c,r)) stk.push([nc,nr]);
-      }
-      if(group.length>=4){
-        // 그룹 내 최대 직선 길이 계산
-        const groupSet=new Set(group.map(([c,r])=>`${c},${r}`));
-        let maxLine=0;
-        for(const [dirA,dirB] of AXES){
-          for(const [gc,gr] of group){
-            let len=1;
-            let pos=step(gc,gr,dirA);
-            while(pos&&groupSet.has(`${pos[0]},${pos[1]}`)){len++;pos=step(pos[0],pos[1],dirA);}
-            pos=step(gc,gr,dirB);
-            while(pos&&groupSet.has(`${pos[0]},${pos[1]}`)){len++;pos=step(pos[0],pos[1],dirB);}
-            if(len>maxLine) maxLine=len;
+      for(const [dA,dB] of paraDirs){
+        // 기준점(col,row) → dA → dB → dA+dB (4셀 평행사변형)
+        const pA=step(col,row,dA); if(!pA) continue;
+        const pB=step(col,row,dB); if(!pB) continue;
+        const pAB=step(pA[0],pA[1],dB); if(!pAB) continue;
+        // 4셀 모두 같은 색 normal인지 확인
+        const check=(c,r)=>{const cc=board[c]?.[r];return cc&&cc.type==='normal'&&cc.color===color;};
+        if(!check(pA[0],pA[1])||!check(pB[0],pB[1])||!check(pAB[0],pAB[1])) continue;
+        const base=[[col,row],pA,pB,pAB];
+        const key=base.map(([c,r])=>`${c},${r}`).sort().join('|');
+        if(foundKeys.has(key)) continue;
+        foundKeys.add(key);
+        // 확장: base 4셀에 인접한 같은 색 블록 1개 추가 (5셀)
+        const baseSet=new Set(base.map(([c,r])=>`${c},${r}`));
+        let extended=null;
+        for(const [bc,br] of base){
+          for(const [nc,nr] of getNeighbors(bc,br)){
+            const nk=`${nc},${nr}`;
+            if(baseSet.has(nk)) continue;
+            if(check(nc,nr)){
+              const extCells=[...base,[nc,nr]];
+              const extKey=extCells.map(([c,r])=>`${c},${r}`).sort().join('|');
+              if(!foundKeys.has(extKey)){
+                foundKeys.add(extKey);
+                extended={color,cells:extCells,size:5};
+              }
+              break;
+            }
           }
+          if(extended) break;
         }
-        clusters.push({color,cells:group,isStraight:maxLine===group.length,hasLine:maxLine>=3,size:group.length});
+        // 확장 5셀 우선, 없으면 기본 4셀
+        clusters.push(extended||{color,cells:base,size:base.length});
       }
     }
   }
@@ -326,11 +334,9 @@ function determineSpecial(curLines,curCells,clusters,isFirst,originCol,originRow
   for(const g of lineGroups){
     if(g.size>=5 && !g.isStraight && !bombGroup) bombGroup=g;
   }
-  // 3) BFS 클러스터 (타겟볼용: 직선 없는 뭉친 블록 4~5개)
+  // 3) BFS 클러스터 (타겟볼용: findAllMatches에서 이미 자격 필터링됨)
   let targetGroup=null;
-  for(const g of clusters){
-    if(g.size>=4 && !g.hasLine && !targetGroup) targetGroup=g;
-  }
+  if(clusters.length>0) targetGroup=clusters[0];
 
   function getSwapPivot(cells){
     if(!isFirst) return null;
@@ -678,7 +684,7 @@ async function fireTargetProjectile(fromCol,fromRow,toCol,toRow,color){
   }
   proj.style.left=`${from.x+BLOCK_D/2-6}px`;proj.style.top=`${from.y+BLOCK_D/2-6}px`;
   container.appendChild(proj);proj.offsetHeight;
-  const pt=CFG.projectileTransition;
+  const pt=CFG.projectileTransition/gameSpeed;
   proj.style.transition=`left ${pt}s ease-in-out,top ${pt}s cubic-bezier(0.2,-0.6,0.7,1.4)`;
   proj.style.left=`${to.x+BLOCK_D/2-6}px`;proj.style.top=`${to.y+BLOCK_D/2-6}px`;
   await delay(pt*1000+20);proj.remove();
@@ -1283,13 +1289,15 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
       if(c===specialInfo.col&&r===specialInfo.row) continue;
       const el=blockEls[c][r]; if(!el) continue;
       el.classList.add('merging');
-      el.style.transition='left 0.3s ease-in,top 0.3s ease-in,transform 0.3s ease-in,opacity 0.3s ease-in';
+      const mt=0.3/gameSpeed;
+      el.style.transition=`left ${mt}s ease-in,top ${mt}s ease-in,transform ${mt}s ease-in,opacity ${mt}s ease-in`;
       el.style.left=`${tPos.x}px`;el.style.top=`${tPos.y}px`;
       el.style.transform='scale(0.2)';el.style.opacity='0';
     }
     const pivotEl=blockEls[specialInfo.col][specialInfo.row];
     if(pivotEl){
-      pivotEl.style.transition='transform 0.3s ease-in,opacity 0.15s ease-in 0.15s';
+      const mt2=0.3/gameSpeed,mt3=0.15/gameSpeed;
+      pivotEl.style.transition=`transform ${mt2}s ease-in,opacity ${mt3}s ease-in ${mt3}s`;
       pivotEl.style.transform='scale(0.3)';pivotEl.style.opacity='0';
     }
     await delay(CFG.mergeDelay);
@@ -1372,8 +1380,9 @@ async function animateSwap(c1,r1,c2,r2){
   const el1=blockEls[c1]?.[r1],el2=blockEls[c2]?.[r2];
   if(!el1||!el2) return;
   const p1=getBlockPos(c1,r1),p2=getBlockPos(c2,r2);
-  el1.style.transition='left 0.2s ease,top 0.2s ease';
-  el2.style.transition='left 0.2s ease,top 0.2s ease';
+  const swapT=0.2/gameSpeed;
+  el1.style.transition=`left ${swapT}s ease,top ${swapT}s ease`;
+  el2.style.transition=`left ${swapT}s ease,top ${swapT}s ease`;
   el1.style.zIndex='3';el2.style.zIndex='3';
   el1.style.left=`${p2.x}px`;el1.style.top=`${p2.y}px`;
   el2.style.left=`${p1.x}px`;el2.style.top=`${p1.y}px`;
@@ -1412,7 +1421,7 @@ async function animateGravity(moves){
     if(el){
       el.dataset.row=toRow;
       const pos=getBlockPos(col,toRow);
-      el.style.transition=`top ${CFG.gravityTransition}s ease-in`;el.style.top=`${pos.y}px`;
+      el.style.transition=`top ${CFG.gravityTransition/gameSpeed}s ease-in`;el.style.top=`${pos.y}px`;
     }
   }
   if(moves.length>0) await delay(CFG.gravityDelay);
@@ -1454,7 +1463,7 @@ async function animateFill(fills){
       el.style.top=`${pos.y-emptyCount*ROW_SPACING}px`;el.style.transition='none';
       container.appendChild(el);blockEls[col][row]=el;
       el.offsetHeight;
-      el.style.transition=`top ${CFG.fillTransition}s ease-in`;el.style.top=`${pos.y}px`;
+      el.style.transition=`top ${CFG.fillTransition/gameSpeed}s ease-in`;el.style.top=`${pos.y}px`;
     }else{
       blockEls[col][row]=null;
     }
@@ -1704,6 +1713,15 @@ function setupDevMode(){
   document.getElementById('dev-pw-ok').addEventListener('click',tryPassword);
   document.getElementById('dev-pw-cancel').addEventListener('click',()=>pwOverlay.classList.add('hidden'));
   pwInput.addEventListener('keydown',e=>{if(e.key==='Enter') tryPassword();});
+
+  // 게임 배속 슬라이더
+  const speedSlider=document.getElementById('speed-slider');
+  const speedLabel=document.getElementById('speed-label');
+  speedSlider.addEventListener('input',()=>{
+    const idx=parseInt(speedSlider.value);
+    gameSpeed=SPEED_STEPS[idx];
+    speedLabel.textContent=gameSpeed+'x';
+  });
 
   // 특수블록 배치 버튼
   document.querySelectorAll('.debug-btn').forEach(btn=>{

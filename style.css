@@ -806,6 +806,27 @@ h1 {
   gap: 6px;
 }
 
+/* ── 게임 배속 슬라이더 ── */
+.dev-speed-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#speed-slider {
+  flex: 1;
+  accent-color: var(--accent-color);
+  cursor: pointer;
+}
+
+#speed-label {
+  color: #f1c40f;
+  font-size: 16px;
+  font-weight: bold;
+  min-width: 32px;
+  text-align: center;
+}
+
 .debug-btn {
   padding: 7px 10px;
   border: 2px solid var(--button-border);

@@ -1,0 +1,1152 @@
+{
+  "stages": [
+    {
+      "stage": 1,
+      "gimmicks": [
+        {
+          "col": 2,
+          "row": 6,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 2,
+          "row": 7,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 2,
+          "row": 8,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 3,
+          "row": 7,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 3,
+          "row": 6,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 3,
+          "row": 5,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 4,
+          "row": 5,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 4,
+          "row": 6,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 4,
+          "row": 7,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 4,
+          "row": 8,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 5,
+          "row": 7,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 5,
+          "row": 6,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 5,
+          "row": 5,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 6,
+          "row": 6,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 6,
+          "row": 7,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 6,
+          "row": 8,
+          "type": "stone",
+          "level": 1
+        }
+      ]
+    },
+    {
+      "stage": 2,
+      "gimmicks": [
+        {
+          "col": 2,
+          "row": 0,
+          "type": "stone",
+          "level": 2
+        },
+        {
+          "col": 2,
+          "row": 1,
+          "type": "stone",
+          "level": 2
+        },
+        {
+          "col": 2,
+          "row": 2,
+          "type": "stone",
+          "level": 2
+        },
+        {
+          "col": 2,
+          "row": 3,
+          "type": "stone",
+          "level": 2
+        },
+        {
+          "col": 2,
+          "row": 4,
+          "type": "stone",
+          "level": 2
+        },
+        {
+          "col": 1,
+          "row": 4,
+          "type": "stone",
+          "level": 2
+        },
+        {
+          "col": 1,
+          "row": 3,
+          "type": "stone",
+          "level": 2
+        },
+        {
+          "col": 1,
+          "row": 2,
+          "type": "stone",
+          "level": 2
+        },
+        {
+          "col": 1,
+          "row": 1,
+          "type": "stone",
+          "level": 2
+        },
+        {
+          "col": 1,
+          "row": 0,
+          "type": "stone",
+          "level": 2
+        },
+        {
+          "col": 0,
+          "row": 1,
+          "type": "stone",
+          "level": 2
+        },
+        {
+          "col": 0,
+          "row": 0,
+          "type": "stone",
+          "level": 2
+        },
+        {
+          "col": 0,
+          "row": 2,
+          "type": "stone",
+          "level": 2
+        },
+        {
+          "col": 0,
+          "row": 3,
+          "type": "stone",
+          "level": 2
+        },
+        {
+          "col": 0,
+          "row": 4,
+          "type": "stone",
+          "level": 2
+        },
+        {
+          "col": 0,
+          "row": 5,
+          "type": "stone",
+          "level": 2
+        }
+      ]
+    },
+    {
+      "stage": 3,
+      "gimmicks": [
+        {
+          "col": 2,
+          "row": 2,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 3,
+          "row": 1,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 4,
+          "row": 1,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 5,
+          "row": 1,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 6,
+          "row": 2,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 5,
+          "row": 3,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 6,
+          "row": 3,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 4,
+          "row": 4,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 5,
+          "row": 4,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 6,
+          "row": 5,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 6,
+          "row": 6,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 5,
+          "row": 6,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 4,
+          "row": 7,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 3,
+          "row": 6,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 2,
+          "row": 6,
+          "type": "stone",
+          "level": 3
+        }
+      ]
+    },
+    {
+      "stage": 4,
+      "gimmicks": [
+        {
+          "col": 3,
+          "row": 1,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 4,
+          "row": 2,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 4,
+          "row": 1,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 2,
+          "row": 2,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 2,
+          "row": 3,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 3,
+          "row": 2,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 2,
+          "row": 4,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 3,
+          "row": 3,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 3,
+          "row": 4,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 4,
+          "row": 4,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 5,
+          "row": 4,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 6,
+          "row": 4,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 7,
+          "row": 4,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 1,
+          "row": 4,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 4,
+          "row": 5,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 4,
+          "row": 6,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 4,
+          "row": 3,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 1,
+          "row": 3,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 5,
+          "row": 3,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 6,
+          "row": 5,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 5,
+          "row": 5,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 3,
+          "row": 5,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 2,
+          "row": 5,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 1,
+          "row": 2,
+          "type": "stone",
+          "level": 4
+        }
+      ]
+    },
+    {
+      "stage": 5,
+      "gimmicks": [
+        {
+          "col": 8,
+          "row": 2,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 8,
+          "row": 3,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 8,
+          "row": 4,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 8,
+          "row": 5,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 8,
+          "row": 6,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 0,
+          "row": 2,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 0,
+          "row": 3,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 0,
+          "row": 4,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 0,
+          "row": 5,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 0,
+          "row": 6,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 4,
+          "row": 2,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 4,
+          "row": 3,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 4,
+          "row": 4,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 4,
+          "row": 5,
+          "type": "stone",
+          "level": 4
+        },
+        {
+          "col": 4,
+          "row": 6,
+          "type": "stone",
+          "level": 4
+        }
+      ]
+    },
+    {
+      "stage": 6,
+      "gimmicks": [
+        {
+          "col": 0,
+          "row": 3,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 2,
+          "row": 3,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 4,
+          "row": 3,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 6,
+          "row": 3,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 8,
+          "row": 3,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 7,
+          "row": 4,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 5,
+          "row": 4,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 3,
+          "row": 4,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 1,
+          "row": 4,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 2,
+          "row": 6,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 4,
+          "row": 6,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 6,
+          "row": 6,
+          "type": "stone",
+          "level": 5
+        }
+      ]
+    },
+    {
+      "stage": 7,
+      "gimmicks": [
+        {
+          "col": 0,
+          "row": 8,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 2,
+          "row": 7,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 4,
+          "row": 6,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 4,
+          "row": 8,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 6,
+          "row": 5,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 8,
+          "row": 4,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 8,
+          "row": 6,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 6,
+          "row": 7,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 8,
+          "row": 8,
+          "type": "stone",
+          "level": 5
+        }
+      ]
+    },
+    {
+      "stage": 8,
+      "gimmicks": [
+        {
+          "col": 0,
+          "row": 2,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 1,
+          "row": 2,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 2,
+          "row": 2,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 2,
+          "row": 3,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 3,
+          "row": 2,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 3,
+          "row": 1,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 2,
+          "row": 1,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 3,
+          "row": 0,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 2,
+          "row": 0,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 3,
+          "row": 3,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 2,
+          "row": 4,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 1,
+          "row": 3,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 1,
+          "row": 1,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 1,
+          "row": 0,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 0,
+          "row": 0,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 0,
+          "row": 1,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 0,
+          "row": 3,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 0,
+          "row": 4,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 0,
+          "row": 5,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 1,
+          "row": 4,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 2,
+          "row": 5,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 3,
+          "row": 4,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 4,
+          "row": 4,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 4,
+          "row": 3,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 4,
+          "row": 2,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 4,
+          "row": 1,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 4,
+          "row": 0,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 1,
+          "row": 5,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 0,
+          "row": 6,
+          "type": "stone",
+          "level": 1
+        }
+      ]
+    },
+    {
+      "stage": 9,
+      "gimmicks": [
+        {
+          "col": 4,
+          "row": 0,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 4,
+          "row": 1,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 4,
+          "row": 2,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 4,
+          "row": 3,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 4,
+          "row": 4,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 4,
+          "row": 5,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 4,
+          "row": 6,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 4,
+          "row": 7,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 4,
+          "row": 8,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 0,
+          "row": 4,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 2,
+          "row": 4,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 6,
+          "row": 4,
+          "type": "stone",
+          "level": 5
+        },
+        {
+          "col": 8,
+          "row": 4,
+          "type": "stone",
+          "level": 5
+        }
+      ]
+    },
+    {
+      "stage": 10,
+      "gimmicks": [
+        {
+          "col": 8,
+          "row": 0,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 7,
+          "row": 0,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 8,
+          "row": 1,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 6,
+          "row": 0,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 6,
+          "row": 1,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 5,
+          "row": 0,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 5,
+          "row": 1,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 6,
+          "row": 2,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 7,
+          "row": 1,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 8,
+          "row": 2,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 7,
+          "row": 2,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 5,
+          "row": 2,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 5,
+          "row": 3,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 5,
+          "row": 4,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 5,
+          "row": 5,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 5,
+          "row": 6,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 5,
+          "row": 7,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 6,
+          "row": 8,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 6,
+          "row": 7,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 7,
+          "row": 7,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 7,
+          "row": 6,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 8,
+          "row": 7,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 8,
+          "row": 8,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 8,
+          "row": 6,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 8,
+          "row": 5,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 8,
+          "row": 4,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 8,
+          "row": 3,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 7,
+          "row": 3,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 7,
+          "row": 4,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 7,
+          "row": 5,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 6,
+          "row": 6,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 6,
+          "row": 5,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 6,
+          "row": 4,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 6,
+          "row": 3,
+          "type": "stone",
+          "level": 1
+        }
+      ]
+    }
+  ]
+}

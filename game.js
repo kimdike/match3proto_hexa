@@ -7,7 +7,21 @@ const HEX_H = Math.sqrt(3) * HEX_SIZE;
 const COL_SPACING = HEX_SIZE * 1.5;
 const ROW_SPACING = HEX_H;
 const BLOCK_D = 50;
-const TARGET_SCORE = 50000;
+// ── 스테이지 데이터 ──
+const STAGES = [
+  { stage:1,  target:10000, moves:30, colorTypes:5 },
+  { stage:2,  target:15000, moves:28, colorTypes:5 },
+  { stage:3,  target:20000, moves:26, colorTypes:6 },
+  { stage:4,  target:25000, moves:25, colorTypes:6 },
+  { stage:5,  target:30000, moves:24, colorTypes:7 },
+  { stage:6,  target:35000, moves:23, colorTypes:7 },
+  { stage:7,  target:40000, moves:22, colorTypes:7 },
+  { stage:8,  target:45000, moves:21, colorTypes:7 },
+  { stage:9,  target:48000, moves:20, colorTypes:7 },
+  { stage:10, target:50000, moves:20, colorTypes:7 },
+];
+let currentStage = parseInt(localStorage.getItem('hexPuzzleStage')) || 1;
+let stageTarget = STAGES[0].target;
 
 const ALL_COLORS = [
   { name:'red',bg:'#e74c3c' },{ name:'orange',bg:'#f39c12' },
@@ -19,7 +33,7 @@ const ALL_COLORS = [
 // ── 조절 가능한 설정값 ──
 const CFG = {
   gravityTransition: 0.2,   gravityDelay: 240,
-  fillTransition: 0.2,      fillDelay: 150,
+  fillTransition: 0.2,      fillDelay: 200,
   projectileTransition: 0.45,
   matchedDelay: 200,         mergeDelay: 130,
   explosionLifetime: 400,
@@ -56,6 +70,70 @@ function calcComboBonus(combo) {
   if(combo>=4) return CFG.combo4bonus; return 0;
 }
 
+// ── 스킨 시스템 ──
+const SPRITE_SHEET='pokemon_sprites_1.png';
+const SPRITE_COLS=15, SPRITE_SIZE=215, SHEET_W=3228, SHEET_H=2375;
+const DEFAULT_UNLOCKED=[1,4,7,10,15,20,25];
+const DEFAULT_SLOTS=[1,4,7,10,15,20,25];
+
+function loadSkinData(){
+  let unlocked=JSON.parse(localStorage.getItem('hexPuzzleUnlocked')||'null');
+  if(!unlocked){ unlocked=[...DEFAULT_UNLOCKED]; localStorage.setItem('hexPuzzleUnlocked',JSON.stringify(unlocked)); }
+  let slots=JSON.parse(localStorage.getItem('hexPuzzleSlots')||'null');
+  if(!slots){ slots=[...DEFAULT_SLOTS]; localStorage.setItem('hexPuzzleSlots',JSON.stringify(slots)); }
+  return {unlocked,slots};
+}
+function saveSkinData(unlocked,slots){
+  localStorage.setItem('hexPuzzleUnlocked',JSON.stringify(unlocked));
+  localStorage.setItem('hexPuzzleSlots',JSON.stringify(slots));
+}
+
+let skinData=loadSkinData();
+
+function getPokemonBgStyle(pokeNum,displaySize){
+  const col=(pokeNum-1)%SPRITE_COLS;
+  const row=Math.floor((pokeNum-1)/SPRITE_COLS);
+  // 실제 셀 간격 = 시트 크기 / 셀 수 (정수 나누기 오차 보정)
+  const cellW=SHEET_W/SPRITE_COLS, cellH=SHEET_H/11;
+  const scale=displaySize/cellW;
+  const bgW=SHEET_W*scale, bgH=SHEET_H*scale;
+  return {
+    backgroundImage:`url(${SPRITE_SHEET})`,
+    backgroundPosition:`${-(col*cellW*scale)}px ${-(row*cellH*scale)}px`,
+    backgroundSize:`${bgW}px ${bgH}px`,
+    backgroundRepeat:'no-repeat',
+  };
+}
+
+function applyPokemonBg(el,pokeNum,displaySize,transparent){
+  const s=getPokemonBgStyle(pokeNum,displaySize);
+  el.style.backgroundImage=s.backgroundImage;
+  el.style.backgroundPosition=s.backgroundPosition;
+  el.style.backgroundSize=s.backgroundSize;
+  el.style.backgroundRepeat=s.backgroundRepeat;
+  el.style.backgroundColor=transparent?'transparent':'#fff';
+}
+
+// ── 스테이지 맵 데이터 ──
+let stageMaps=null; // stage_maps.json에서 로드
+
+async function loadStageMaps(){
+  try{
+    const res=await fetch('stage_maps.json');
+    stageMaps=await res.json();
+  }catch(e){ console.warn('stage_maps.json 로드 실패:',e); stageMaps={stages:[]}; }
+}
+
+function applyStageGimmicks(stageNum){
+  if(!stageMaps) return;
+  const stageData=stageMaps.stages.find(s=>s.stage===stageNum);
+  if(!stageData||!stageData.gimmicks) return;
+  for(const g of stageData.gimmicks){
+    if(!gimmick[g.col]) gimmick[g.col]=[];
+    gimmick[g.col][g.row]={type:g.type,level:g.level};
+  }
+}
+
 // ── 상태 ──
 let numColors=5, maxMoves=30, movesLeft=30, score=0;
 let playing=false, busy=false;
@@ -66,10 +144,51 @@ let lastMouseX = 0, lastMouseY = 0;
 let debugPlaceType = null; // null | 'stripe' | 'target' | 'bomb' | 'rainbow'
 // board[col][row] = { color, type:'normal'|'stripe'|'target'|'bomb'|'rainbow', dir } | null
 const board=[], blockEls=[], cellPos=[];
+// gimmick[col][row] = { type:'stone', level:1~5 } | null
+const gimmick=[], gimmickEls=[];
+let totalStones=0; // 남은 돌 총 개수
+let initialStones=0; // 시작 시 돌 총 개수 (승리조건 판별용)
 let dragState=null;
 const DRAG_THRESHOLD=20;
 let hintTimer=null, hintedCells=[];
 const HINT_DELAY=5000;
+
+// ── 매치 로그 ──
+const matchLogs=[];
+const MAX_MATCH_LOGS=20;
+
+function formatLogTime(d){
+  const mm=String(d.getMonth()+1).padStart(2,'0');
+  const dd=String(d.getDate()).padStart(2,'0');
+  const hh=String(d.getHours()).padStart(2,'0');
+  const mi=String(d.getMinutes()).padStart(2,'0');
+  const ss=String(d.getSeconds()).padStart(2,'0');
+  return `${mm}.${dd} ${hh}:${mi}:${ss}`;
+}
+
+function addMatchLog(combo,type,destroyedCount){
+  const time=formatLogTime(new Date());
+  matchLogs.unshift({time,combo,type,destroyedCount,skipDelay});
+  if(matchLogs.length>MAX_MATCH_LOGS) matchLogs.length=MAX_MATCH_LOGS;
+  renderMatchLogs();
+}
+
+function renderMatchLogs(){
+  const el=document.getElementById('dev-match-log-list');
+  if(!el) return;
+  el.innerHTML='';
+  for(const log of matchLogs){
+    const div=document.createElement('div');
+    div.className='match-log-line'+(log.skipDelay?' skip-delay':'');
+    div.textContent=`[${log.time}] ${log.combo}콤보 | ${log.type} | 제거${log.destroyedCount}개 | skipDelay:${log.skipDelay}`;
+    el.appendChild(div);
+  }
+}
+
+function clearMatchLogs(){
+  matchLogs.length=0;
+  renderMatchLogs();
+}
 
 // ── 실시간 매칭 ──
 // isBusyRainbow: true면 조작 불가 (무지개볼 연출 중)
@@ -126,7 +245,8 @@ function getNeighbors(col,row){
 function isAdjacent(c1,r1,c2,r2){ return getNeighbors(c1,r1).some(([c,r])=>c===c2&&r===r2); }
 let gameSpeed=1; // 게임 배속 (0.5~5x)
 const SPEED_STEPS=[0.5,1,2,3,4,5];
-function delay(ms){ return new Promise(r=>setTimeout(r, skipDelay?0:Math.round(ms/gameSpeed))); }
+function delay(ms){ return new Promise(r=>setTimeout(r, Math.round(ms/gameSpeed))); }
+function skippableDelay(ms){ return new Promise(r=>setTimeout(r, skipDelay?0:Math.round(ms/gameSpeed))); }
 function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
 
 // ── 6방향 이동 ──
@@ -432,7 +552,10 @@ function hasClusterAt(col,row){
 function initBoard(){
   for(let col=0;col<COLS_PATTERN.length;col++){
     board[col]=[];
+    if(!gimmick[col]) gimmick[col]=[];
+    if(!gimmickEls[col]) gimmickEls[col]=[];
     for(let row=0;row<COLS_PATTERN[col];row++){
+      if(gimmick[col][row]){ board[col][row]=null; continue; }
       const idx=shuffle([...Array(numColors).keys()]);
       for(const c of idx){ board[col][row]=makeCell(c); if(!hasMatchAt(col,row)&&!hasClusterAt(col,row)) break; }
     }
@@ -529,7 +652,16 @@ function createBlockEl(col,row,cell){
     el.classList.add('rainbow');
     const ind=document.createElement('div'); ind.className='rainbow-indicator'; el.appendChild(ind);
   } else {
-    el.style.background=ALL_COLORS[cell.color].bg;
+    const pokeNum=skinData.slots[cell.color];
+    if(pokeNum){
+      const pokeSz=Math.round(BLOCK_D*1.1);
+      el.style.width=`${pokeSz}px`;el.style.height=`${pokeSz}px`;
+      el.style.margin=`${-(pokeSz-BLOCK_D)/2}px 0 0 ${-(pokeSz-BLOCK_D)/2}px`;
+      el.classList.add('pokemon-block');
+      applyPokemonBg(el,pokeNum,pokeSz,true);
+    } else {
+      el.style.background=ALL_COLORS[cell.color].bg;
+    }
   }
   el.style.left=`${pos.x}px`;el.style.top=`${pos.y}px`;
   if(cell.type==='stripe'){
@@ -557,9 +689,128 @@ function spawnAllBlocks(){
 }
 function clearAllBlocks(){
   const container=document.getElementById('grid-container');
-  container.querySelectorAll('.hex-block,.score-popup,.stripe-beam,.bomb-explosion,.target-projectile').forEach(e=>e.remove());
-  for(let col=0;col<COLS_PATTERN.length;col++){blockEls[col]=[];board[col]=[];}
+  container.querySelectorAll('.hex-block,.gimmick-el,.score-popup,.stripe-beam,.bomb-explosion,.target-projectile').forEach(e=>e.remove());
+  for(let col=0;col<COLS_PATTERN.length;col++){blockEls[col]=[];board[col]=[];gimmick[col]=[];gimmickEls[col]=[];}
+  totalStones=0;initialStones=0;
   dragState=null;
+}
+
+// ── 기믹 (돌) ──
+function createGimmickEl(col,row,g){
+  if(!g) return null;
+  const pos=getCellPos(col,row);
+  const el=document.createElement('div');
+  el.className='gimmick-el';
+  el.style.left=`${pos.x}px`;el.style.top=`${pos.y}px`;
+  el.style.width=`${HEX_W}px`;el.style.height=`${HEX_H}px`;
+  el.style.backgroundImage=`url(assets/gimmick/stone_${g.level}.png)`;
+  el.style.backgroundSize='contain';
+  el.style.backgroundPosition='center';
+  el.style.backgroundRepeat='no-repeat';
+  return el;
+}
+
+function placeStone(col,row,level){
+  if(!isValid(col,row)) return;
+  // 기존 블록 제거
+  if(board[col][row]){
+    board[col][row]=null;
+    if(blockEls[col][row]){blockEls[col][row].remove();blockEls[col][row]=null;}
+  }
+  // 기존 기믹 제거
+  removeGimmickEl(col,row);
+  // 배치
+  gimmick[col][row]={type:'stone',level};
+  totalStones++;
+  const container=document.getElementById('grid-container');
+  const el=createGimmickEl(col,row,gimmick[col][row]);
+  if(el){container.appendChild(el);gimmickEls[col][row]=el;}
+  updateMissionUI();
+}
+
+function removeGimmickEl(col,row){
+  if(gimmickEls[col]&&gimmickEls[col][row]){
+    gimmickEls[col][row].remove();
+    gimmickEls[col][row]=null;
+  }
+  if(gimmick[col]&&gimmick[col][row]){
+    gimmick[col][row]=null;
+  }
+}
+
+function hitStone(col,row){
+  const g=gimmick[col]?.[row];
+  if(!g||g.type!=='stone') return;
+  g.level--;
+  if(g.level<=0){
+    // 완전 제거 → 충전 가능한 빈 셀로
+    removeGimmickEl(col,row);
+    totalStones--;
+  } else {
+    // 이미지 업데이트
+    if(gimmickEls[col][row]){
+      gimmickEls[col][row].style.backgroundImage=`url(assets/gimmick/stone_${g.level}.png)`;
+      gimmickEls[col][row].classList.add('stone-hit');
+      setTimeout(()=>gimmickEls[col][row]?.classList.remove('stone-hit'),300);
+    }
+  }
+  updateMissionUI();
+}
+
+function spawnGimmicks(){
+  const container=document.getElementById('grid-container');
+  for(let col=0;col<COLS_PATTERN.length;col++){
+    if(!gimmick[col]) gimmick[col]=[];
+    if(!gimmickEls[col]) gimmickEls[col]=[];
+    for(let row=0;row<COLS_PATTERN[col];row++){
+      const g=gimmick[col][row];
+      if(!g) continue;
+      // 기믹 셀에서는 블록 제거
+      board[col][row]=null;
+      if(blockEls[col][row]){blockEls[col][row].remove();blockEls[col][row]=null;}
+      const el=createGimmickEl(col,row,g);
+      if(el){container.appendChild(el);gimmickEls[col][row]=el;}
+    }
+  }
+}
+
+function countStones(){
+  let cnt=0;
+  for(let col=0;col<COLS_PATTERN.length;col++)
+    for(let row=0;row<(gimmick[col]?.length||0);row++)
+      if(gimmick[col][row]?.type==='stone') cnt++;
+  return cnt;
+}
+
+function hasStones(){ return initialStones>0; }
+
+function getRandomStonePos(excludeSet){
+  const cands=[];
+  for(let c=0;c<COLS_PATTERN.length;c++)
+    for(let r=0;r<(gimmick[c]?.length||0);r++)
+      if(gimmick[c][r]?.type==='stone'&&(!excludeSet||!excludeSet.has(`${c},${r}`)))
+        cands.push([c,r]);
+  return cands.length?cands[Math.floor(Math.random()*cands.length)]:null;
+}
+
+// 타겟볼 타격 대상: 돌 기믹 우선, 없으면 랜덤 블록
+function getTargetBallTarget(excludeSet){
+  const stone=getRandomStonePos(excludeSet);
+  if(stone) return {pos:stone,isStone:true};
+  const block=getRandomBlockPos(excludeSet);
+  if(block) return {pos:block,isStone:false};
+  return null;
+}
+
+function updateMissionUI(){
+  const el=document.getElementById('mission-display');
+  if(!el) return;
+  if(totalStones>0){
+    el.classList.remove('hidden');
+    document.getElementById('mission-count').textContent=totalStones;
+  } else {
+    el.classList.add('hidden');
+  }
 }
 
 // ── 힌트 ──
@@ -718,6 +969,7 @@ async function activateRainbow(col,row,targetColor){
     if(blockEls[c][r]){blockEls[c][r].remove();blockEls[c][r]=null;}
   }
   isBusyRainbow=prevRainbow; // 호출자의 상태 복원
+  addMatchLog(0,'무지개볼발동',targets.length+1);
   return targets.length;
 }
 
@@ -849,10 +1101,11 @@ function computeSpecialEffect(col,row,cell){
     for(const [nc,nr] of getNeighbors(col,row))
       if(board[nc][nr]!==null) destroyed.push([nc,nr]);
   } else if(cell.type==='target'){
-    const rnd=getRandomBlockPos(null);
-    if(rnd){
-      effects.push({type:'target',fromCol:col,fromRow:row,toCol:rnd[0],toRow:rnd[1],color:cell.color});
-      destroyed.push(rnd);
+    const hit=getTargetBallTarget(null);
+    if(hit){
+      const [tc,tr]=hit.pos;
+      effects.push({type:'target',fromCol:col,fromRow:row,toCol:tc,toRow:tr,color:cell.color,isStone:hit.isStone});
+      if(!hit.isStone) destroyed.push(hit.pos);
     }
   } else if(cell.type==='rainbow'){
     const rnd=getRandomBlockPos(null);
@@ -888,7 +1141,10 @@ async function animateSpecialSteps(steps){
     for(const fx of step.effects){
       if(fx.type==='stripe') showStripeBeam(fx.col,fx.row,fx.dir);
       if(fx.type==='bomb') showBombExplosion(fx.col,fx.row);
-      if(fx.type==='target') await fireTargetProjectile(fx.fromCol,fx.fromRow,fx.toCol,fx.toRow,fx.color);
+      if(fx.type==='target'){
+        await fireTargetProjectile(fx.fromCol,fx.fromRow,fx.toCol,fx.toRow,fx.color);
+        if(fx.isStone) hitStone(fx.toCol,fx.toRow);
+      }
     }
     // 파괴 블록 DOM 제거
     for(const [dc,dr] of step.destroyed){
@@ -992,43 +1248,59 @@ async function handleCrossEffect(c1,r1,c2,r2){
     showBombExplosion(cB,rB);
     await destroyCells(getCellsInRange2(cB,rB));
   }
-  // ④ 줄볼 x 타겟볼: 랜덤 위치로 날아간 후 줄볼 효과
+  // ④ 줄볼 x 타겟볼: 타격 위치로 날아간 후 줄볼 효과
   else if(combo==='stripe+target'){
     const sCell=typeA==='stripe'?cellA:cellB;
     const tC=typeA==='target'?cA:cB, tR=typeA==='target'?rA:rB;
     await removeBoth();
-    const rnd=getRandomBlockPos(null);
-    if(rnd){
-      await fireTargetProjectile(tC,tR,rnd[0],rnd[1],sCell.color);
-      showStripeBeam(rnd[0],rnd[1],sCell.dir);
-      const lineCells=getStripeLine(rnd[0],rnd[1],sCell.dir);
-      lineCells.push(rnd);
-      await destroyCells(lineCells);
+    const hit=getTargetBallTarget(null);
+    if(hit){
+      const [rc,rr]=hit.pos;
+      await fireTargetProjectile(tC,tR,rc,rr,sCell.color);
+      if(hit.isStone){ hitStone(rc,rr); }
+      else {
+        showStripeBeam(rc,rr,sCell.dir);
+        const lineCells=getStripeLine(rc,rr,sCell.dir);
+        lineCells.push([rc,rr]);
+        await destroyCells(lineCells);
+      }
     }
   }
   // ⑤ 타겟볼 x 타겟볼: 발사체 4개 동시 발사
   else if(combo==='target+target'){
     await removeBoth();
-    const excluded=new Set(),targets=[];
-    for(let i=0;i<4;i++){const rnd=getRandomBlockPos(excluded);if(rnd){excluded.add(`${rnd[0]},${rnd[1]}`);targets.push(rnd);}}
+    const excluded=new Set(),targets=[],hitInfo=[];
+    for(let i=0;i<4;i++){
+      const hit=getTargetBallTarget(excluded);
+      if(hit){excluded.add(`${hit.pos[0]},${hit.pos[1]}`);targets.push(hit.pos);hitInfo.push(hit);}
+    }
     const promises=targets.map((t,i)=>{
       const from=i<2?[cA,rA]:[cB,rB];
       return fireTargetProjectile(from[0],from[1],t[0],t[1],cellA.color);
     });
     await Promise.all(promises);
-    await destroyCells(targets);
+    const blockTargets=[];
+    for(let i=0;i<hitInfo.length;i++){
+      if(hitInfo[i].isStone) hitStone(targets[i][0],targets[i][1]);
+      else blockTargets.push(targets[i]);
+    }
+    if(blockTargets.length>0) await destroyCells(blockTargets);
   }
-  // ⑥ 폭탄볼 x 타겟볼: 랜덤 위치로 날아간 후 폭탄 효과
+  // ⑥ 폭탄볼 x 타겟볼: 타격 위치로 날아간 후 폭탄 효과
   else if(combo==='bomb+target'){
     const tC=typeB==='target'?cB:cA, tR=typeB==='target'?rB:rA;
     await removeBoth();
-    const rnd=getRandomBlockPos(null);
-    if(rnd){
-      await fireTargetProjectile(tC,tR,rnd[0],rnd[1],cellA.color);
-      showBombExplosion(rnd[0],rnd[1]);
-      const nbrs=getNeighbors(rnd[0],rnd[1]).map(([c,r])=>[c,r]);
-      nbrs.push(rnd);
-      await destroyCells(nbrs);
+    const hit=getTargetBallTarget(null);
+    if(hit){
+      const [rc,rr]=hit.pos;
+      await fireTargetProjectile(tC,tR,rc,rr,cellA.color);
+      if(hit.isStone){ hitStone(rc,rr); }
+      else {
+        showBombExplosion(rc,rr);
+        const nbrs=getNeighbors(rc,rr).map(([c,r])=>[c,r]);
+        nbrs.push([rc,rr]);
+        await destroyCells(nbrs);
+      }
     }
   }
   // ⑦ 무지개볼 x 줄볼: 순차 탐지→변환 후 동시 발동
@@ -1147,19 +1419,22 @@ async function handleCrossEffect(c1,r1,c2,r2){
       if(el){el.classList.add('stripe-appear');container.appendChild(el);blockEls[c][r]=el;}
     }
     await delay(300);
-    // 모든 타겟볼 동시 발동: 각각 랜덤 위치로 발사
+    // 모든 타겟볼 동시 발동: 기믹 우선 타격
     const allDestroy=new Set();
     const excluded=new Set(converts.map(([c,r])=>`${c},${r}`));
+    const stoneHits=[];
     for(const [c,r] of converts){
       allDestroy.add(`${c},${r}`);
-      const rnd=getRandomBlockPos(excluded);
-      if(rnd){
-        excluded.add(`${rnd[0]},${rnd[1]}`);
-        allDestroy.add(`${rnd[0]},${rnd[1]}`);
-        fireTargetProjectile(c,r,rnd[0],rnd[1],targetColor);
+      const hit=getTargetBallTarget(excluded);
+      if(hit){
+        excluded.add(`${hit.pos[0]},${hit.pos[1]}`);
+        if(hit.isStone){ stoneHits.push(hit.pos); }
+        else { allDestroy.add(`${hit.pos[0]},${hit.pos[1]}`); }
+        fireTargetProjectile(c,r,hit.pos[0],hit.pos[1],targetColor);
       }
     }
     await delay(350);
+    for(const [sc,sr] of stoneHits) hitStone(sc,sr);
     for(const [c,r] of converts){
       board[c][r]=null;
       if(blockEls[c][r]) blockEls[c][r].classList.add('matched');
@@ -1171,6 +1446,15 @@ async function handleCrossEffect(c1,r1,c2,r2){
     score+=converts.length*100;updateScoreUI();
     await destroyCells([...allDestroy].map(k=>k.split(',').map(Number)));
   }
+  // 교차효과 로그
+  const crossLabel={
+    'stripe+stripe':'줄볼x줄볼','bomb+stripe':'폭탄x줄볼','bomb+bomb':'폭탄x폭탄',
+    'stripe+target':'줄볼x타겟','target+target':'타겟x타겟','bomb+target':'폭탄x타겟',
+    'rainbow+stripe':'무지개x줄볼','rainbow+bomb':'무지개x폭탄',
+    'rainbow+rainbow':'무지개x무지개','rainbow+target':'무지개x타겟',
+  };
+  addMatchLog(0,crossLabel[combo]||combo,-1);
+
   if(hasRainbow) isBusyRainbow=false;
 }
 
@@ -1195,6 +1479,9 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
     [...actStripes,...actBombs,...actTargets,...actRainbows].map(s=>`${s.col},${s.row}`)
   );
 
+  // 돌 기믹 타격 추적
+  const hitStones=new Set();
+
   // 발동 큐
   const stripeQueue=[...actStripes], bombQueue=[...actBombs];
 
@@ -1206,6 +1493,8 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
       const s=stripeQueue.shift();
       showStripeBeam(s.col,s.row,s.dir);
       for(const [sc,sr] of getStripeLine(s.col,s.row,s.dir)){
+        // 돌 기믹 직접 타격
+        if(gimmick[sc]?.[sr]?.type==='stone'){ const sk=`${sc},${sr}`; if(!hitStones.has(sk)){hitStones.add(sk);hitStone(sc,sr);} continue; }
         if(board[sc][sr]===null) continue;
         const k=`${sc},${sr}`;
         if(!extraCells.has(k)){extraCells.add(k);changed=true;}
@@ -1225,6 +1514,8 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
       const b=bombQueue.shift();
       showBombExplosion(b.col,b.row);
       for(const [nc,nr] of getNeighbors(b.col,b.row)){
+        // 돌 기믹 직접 타격
+        if(gimmick[nc]?.[nr]?.type==='stone'){ const sk=`${nc},${nr}`; if(!hitStones.has(sk)){hitStones.add(sk);hitStone(nc,nr);} continue; }
         if(board[nc][nr]===null) continue;
         const k=`${nc},${nr}`;
         if(!extraCells.has(k)){extraCells.add(k);changed=true;}
@@ -1266,6 +1557,16 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
 
   const allCells=[...allCellSet].map(k=>k.split(',').map(Number));
 
+  // 4b) 돌 기믹 타격 — 매치 셀에 인접한 돌만 타격 (특수효과 범위 제외)
+  for(const [c,r] of curCells){
+    for(const [nc,nr] of getNeighbors(c,r)){
+      if(gimmick[nc]?.[nr]?.type==='stone'){
+        const sk=`${nc},${nr}`;
+        if(!hitStones.has(sk)){ hitStones.add(sk); hitStone(nc,nr); }
+      }
+    }
+  }
+
   // 5) 점수
   let turnScore=0;
   for(const line of curLines) turnScore+=calcLineScore(line.length);
@@ -1273,6 +1574,14 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
   const comboBonus=calcComboBonus(combo);
   turnScore+=comboBonus;
   score+=turnScore;updateScoreUI();
+
+  // 매치 로그
+  const logTypes=[];
+  if(actStripes.length) logTypes.push('줄볼발동');
+  if(actTargets.length) logTypes.push('타겟볼발동');
+  if(actBombs.length) logTypes.push('폭탄볼발동');
+  if(actRainbows.length) logTypes.push('무지개볼발동');
+  addMatchLog(combo,logTypes.length?logTypes.join('+'):'일반매치',allCells.length);
 
   const avgX=allCells.reduce((s,[c,r])=>s+cellPos[c][r].x,0)/allCells.length;
   const avgY=allCells.reduce((s,[c,r])=>s+cellPos[c][r].y,0)/allCells.length;
@@ -1325,17 +1634,23 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
     if(blockEls[c][r]){blockEls[c][r].remove();blockEls[c][r]=null;}
   }
 
-  // 6c) 타겟볼 발동
+  // 6c) 타겟볼 발동 (돌 기믹 우선 타격)
   if(actTargets.length>0){
+    const targetExclude=new Set(allCellSet);
     for(const t of actTargets){
-      const rnd=getRandomBlockPos(allCellSet);if(!rnd) continue;
-      const [rc,rr]=rnd;
+      const hit=getTargetBallTarget(targetExclude);if(!hit) continue;
+      const [rc,rr]=hit.pos;
+      targetExclude.add(`${rc},${rr}`);
       await fireTargetProjectile(t.col,t.row,rc,rr,t.color);
-      if(blockEls[rc][rr]) blockEls[rc][rr].classList.add('matched');
-      board[rc][rr]=null;
-      score+=100;updateScoreUI();
-      await delay(CFG.specialActivateDelay);
-      if(blockEls[rc][rr]){blockEls[rc][rr].remove();blockEls[rc][rr]=null;}
+      if(hit.isStone){
+        hitStone(rc,rr);
+      } else {
+        if(blockEls[rc][rr]) blockEls[rc][rr].classList.add('matched');
+        board[rc][rr]=null;
+        score+=100;updateScoreUI();
+        await delay(CFG.specialActivateDelay);
+        if(blockEls[rc][rr]){blockEls[rc][rr].remove();blockEls[rc][rr]=null;}
+      }
     }
   }
 }
@@ -1386,7 +1701,7 @@ async function animateSwap(c1,r1,c2,r2){
   el1.style.zIndex='3';el2.style.zIndex='3';
   el1.style.left=`${p2.x}px`;el1.style.top=`${p2.y}px`;
   el2.style.left=`${p1.x}px`;el2.style.top=`${p1.y}px`;
-  await delay(220);
+  await skippableDelay(220);
   el1.style.zIndex='';el2.style.zIndex='';
   el1.style.transition='';el2.style.transition='';
   el1.dataset.col=c2;el1.dataset.row=r2;
@@ -1401,6 +1716,8 @@ function computeGravity(){
   for(let col=0;col<COLS_PATTERN.length;col++){
     let wr=COLS_PATTERN[col]-1;
     for(let row=COLS_PATTERN[col]-1;row>=0;row--){
+      // 기믹 셀은 건너뜀 (블록이 통과 불가)
+      if(gimmick[col]?.[row]) { wr=row-1; continue; }
       if(board[col][row]!==null){
         if(row!==wr){
           board[col][wr]=board[col][row];board[col][row]=null;
@@ -1424,25 +1741,144 @@ async function animateGravity(moves){
       el.style.transition=`top ${CFG.gravityTransition/gameSpeed}s ease-in`;el.style.top=`${pos.y}px`;
     }
   }
-  if(moves.length>0) await delay(CFG.gravityDelay);
+  if(moves.length>0) await skippableDelay(CFG.gravityDelay);
+  refreshBlockElsCoordinates();
+}
+
+// 대각선 충전 — 기믹 아래 빈 셀을 대각선 위 블록으로 채움
+function computeDiagonalFill(){
+  const moves=[];
+  let changed=true;
+  while(changed){
+    changed=false;
+    for(let col=0;col<COLS_PATTERN.length;col++){
+      for(let row=0;row<COLS_PATTERN[col];row++){
+        if(board[col][row]!==null||gimmick[col]?.[row]) continue;
+        // 이 셀 위에 기믹이 있어서 수직 낙하가 차단되는지 체크
+        let blockedAbove=false;
+        for(let r=row-1;r>=0;r--){
+          if(gimmick[col]?.[r]){blockedAbove=true;break;}
+          if(board[col][r]!==null) break; // 위에 블록이 있으면 수직 낙하로 채워질 것
+        }
+        if(!blockedAbove) continue;
+        // 대각선 소스: 좌상단(nw) 우선, 우상단(ne) 차선
+        const long=isLongCol(col);
+        const diagSources=long
+          ?[[col-1,row-1],[col+1,row-1]] // long col: nw, ne
+          :[[col-1,row],[col+1,row]];     // short col: nw, ne
+        for(const [sc,sr] of diagSources){
+          if(!isValid(sc,sr)) continue;
+          if(board[sc][sr]===null||gimmick[sc]?.[sr]) continue;
+          // 이동
+          board[col][row]=board[sc][sr];board[sc][sr]=null;
+          moves.push({col:sc,fromRow:sr,toCol:col,toRow:row});
+          changed=true;
+          break; // 왼쪽 우선
+        }
+      }
+    }
+  }
+  return moves;
+}
+
+async function animateDiagonalFill(moves){
+  for(const {col,fromRow,toCol,toRow} of moves){
+    blockEls[toCol][toRow]=blockEls[col][fromRow];blockEls[col][fromRow]=null;
+    const el=blockEls[toCol][toRow];
+    if(el){
+      el.dataset.col=toCol;el.dataset.row=toRow;
+      const pos=getBlockPos(toCol,toRow);
+      el.style.transition=`left ${CFG.gravityTransition/gameSpeed}s ease-in,top ${CFG.gravityTransition/gameSpeed}s ease-in`;
+      el.style.left=`${pos.x}px`;el.style.top=`${pos.y}px`;
+    }
+  }
+  if(moves.length>0) await skippableDelay(CFG.gravityDelay);
   refreshBlockElsCoordinates();
 }
 
 // 기존 호환 래퍼
 async function applyGravity(){
-  const moves=computeGravity();
-  await animateGravity(moves);
+  for(let i=0;i<30;i++){
+    const moves=computeGravity();
+    const diagMoves=computeDiagonalFill();
+    if(moves.length===0&&diagMoves.length===0) break;
+    // 낙하 + 대각 애니메이션 동시 시작
+    animateGravityDOM(moves);
+    animateDiagonalDOM(diagMoves);
+    await skippableDelay(CFG.gravityDelay);
+    refreshBlockElsCoordinates();
+  }
+}
+
+// 낙하 + 대각 + 상단 충전을 동시에
+async function fillEmpty(){
+  const fills=computeFill();
+  if(fills.length===0) return;
+  animateFillDOM(fills);
+  await skippableDelay(CFG.fillDelay);
+  refreshBlockElsCoordinates();
+}
+
+// 애니메이션 DOM 조작만 (await 없음)
+function animateGravityDOM(moves){
+  const t=CFG.gravityTransition/gameSpeed;
+  for(const {col,fromRow,toRow} of moves){
+    blockEls[col][toRow]=blockEls[col][fromRow];blockEls[col][fromRow]=null;
+    const el=blockEls[col][toRow];
+    if(el){
+      el.dataset.row=toRow;
+      const pos=getBlockPos(col,toRow);
+      el.style.transition=`top ${t}s ease-in`;el.style.top=`${pos.y}px`;
+    }
+  }
+}
+function animateDiagonalDOM(moves){
+  const t=CFG.gravityTransition/gameSpeed;
+  for(const {col,fromRow,toCol,toRow} of moves){
+    blockEls[toCol][toRow]=blockEls[col][fromRow];blockEls[col][fromRow]=null;
+    const el=blockEls[toCol][toRow];
+    if(el){
+      el.dataset.col=toCol;el.dataset.row=toRow;
+      const pos=getBlockPos(toCol,toRow);
+      el.style.transition=`left ${t}s ease-in,top ${t}s ease-in`;
+      el.style.left=`${pos.x}px`;el.style.top=`${pos.y}px`;
+    }
+  }
+}
+function animateFillDOM(fills){
+  const container=document.getElementById('grid-container');
+  for(const {col,row,emptyCount} of fills){
+    const pos=getBlockPos(col,row);
+    const el=createBlockEl(col,row,board[col][row]);
+    if(el){
+      el.style.top=`${pos.y-emptyCount*ROW_SPACING}px`;el.style.transition='none';
+      container.appendChild(el);blockEls[col][row]=el;
+      el.offsetHeight;
+      el.style.transition=`top ${CFG.fillTransition/gameSpeed}s ease-in`;el.style.top=`${pos.y}px`;
+    }else{
+      blockEls[col][row]=null;
+    }
+  }
 }
 
 // ── 충전 로직 (순수, DOM 무관) ──
-// board 배열에 새 블록 배치, 충전 정보 반환
+// 위쪽에 기믹이 있으면 수직 충전 불가 (대각선 충전으로만 채움)
+function canFillFromTop(col,row){
+  for(let r=row-1;r>=0;r--){
+    if(gimmick[col]?.[r]) return false;
+  }
+  return true;
+}
+
 function computeFill(){
   const fills=[];
   for(let col=0;col<COLS_PATTERN.length;col++){
     let emptyCount=0;
-    for(let r=0;r<COLS_PATTERN[col];r++) if(board[col][r]===null) emptyCount++;
+    for(let r=0;r<COLS_PATTERN[col];r++){
+      if(board[col][r]===null&&!(gimmick[col]?.[r])&&canFillFromTop(col,r)) emptyCount++;
+    }
     for(let row=0;row<COLS_PATTERN[col];row++){
-      if(board[col][row]===null){
+      if(board[col][row]===null&&!(gimmick[col]?.[row])&&canFillFromTop(col,row)){
         const ci=Math.floor(Math.random()*numColors);
         board[col][row]=makeCell(ci);
         fills.push({col,row,color:ci,emptyCount});
@@ -1457,7 +1893,6 @@ async function animateFill(fills){
   const container=document.getElementById('grid-container');
   for(const {col,row,emptyCount} of fills){
     const pos=getBlockPos(col,row);
-    // board[col][row]는 이미 computeFill에서 설정됨 — 해당 cell 사용
     const el=createBlockEl(col,row,board[col][row]);
     if(el){
       el.style.top=`${pos.y-emptyCount*ROW_SPACING}px`;el.style.transition='none';
@@ -1469,16 +1904,11 @@ async function animateFill(fills){
     }
   }
   if(fills.length>0){
-    await delay(CFG.fillDelay);
+    await skippableDelay(CFG.fillDelay);
     refreshBlockElsCoordinates();
   }
 }
 
-// 기존 호환 래퍼
-async function fillEmpty(){
-  const fills=computeFill();
-  await animateFill(fills);
-}
 
 function refreshBlockElsCoordinates(){
   for(let col=0;col<COLS_PATTERN.length;col++){
@@ -1527,8 +1957,7 @@ async function processPendingMatches(){
   while(cells.length>0||clusters.length>0){
     combo++;
     await processMatchStep(lines,cells,clusters,false,-1,-1,-1,-1,null,combo);
-    await applyGravity();
-    await fillEmpty();
+    await applyGravity();await fillEmpty();
     const next = findAllMatches();
     lines=next.lines; cells=next.cells; clusters=next.clusters;
   }
@@ -1537,10 +1966,19 @@ async function processPendingMatches(){
 
 // ── 게임 종료 ──
 function checkGameEnd(){
-  if(score>=TARGET_SCORE){playing=false;setTimeout(()=>showEndScreen(true),400);}
-  else if(movesLeft<=0){playing=false;setTimeout(()=>showEndScreen(false),400);}
+  if(!playing) return;
+  // 돌 기믹이 있으면 돌 전부 제거가 클리어 조건
+  if(hasStones()){
+    if(totalStones<=0){playing=false;setTimeout(()=>showEndScreen(true),400);}
+    else if(movesLeft<=0){playing=false;setTimeout(()=>showEndScreen(false),400);}
+  } else {
+    if(score>=stageTarget){playing=false;setTimeout(()=>showEndScreen(true),400);}
+    else if(movesLeft<=0){playing=false;setTimeout(()=>showEndScreen(false),400);}
+  }
 }
+let lastCleared=false;
 function showEndScreen(cleared){
+  lastCleared=cleared;
   const o=document.getElementById('end-overlay');
   const icon=document.getElementById('end-icon');
   const title=document.getElementById('end-title');
@@ -1548,10 +1986,19 @@ function showEndScreen(cleared){
   const det=document.getElementById('end-detail');
   if(cleared){
     icon.textContent='\uD83C\uDF89';title.textContent='\uD074\uB9AC\uC5B4!';title.className='clear';
-    det.textContent=`\uBAA9\uD45C ${TARGET_SCORE.toLocaleString()}\uC810 \uB2EC\uC131!`;
+    det.textContent=initialStones>0
+      ?`Stage ${currentStage} \uD074\uB9AC\uC5B4! \uB3CC \uC804\uBD80 \uC81C\uAC70!`
+      :`Stage ${currentStage} \uD074\uB9AC\uC5B4! \uBAA9\uD45C ${stageTarget.toLocaleString()}\uC810 \uB2EC\uC131!`;
+    // 다음 스테이지 해금
+    if(currentStage<STAGES.length){
+      currentStage++;
+      localStorage.setItem('hexPuzzleStage',currentStage);
+    }
   }else{
     icon.textContent='\uD83D\uDE22';title.textContent='\uC2E4\uD328...';title.className='fail';
-    det.textContent=`\uBAA9\uD45C ${TARGET_SCORE.toLocaleString()}\uC810 / \uB0A8\uC740 Move 0`;
+    det.textContent=initialStones>0
+      ?`\uB0A8\uC740 \uB3CC ${totalStones}\uAC1C / Move \uC18C\uC9C4`
+      :`\uBAA9\uD45C ${stageTarget.toLocaleString()}\uC810 / \uB0B4 \uC810\uC218 ${score.toLocaleString()}\uC810`;
   }
   sc.textContent=`${score.toLocaleString()}\uC810`;
 
@@ -1567,6 +2014,8 @@ function showEndScreen(cleared){
     newRec.classList.add('hidden');
   }
 
+  // 버튼 텍스트 변경
+  document.getElementById('restart-btn').textContent='\uB85C\uBE44\uB85C \uB3CC\uC544\uAC00\uAE30';
   o.classList.remove('hidden');
 }
 function hideEndScreen(){document.getElementById('end-overlay').classList.add('hidden');}
@@ -1582,6 +2031,8 @@ function resetToStart(){
   clearAllBlocks();
   document.getElementById('info-bar').classList.add('hidden');
   document.getElementById('settings-bar').classList.remove('hidden');
+  showScreen('lobby-screen');
+  updateLobbyStage();
 }
 
 // ── UI 셋업 ──
@@ -1650,8 +2101,7 @@ async function removeBlockAt(col, row) {
   // 충전: 빈 칸 채우기 + 매치 처리
   busy = true; isBusyNormal=true;
   clearHint();
-  await applyGravity();
-  await fillEmpty();
+  await applyGravity();await fillEmpty();
   await processPendingMatches();
   updateHoveredCellFromMouse();
   busy = false; isBusyNormal=false;
@@ -1723,24 +2173,77 @@ function setupDevMode(){
     speedLabel.textContent=gameSpeed+'x';
   });
 
+  // 배치 모드 전체 해제
+  let debugGimmickType=null; // null | {type:'stone',level:N} | {type:'clear'}
+  function clearAllDebugModes(){
+    debugPlaceType=null;
+    debugGimmickType=null;
+    document.querySelectorAll('.debug-btn[data-type],.gimmick-btn,#gimmick-clear-btn').forEach(b=>b.classList.remove('active'));
+  }
+
   // 특수블록 배치 버튼
-  document.querySelectorAll('.debug-btn').forEach(btn=>{
+  document.querySelectorAll('.debug-btn[data-type]').forEach(btn=>{
     btn.addEventListener('click',()=>{
       const type=btn.dataset.type;
       if(debugPlaceType===type){
-        debugPlaceType=null;
-        btn.classList.remove('active');
-        btn.textContent=btn.textContent.replace(' \u2705','');
-      }else{
+        clearAllDebugModes();
+      } else {
+        clearAllDebugModes();
         debugPlaceType=type;
-        document.querySelectorAll('.debug-btn').forEach(b=>{
-          b.classList.remove('active');
-          b.textContent=b.textContent.replace(' \u2705','');
-        });
         btn.classList.add('active');
-        btn.textContent=btn.textContent.replace(' \u2705','')+' \u2705';
       }
     });
+  });
+
+  // 기믹 배치 버튼
+  document.querySelectorAll('.gimmick-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const type=btn.dataset.gimmick;
+      const level=parseInt(btn.dataset.level);
+      const key=`${type}_${level}`;
+      if(debugGimmickType&&`${debugGimmickType.type}_${debugGimmickType.level}`===key){
+        clearAllDebugModes();
+      } else {
+        clearAllDebugModes();
+        debugGimmickType={type,level};
+        btn.classList.add('active');
+      }
+    });
+  });
+  document.getElementById('gimmick-clear-btn').addEventListener('click',()=>{
+    if(debugGimmickType?.type==='clear'){
+      clearAllDebugModes();
+    } else {
+      clearAllDebugModes();
+      debugGimmickType={type:'clear'};
+      document.getElementById('gimmick-clear-btn').classList.add('active');
+    }
+  });
+
+  // 셀 클릭 시 기믹 배치 처리
+  document.getElementById('grid-container').addEventListener('click',(e)=>{
+    if(!debugGimmickType||!devUnlocked) return;
+    const rect=document.getElementById('grid-container').getBoundingClientRect();
+    const scale=rect.width/((COLS_PATTERN.length-1)*COL_SPACING+HEX_W);
+    const mx=(e.clientX-rect.left)/scale, my=(e.clientY-rect.top)/scale;
+    let bestCol=-1,bestRow=-1,bestDist=Infinity;
+    for(let c=0;c<COLS_PATTERN.length;c++){
+      for(let r=0;r<COLS_PATTERN[c];r++){
+        const p=cellPos[c][r];
+        const cx=p.x+HEX_W/2, cy=p.y+HEX_H/2;
+        const d=(mx-cx)**2+(my-cy)**2;
+        if(d<bestDist){bestDist=d;bestCol=c;bestRow=r;}
+      }
+    }
+    if(bestCol<0) return;
+    if(debugGimmickType.type==='clear'){
+      removeGimmickEl(bestCol,bestRow);
+      totalStones=countStones();initialStones=totalStones;
+      updateMissionUI();
+    } else {
+      placeStone(bestCol,bestRow,debugGimmickType.level);
+      initialStones=countStones();
+    }
   });
 
   // 좌표 보기 토글
@@ -1769,6 +2272,25 @@ function setupDevMode(){
       }
     }
   });
+
+  // 스테이지 이동 치트
+  const stageInput=document.getElementById('dev-stage-input');
+  const stageMsg=document.getElementById('dev-stage-msg');
+  document.getElementById('dev-stage-go').addEventListener('click',()=>{
+    const num=parseInt(stageInput.value);
+    if(isNaN(num)||num<1||num>STAGES.length){
+      stageMsg.textContent=`1~${STAGES.length} 사이 숫자를 입력하세요`;
+      stageMsg.classList.remove('hidden');
+      return;
+    }
+    stageMsg.classList.add('hidden');
+    currentStage=num;
+    localStorage.setItem('hexPuzzleStage',currentStage);
+    resetToStart();
+  });
+
+  // 매치 로그 지우기
+  document.getElementById('dev-log-clear').addEventListener('click',clearMatchLogs);
 
   // 인스펙터 생성
   buildInspector();
@@ -1842,13 +2364,38 @@ function buildInspector(){
 }
 
 function startGame(){
-  playing=true;score=0;movesLeft=maxMoves;
+  // 상태 완전 초기화 (스테이지 건너뛰기 방지)
+  playing=false;busy=false;isBusyRainbow=false;isBusyNormal=false;
+  dragState=null;animQueue.length=0;animRunning=false;skipDelay=false;
+  score=0;
+  clearHint();clearAllBlocks();
+
+  // 스테이지 데이터 적용
+  const sd=STAGES[currentStage-1]||STAGES[STAGES.length-1];
+  stageTarget=sd.target;
+  maxMoves=sd.moves;
+  movesLeft=maxMoves;
+  numColors=sd.colorTypes;
+
+  // 스테이지 맵 기믹 적용
+  applyStageGimmicks(currentStage);
+
+  // UI 갱신 후 게임 시작
   document.getElementById('settings-bar').classList.add('hidden');
   document.getElementById('info-bar').classList.remove('hidden');
   updateScoreUI();updateMovesUI();
-  document.getElementById('target-value').textContent=TARGET_SCORE.toLocaleString();
-  clearAllBlocks();initBoard();spawnAllBlocks();
+  document.getElementById('target-value').textContent=stageTarget.toLocaleString();
+  initBoard();spawnAllBlocks();spawnGimmicks();
+  totalStones=countStones();
+  initialStones=totalStones;
   refreshBlockElsCoordinates();
+  updateMissionUI();
+
+  // 매치 로그 초기화
+  clearMatchLogs();
+
+  // 모든 초기화 완료 후 playing 활성화
+  playing=true;
   startHintTimer();
 }
 
@@ -1874,11 +2421,157 @@ function resizeGrid(){
   wrapper.style.minHeight=`${totalH*scale}px`;
 }
 
+// ── 화면 전환 ──
+function showScreen(id){
+  ['main-screen','lobby-screen','skin-screen','game-container'].forEach(s=>{
+    document.getElementById(s).classList.add('hidden');
+  });
+  document.getElementById(id).classList.remove('hidden');
+  if(id==='game-container') resizeGrid();
+}
+
+function updateLobbyStage(){
+  const stageBtn=document.getElementById('lobby-stage-btn');
+  const numEl=document.getElementById('lobby-stage-num');
+  const infoEl=document.getElementById('lobby-stage-info');
+  if(currentStage>STAGES.length){
+    // 올클리어
+    stageBtn.style.display='none';
+    infoEl.style.display='none';
+    let allClear=document.querySelector('.lobby-all-clear');
+    if(!allClear){
+      allClear=document.createElement('div');
+      allClear.className='lobby-all-clear';
+      allClear.textContent='ALL STAGE CLEAR!';
+      stageBtn.parentNode.insertBefore(allClear,stageBtn);
+    }
+  } else {
+    stageBtn.style.display='';
+    infoEl.style.display='';
+    const sd=STAGES[currentStage-1];
+    numEl.textContent=currentStage;
+    document.getElementById('lobby-stage-target').textContent=`목표 ${sd.target.toLocaleString()}점`;
+    document.getElementById('lobby-stage-moves').textContent=`Move ${sd.moves}`;
+  }
+}
+
+function setupScreenNav(){
+  // 메인 → 로비
+  document.getElementById('main-start-btn').addEventListener('click',()=>{
+    showScreen('lobby-screen');
+    updateLobbyStage();
+  });
+  // 로비 하단 버튼
+  document.querySelectorAll('.lobby-menu-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const target=btn.dataset.target;
+      if(target==='skin'){
+        showScreen('skin-screen');
+        renderSkinScreen();
+      } else {
+        document.getElementById('coming-soon-overlay').classList.remove('hidden');
+      }
+    });
+  });
+  // "준비 중" 팝업 닫기
+  document.getElementById('coming-soon-ok').addEventListener('click',()=>{
+    document.getElementById('coming-soon-overlay').classList.add('hidden');
+  });
+  // 스테이지 버튼 → 게임 시작
+  document.getElementById('lobby-stage-btn').addEventListener('click',()=>{
+    if(currentStage>STAGES.length) return;
+    showScreen('game-container');
+    if(!playing) startGame();
+  });
+}
+
+// ── 스킨 화면 ──
+let skinEditingSlot=-1; // -1: 슬롯 미선택
+
+function renderSkinScreen(){
+  skinData=loadSkinData();
+  renderSkinSlots();
+  skinEditingSlot=-1;
+  document.getElementById('skin-collection-area').classList.add('hidden');
+}
+
+function renderSkinSlots(){
+  const container=document.getElementById('skin-slots');
+  container.innerHTML='';
+  skinData.slots.forEach((pokeNum,i)=>{
+    const slot=document.createElement('div');
+    slot.className='skin-slot'+(skinEditingSlot===i?' selected':'');
+    applyPokemonBg(slot,pokeNum,56);
+    const num=document.createElement('div');
+    num.className='skin-slot-num';
+    num.textContent=i+1;
+    slot.appendChild(num);
+    slot.addEventListener('click',()=>{
+      skinEditingSlot=i;
+      renderSkinSlots();
+      renderSkinCollection();
+      document.getElementById('skin-collection-area').classList.remove('hidden');
+      document.getElementById('skin-editing-slot').textContent=i+1;
+    });
+    container.appendChild(slot);
+  });
+}
+
+function renderSkinCollection(){
+  const container=document.getElementById('skin-collection');
+  container.innerHTML='';
+  const equippedSet=new Set(skinData.slots);
+  for(let n=1;n<=151;n++){
+    const item=document.createElement('div');
+    const unlocked=skinData.unlocked.includes(n);
+    const equipped=equippedSet.has(n);
+    item.className='skin-item'+(unlocked?'':' locked')+(equipped?' equipped':'');
+    if(unlocked){
+      applyPokemonBg(item,n,48);
+    } else {
+      applyPokemonBg(item,n,48);
+      const lock=document.createElement('div');
+      lock.className='skin-item-lock';
+      lock.textContent='\uD83D\uDD12';
+      item.appendChild(lock);
+    }
+    const numLabel=document.createElement('div');
+    numLabel.className='skin-item-num';
+    numLabel.textContent=`#${n}`;
+    item.appendChild(numLabel);
+    if(unlocked){
+      item.addEventListener('click',()=>{
+        // 이미 다른 슬롯에 장착된 경우 스왑
+        const otherSlot=skinData.slots.indexOf(n);
+        if(otherSlot!==-1&&otherSlot!==skinEditingSlot){
+          skinData.slots[otherSlot]=skinData.slots[skinEditingSlot];
+        }
+        skinData.slots[skinEditingSlot]=n;
+        saveSkinData(skinData.unlocked,skinData.slots);
+        renderSkinSlots();
+        renderSkinCollection();
+      });
+    }
+    container.appendChild(item);
+  }
+}
+
+function setupSkinScreen(){
+  document.getElementById('skin-back-btn').addEventListener('click',()=>{
+    showScreen('lobby-screen');
+  });
+}
+
 // ── 시작 ──
-createCells();
-setupUI();
-setupDevMode();
-updateTheme();
-updateHighScoreUI();
-resizeGrid();
-window.addEventListener('resize',resizeGrid);
+(async()=>{
+  await loadStageMaps();
+  createCells();
+  setupUI();
+  setupDevMode();
+  setupScreenNav();
+  setupSkinScreen();
+  updateTheme();
+  updateHighScoreUI();
+  resizeGrid();
+  window.addEventListener('resize',resizeGrid);
+})();

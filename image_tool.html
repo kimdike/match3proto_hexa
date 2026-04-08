@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>헥사 셀 이미지 편집 툴</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#1a1a2e; color:#e0e0e0;
+  font-family:'Segoe UI',sans-serif;
+  display:flex; flex-direction:column; align-items:center;
+  min-height:100vh; padding:24px;
+}
+h1 { font-size:20px; margin-bottom:4px; color:#7c6fff; }
+.subtitle { font-size:12px; color:#666; margin-bottom:20px; }
+
+/* 레이아웃 */
+.main { display:flex; gap:32px; align-items:flex-start; flex-wrap:wrap; justify-content:center; }
+.preview-area { display:flex; flex-direction:column; align-items:center; gap:16px; }
+.controls { width:320px; display:flex; flex-direction:column; gap:12px; }
+
+/* 업로드 */
+.upload-zone {
+  width:260px; padding:24px; border:2px dashed #444; border-radius:12px;
+  text-align:center; cursor:pointer; transition:border-color 0.2s;
+}
+.upload-zone:hover { border-color:#7c6fff; }
+.upload-zone.dragover { border-color:#7c6fff; background:#252550; }
+.upload-zone-icon { font-size:28px; margin-bottom:6px; }
+.upload-zone-text { font-size:13px; color:#888; }
+.upload-zone-hint { font-size:11px; color:#555; margin-top:4px; }
+.file-info { font-size:11px; color:#7c6fff; margin-top:6px; text-align:center; }
+
+/* 프리뷰 컨테이너 */
+.preview-container {
+  position:relative; display:flex; align-items:center; justify-content:center;
+}
+.preview-scale-label { font-size:11px; color:#666; margin-top:4px; }
+
+/* 헥사 셀 배경 (게임과 동일) */
+.hex-cell-preview {
+  position:relative;
+  clip-path:polygon(25% 0%,75% 0%,100% 50%,75% 100%,25% 100%,0% 50%);
+  background:#333350;
+}
+.hex-cell-preview::after {
+  content:''; position:absolute; inset:2px;
+  clip-path:polygon(25% 0%,75% 0%,100% 50%,75% 100%,25% 100%,0% 50%);
+  background:#252540;
+}
+
+/*
+  기믹 오버레이 — game.js의 createGimmickEl과 완전 동일한 렌더링:
+  position:absolute, width:HEX_W, height:HEX_H,
+  background-image, background-size:contain, background-position:center,
+  clip-path: 헥사곤
+*/
+.gimmick-overlay {
+  position:absolute; top:0; left:0;
+  width:100%; height:100%;
+  clip-path:polygon(25% 0%,75% 0%,100% 50%,75% 100%,25% 100%,0% 50%);
+  z-index:2;
+  background-size:contain;
+  background-position:center;
+  background-repeat:no-repeat;
+}
+.no-image-msg {
+  font-size:12px; color:#666; text-align:center; line-height:1.4;
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+}
+
+/* 프리셋 */
+.preset-row { display:flex; gap:6px; flex-wrap:wrap; }
+.preset-btn {
+  padding:5px 10px; background:#2a2a3e; border:1px solid #444; border-radius:6px;
+  color:#e0e0e0; cursor:pointer; font-size:12px;
+}
+.preset-btn:hover { background:#3a3a5e; }
+.preset-btn.active { border-color:#7c6fff; background:#3a3a6e; }
+
+/* 슬라이더 그룹 */
+.ctrl-group {
+  background:#252540; border-radius:8px; padding:12px;
+}
+.ctrl-group label {
+  display:flex; justify-content:space-between; align-items:center;
+  font-size:13px; margin-bottom:6px;
+}
+.ctrl-group label span.val { color:#7c6fff; font-weight:600; font-variant-numeric:tabular-nums; }
+input[type=range] {
+  width:100%; accent-color:#7c6fff; cursor:pointer;
+}
+
+/* 버튼들 */
+.btn-row { display:flex; gap:8px; flex-wrap:wrap; }
+.action-btn {
+  padding:10px 20px; border:none; border-radius:8px;
+  cursor:pointer; font-size:13px; font-weight:600; transition:background 0.15s;
+}
+.download-btn { background:#4caf50; color:#fff; flex:1; }
+.download-btn:hover { background:#43a047; }
+.download-btn:disabled { background:#333; color:#666; cursor:not-allowed; }
+.reset-btn {
+  padding:10px 14px; background:#2a2a3e; border:1px solid #444; border-radius:8px;
+  color:#e0e0e0; cursor:pointer; font-size:13px;
+}
+.reset-btn:hover { background:#3a3a5e; }
+
+/* 파일명 입력 */
+.filename-group {
+  background:#252540; border-radius:8px; padding:12px;
+}
+.filename-group label { font-size:13px; margin-bottom:6px; display:block; }
+.filename-input {
+  width:100%; padding:8px 10px; background:#1a1a2e; border:1px solid #444;
+  border-radius:6px; color:#e0e0e0; font-size:13px; font-family:inherit;
+}
+.filename-input:focus { outline:none; border-color:#7c6fff; }
+
+/* 미니 그리드 */
+.mini-grid-section { margin-top:20px; width:100%; max-width:700px; }
+.mini-grid-title { font-size:14px; margin-bottom:8px; color:#888; }
+.mini-grid {
+  position:relative; background:#1e1e3a; border-radius:12px; padding:20px;
+  overflow:hidden;
+}
+
+/* 출력 정보 */
+.output-info {
+  background:#0d0d1a; border:1px solid #3a3a6e; border-radius:8px;
+  padding:12px; font-family:'Consolas','Courier New',monospace;
+  font-size:11px; line-height:1.5; color:#888;
+}
+
+.section-label { font-size:12px; color:#888; margin-bottom:6px; }
+
+#export-canvas { display:none; }
+</style>
+</head>
+<body>
+
+<h1>헥사 셀 이미지 편집 툴</h1>
+<div class="subtitle">원본 이미지를 업로드 → 헥사 셀에 맞게 조정 → PNG 다운로드 → assets 폴더에 넣기</div>
+
+<div class="main">
+  <!-- 왼쪽: 프리뷰 -->
+  <div class="preview-area">
+    <div class="upload-zone" id="upload-zone">
+      <input type="file" id="file-input" accept="image/*" hidden>
+      <div class="upload-zone-icon">+</div>
+      <div class="upload-zone-text">이미지를 드래그하거나 클릭하여 업로드</div>
+      <div class="upload-zone-hint">PNG, JPG, SVG 등</div>
+    </div>
+    <div class="file-info" id="file-info"></div>
+
+    <!-- 확대 프리뷰: 게임과 동일한 렌더링 -->
+    <div class="preview-container" id="preview-container">
+      <div class="hex-cell-preview" id="hex-cell"></div>
+      <div class="gimmick-overlay" id="gimmick-overlay">
+        <div class="no-image-msg" id="no-image-msg">이미지를 업로드하세요</div>
+      </div>
+    </div>
+    <div class="preview-scale-label" id="scale-label"></div>
+
+    <div>
+      <div class="section-label">프리뷰 확대</div>
+      <div class="preset-row" id="zoom-presets">
+        <button class="preset-btn" data-zoom="1">1x</button>
+        <button class="preset-btn" data-zoom="2">2x</button>
+        <button class="preset-btn active" data-zoom="3">3x</button>
+        <button class="preset-btn" data-zoom="4">4x</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 오른쪽: 컨트롤 -->
+  <div class="controls">
+    <div class="ctrl-group">
+      <label>Width <span class="val" id="w-val">100%</span></label>
+      <input type="range" id="w-slider" min="50" max="200" value="100" step="1">
+    </div>
+    <div class="ctrl-group">
+      <label>Height <span class="val" id="h-val">100%</span></label>
+      <input type="range" id="h-slider" min="50" max="200" value="100" step="1">
+    </div>
+    <div class="ctrl-group">
+      <label>X 오프셋 <span class="val" id="x-val">0px</span></label>
+      <input type="range" id="x-slider" min="-30" max="30" value="0" step="1">
+    </div>
+    <div class="ctrl-group">
+      <label>Y 오프셋 <span class="val" id="y-val">0px</span></label>
+      <input type="range" id="y-slider" min="-30" max="30" value="0" step="1">
+    </div>
+
+    <div class="filename-group">
+      <label>저장 파일명</label>
+      <input class="filename-input" type="text" id="filename-input" value="gimmick.png" spellcheck="false">
+    </div>
+
+    <div class="btn-row">
+      <button class="action-btn download-btn" id="download-btn" disabled onclick="downloadPNG()">
+        PNG 다운로드
+      </button>
+      <button class="reset-btn" onclick="resetAll()">초기화</button>
+    </div>
+
+    <div class="output-info">
+      출력 크기: 72 x 63 px (HEX_W x HEX_H)<br>
+      투명 배경 PNG<br>
+      game.js에서 background-size: contain 으로 사용
+    </div>
+
+    <div class="ctrl-group" style="font-size:11px;color:#555;line-height:1.6;">
+      <strong style="color:#888;">사용법</strong><br>
+      1. 원본 이미지 업로드<br>
+      2. 슬라이더로 크기/위치 조정<br>
+      3. 파일명 입력 (예: stone_1.png)<br>
+      4. PNG 다운로드<br>
+      5. assets/gimmick/ 폴더에 넣기
+    </div>
+  </div>
+</div>
+
+<!-- 미니 그리드 -->
+<div class="mini-grid-section">
+  <div class="mini-grid-title">실제 크기 미리보기 (게임과 동일한 렌더링)</div>
+  <div class="mini-grid" id="mini-grid"></div>
+</div>
+
+<canvas id="export-canvas"></canvas>
+
+<script>
+// 게임과 동일한 헥사 상수
+const HEX_SIZE = 36;
+const HEX_W = HEX_SIZE * 2;            // 72
+const HEX_H = Math.sqrt(3) * HEX_SIZE; // ~62.35
+const EXPORT_W = HEX_W;                // 72
+const EXPORT_H = Math.round(HEX_H);    // 63
+
+let zoom = 3;
+let imgDataUrl = null;  // 업로드된 이미지의 data URL
+let uploadedImg = null; // Image 객체 (canvas 렌더링용)
+
+const hexCell = document.getElementById('hex-cell');
+const overlayEl = document.getElementById('gimmick-overlay');
+const noImageMsg = document.getElementById('no-image-msg');
+const previewContainer = document.getElementById('preview-container');
+const canvas = document.getElementById('export-canvas');
+const ctx = canvas.getContext('2d');
+
+const wSlider = document.getElementById('w-slider');
+const hSlider = document.getElementById('h-slider');
+const xSlider = document.getElementById('x-slider');
+const ySlider = document.getElementById('y-slider');
+
+// ── 업로드 ──
+const uploadZone = document.getElementById('upload-zone');
+const fileInput = document.getElementById('file-input');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault(); uploadZone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) loadFile(e.target.files[0]);
+  e.target.value = '';
+});
+
+function loadFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      uploadedImg = img;
+      imgDataUrl = ev.target.result;
+
+      // 프리뷰: 게임과 동일하게 background-image로 표시
+      overlayEl.style.backgroundImage = `url(${imgDataUrl})`;
+      noImageMsg.style.display = 'none';
+
+      document.getElementById('file-info').textContent =
+        `${file.name} (${img.naturalWidth} x ${img.naturalHeight}px)`;
+      document.getElementById('download-btn').disabled = false;
+
+      const nameInput = document.getElementById('filename-input');
+      if (nameInput.value === 'gimmick.png') {
+        nameInput.value = file.name.replace(/\.[^.]+$/, '') + '_hex.png';
+      }
+
+      updatePreview();
+      buildMiniGrid();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── 줌 ──
+function applyZoom() {
+  const w = HEX_W * zoom;
+  const h = HEX_H * zoom;
+  hexCell.style.width = `${w}px`;
+  hexCell.style.height = `${h}px`;
+  overlayEl.style.width = `${w}px`;
+  overlayEl.style.height = `${h}px`;
+  previewContainer.style.width = `${w}px`;
+  previewContainer.style.height = `${h}px`;
+  document.getElementById('scale-label').textContent =
+    `${zoom}x 확대 (실제 출력: ${EXPORT_W} x ${EXPORT_H}px)`;
+  updatePreview();
+}
+
+document.getElementById('zoom-presets').addEventListener('click', e => {
+  if (!e.target.dataset.zoom) return;
+  document.querySelectorAll('#zoom-presets .preset-btn').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  zoom = parseInt(e.target.dataset.zoom);
+  applyZoom();
+});
+
+// ── 슬라이더 ──
+[wSlider, hSlider, xSlider, ySlider].forEach(s => {
+  s.addEventListener('input', updatePreview);
+});
+
+function getValues() {
+  return {
+    w: parseInt(wSlider.value),
+    h: parseInt(hSlider.value),
+    xOff: parseInt(xSlider.value),
+    yOff: parseInt(ySlider.value),
+  };
+}
+
+function getBgStyles(w, h, xOff, yOff) {
+  const size = `${w}% ${h}%`;
+  let pos;
+  if (xOff === 0 && yOff === 0) {
+    pos = 'center';
+  } else {
+    pos = `calc(50% + ${xOff}px) calc(50% + ${yOff}px)`;
+  }
+  return { size, pos };
+}
+
+function updatePreview() {
+  const { w, h, xOff, yOff } = getValues();
+
+  document.getElementById('w-val').textContent = `${w}%`;
+  document.getElementById('h-val').textContent = `${h}%`;
+  document.getElementById('x-val').textContent = `${xOff}px`;
+  document.getElementById('y-val').textContent = `${yOff}px`;
+
+  const bg = getBgStyles(w, h, xOff, yOff);
+  overlayEl.style.backgroundSize = bg.size;
+  overlayEl.style.backgroundPosition = bg.pos;
+
+  updateMiniGrid();
+}
+
+function resetAll() {
+  wSlider.value = 100;
+  hSlider.value = 100;
+  xSlider.value = 0;
+  ySlider.value = 0;
+  updatePreview();
+}
+
+// ── PNG 렌더링 + 다운로드 ──
+function downloadPNG() {
+  if (!uploadedImg) return;
+
+  const { w, h, xOff, yOff } = getValues();
+
+  canvas.width = EXPORT_W;
+  canvas.height = EXPORT_H;
+  ctx.clearRect(0, 0, EXPORT_W, EXPORT_H);
+
+  // W/H % 적용: 셀 크기 기준으로 이미지 크기 결정
+  const drawW = EXPORT_W * (w / 100);
+  const drawH = EXPORT_H * (h / 100);
+  const drawX = (EXPORT_W - drawW) / 2 + xOff;
+  const drawY = (EXPORT_H - drawH) / 2 + yOff;
+
+  ctx.drawImage(uploadedImg, drawX, drawY, drawW, drawH);
+
+  // 다운로드
+  const link = document.createElement('a');
+  let filename = document.getElementById('filename-input').value.trim() || 'gimmick.png';
+  if (!filename.endsWith('.png')) filename += '.png';
+  link.download = filename;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+// ── 미니 그리드: 게임과 완전 동일한 렌더링 ──
+function buildMiniGrid() {
+  const grid = document.getElementById('mini-grid');
+  grid.innerHTML = '';
+
+  if (!imgDataUrl) return;
+
+  const colSpacing = HEX_SIZE * 1.5;
+  const rowSpacing = HEX_H;
+  const cols = [3, 2, 3];
+
+  for (let c = 0; c < cols.length; c++) {
+    for (let r = 0; r < cols[c]; r++) {
+      const isLong = cols[c] === 3;
+      const x = c * colSpacing;
+      const y = r * rowSpacing + (isLong ? 0 : rowSpacing * 0.5);
+
+      // 셀 배경
+      const cell = document.createElement('div');
+      cell.style.cssText = `
+        position:absolute; left:${x}px; top:${y}px;
+        width:${HEX_W}px; height:${HEX_H}px;
+        clip-path:polygon(25% 0%,75% 0%,100% 50%,75% 100%,25% 100%,0% 50%);
+        background:#333350;
+      `;
+      const inner = document.createElement('div');
+      inner.style.cssText = `
+        position:absolute; inset:2px;
+        clip-path:polygon(25% 0%,75% 0%,100% 50%,75% 100%,25% 100%,0% 50%);
+        background:#252540;
+      `;
+      cell.appendChild(inner);
+
+      // 기믹: game.js createGimmickEl과 동일하게 background-image 방식
+      const gim = document.createElement('div');
+      gim.className = 'mini-gimmick-el';
+      gim.style.cssText = `
+        position:absolute; left:0; top:0;
+        width:${HEX_W}px; height:${HEX_H}px;
+        clip-path:polygon(25% 0%,75% 0%,100% 50%,75% 100%,25% 100%,0% 50%);
+        z-index:2;
+        background-image:url(${imgDataUrl});
+        background-size:contain;
+        background-position:center;
+        background-repeat:no-repeat;
+      `;
+      cell.appendChild(gim);
+
+      grid.appendChild(cell);
+    }
+  }
+
+  const totalW = (cols.length - 1) * colSpacing + HEX_W;
+  const totalH = 3 * rowSpacing + HEX_H * 0.5;
+  grid.style.width = `${totalW + 40}px`;
+  grid.style.height = `${totalH + 20}px`;
+  grid.style.paddingLeft = '20px';
+  grid.style.paddingTop = '10px';
+
+  updateMiniGrid();
+}
+
+function updateMiniGrid() {
+  const { w, h, xOff, yOff } = getValues();
+  const bg = getBgStyles(w, h, xOff, yOff);
+  document.querySelectorAll('.mini-gimmick-el').forEach(el => {
+    el.style.backgroundSize = bg.size;
+    el.style.backgroundPosition = bg.pos;
+  });
+}
+
+// ── 초기화 ──
+applyZoom();
+updatePreview();
+</script>
+</body>
+</html>

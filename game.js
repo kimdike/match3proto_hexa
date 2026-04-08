@@ -6,7 +6,7 @@ const HEX_W = HEX_SIZE * 2;
 const HEX_H = Math.sqrt(3) * HEX_SIZE;
 const COL_SPACING = HEX_SIZE * 1.5;
 const ROW_SPACING = HEX_H;
-const BLOCK_D = 50;
+const BLOCK_D = 55;
 // ── 스테이지 데이터 ──
 const STAGES = [
   { stage:1,  target:10000, moves:30, colorTypes:5 },

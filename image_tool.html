@@ -336,14 +336,19 @@ function getValues() {
   };
 }
 
-function getBgStyles(w, h, xOff, yOff) {
+function getBgStyles(w, h, xOff, yOff, containerW, containerH) {
+  // 컨테이너 크기 (프리뷰: zoom 적용, 미니그리드: 실제 크기)
+  const cw = containerW || HEX_W;
+  const ch = containerH || HEX_H;
   const size = `${w}% ${h}%`;
-  let pos;
-  if (xOff === 0 && yOff === 0) {
-    pos = 'center';
-  } else {
-    pos = `calc(50% + ${xOff}px) calc(50% + ${yOff}px)`;
-  }
+  // background-position을 px로 계산 (canvas drawImage와 동일한 로직)
+  // 이미지 실제 크기: cw * w/100, ch * h/100
+  // 중앙 정렬 + 오프셋
+  const imgW = cw * (w / 100);
+  const imgH = ch * (h / 100);
+  const posX = (cw - imgW) / 2 + xOff * (cw / HEX_W);
+  const posY = (ch - imgH) / 2 + yOff * (ch / HEX_H);
+  const pos = `${posX}px ${posY}px`;
   return { size, pos };
 }
 
@@ -355,7 +360,7 @@ function updatePreview() {
   document.getElementById('x-val').textContent = `${xOff}px`;
   document.getElementById('y-val').textContent = `${yOff}px`;
 
-  const bg = getBgStyles(w, h, xOff, yOff);
+  const bg = getBgStyles(w, h, xOff, yOff, HEX_W * zoom, HEX_H * zoom);
   overlayEl.style.backgroundSize = bg.size;
   overlayEl.style.backgroundPosition = bg.pos;
 
@@ -461,7 +466,7 @@ function buildMiniGrid() {
 
 function updateMiniGrid() {
   const { w, h, xOff, yOff } = getValues();
-  const bg = getBgStyles(w, h, xOff, yOff);
+  const bg = getBgStyles(w, h, xOff, yOff, HEX_W, HEX_H);
   document.querySelectorAll('.mini-gimmick-el').forEach(el => {
     el.style.backgroundSize = bg.size;
     el.style.backgroundPosition = bg.pos;

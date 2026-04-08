@@ -225,9 +225,22 @@ async function drainAnimQueue(){
 
 // ── 헬퍼 ──
 function makeCell(color,type,dir){ return {color,type:type||'normal',dir:dir||null}; }
-function getColor(c,r){ return board[c]?.[r]?.color ?? null; }
+function getColor(c,r){ const cell=board[c]?.[r]; if(!cell||cell.type!=='normal') return null; return cell.color ?? null; }
 function getType(c,r){ return board[c]?.[r]?.type ?? null; }
 function isSpecial(c,r){ const t=getType(c,r); return t&&t!=='normal'; }
+function getMostFrequentColor(){
+  const counts=new Map();
+  for(let c=0;c<COLS_PATTERN.length;c++)
+    for(let r=0;r<COLS_PATTERN[c];r++)
+      if(board[c][r]&&board[c][r].type==='normal'){
+        const col=board[c][r].color;
+        counts.set(col,(counts.get(col)||0)+1);
+      }
+  if(counts.size===0) return null;
+  let best=null,bestCnt=0;
+  for(const [color,cnt] of counts) if(cnt>bestCnt){bestCnt=cnt;best=color;}
+  return best;
+}
 function isValid(c,r){ return c>=0 && c<COLS_PATTERN.length && r>=0 && r<COLS_PATTERN[c]; }
 function isLongCol(c){ return COLS_PATTERN[c]===9; }
 function getCellPos(col,row){
@@ -272,6 +285,13 @@ function getStripeAxis(dir){ for(const [a,b] of AXES) if(dir===a||dir===b) retur
 function getStripeAngle(dir){
   switch(dir){ case'up':case'down':return 90; case'ne':case'sw':return -30; case'nw':case'se':return 30; } return 0;
 }
+function getStripeImage(dir){
+  switch(dir){ case'up':case'down':return 'assets/specialblock/sb_stripe1.png';
+    case'se':case'nw':return 'assets/specialblock/sb_stripe2.png';
+    case'ne':case'sw':return 'assets/specialblock/sb_stripe3.png'; }
+  return 'assets/specialblock/sb_stripe1.png';
+}
+const SPECIAL_IMAGES={bomb:'assets/specialblock/sb_bombball.png',target:'assets/specialblock/sb_targetball.png',rainbow:'assets/specialblock/sb_rainbow.png'};
 function getLineDirFromCells(line){
   const [c0,r0]=line[0],[c1,r1]=line[1];
   if(c1-c0===0) return 'up';
@@ -493,28 +513,26 @@ function determineSpecial(curLines,curCells,clusters,isFirst,originCol,originRow
   // 1순위: 무지개볼 (직선5+)
   if(bestLine5){
     const pivot=choosePivot(bestLine5);
-    const color=getColor(bestLine5[0][0],bestLine5[0][1]);
     return {type:'rainbow',col:pivot.col,row:pivot.row,color:null,dir:null,mergeCells:bestLine5};
   }
 
   // 2순위: 폭탄볼 (라인 매치 5+셀, 비직선 — 교차/겹침 라인)
   if(bombGroup){
     const pivot=choosePivot(bombGroup.cells);
-    return {type:'bomb',col:pivot.col,row:pivot.row,color:bombGroup.color,dir:null,mergeCells:bombGroup.cells};
+    return {type:'bomb',col:pivot.col,row:pivot.row,color:null,dir:null,mergeCells:bombGroup.cells};
   }
 
   // 3순위: 줄볼 (직선4+)
   if(bestLine4){
-    const lc=getColor(bestLine4[0][0],bestLine4[0][1]);
     const pivot=choosePivot(bestLine4);
     const dir=isFirst?swapDir:getLineDirFromCells(bestLine4);
-    return {type:'stripe',col:pivot.col,row:pivot.row,color:lc,dir,mergeCells:bestLine4};
+    return {type:'stripe',col:pivot.col,row:pivot.row,color:null,dir,mergeCells:bestLine4};
   }
 
   // 4순위: 타겟볼 (직선 없는 클러스터 4+)
   if(targetGroup){
     const pivot=choosePivot(targetGroup.cells);
-    return {type:'target',col:pivot.col,row:pivot.row,color:targetGroup.color,dir:null,mergeCells:targetGroup.cells};
+    return {type:'target',col:pivot.col,row:pivot.row,color:null,dir:null,mergeCells:targetGroup.cells};
   }
 
   return null;
@@ -648,10 +666,16 @@ function createBlockEl(col,row,cell){
   el.className='hex-block'; el.dataset.col=col; el.dataset.row=row;
   el.addEventListener('mouseover', () => { hoveredCell = { col, row }; console.log('DEBUG: block mouseover (block)', hoveredCell); });
   el.addEventListener('mouseout', () => { hoveredCell = null; console.log('DEBUG: block mouseout (block)'); });
-  if(cell.type==='rainbow'){
-    el.classList.add('rainbow');
-    const ind=document.createElement('div'); ind.className='rainbow-indicator'; el.appendChild(ind);
+  // 특수블록: 이미지 아이콘으로 표시 (색상 없음)
+  if(cell.type==='stripe'||cell.type==='bomb'||cell.type==='target'||cell.type==='rainbow'){
+    const imgSrc=cell.type==='stripe'?getStripeImage(cell.dir):SPECIAL_IMAGES[cell.type];
+    const spSz=Math.round(BLOCK_D*1.1);
+    el.style.width=`${spSz}px`;el.style.height=`${spSz}px`;
+    el.style.margin=`${-(spSz-BLOCK_D)/2}px 0 0 ${-(spSz-BLOCK_D)/2}px`;
+    el.classList.add('special-block',cell.type);
+    el.style.backgroundImage=`url(${imgSrc})`;
   } else {
+    // 일반블록: 포켓몬 스킨 또는 단색
     const pokeNum=skinData.slots[cell.color];
     if(pokeNum){
       const pokeSz=Math.round(BLOCK_D*1.1);
@@ -664,17 +688,6 @@ function createBlockEl(col,row,cell){
     }
   }
   el.style.left=`${pos.x}px`;el.style.top=`${pos.y}px`;
-  if(cell.type==='stripe'){
-    el.classList.add('stripe');
-    const ind=document.createElement('div'); ind.className='stripe-indicator';
-    ind.style.transform=`rotate(${getStripeAngle(cell.dir)}deg)`; el.appendChild(ind);
-  } else if(cell.type==='target'){
-    el.classList.add('target');
-    el.appendChild(Object.assign(document.createElement('div'),{className:'target-indicator'}));
-  } else if(cell.type==='bomb'){
-    el.classList.add('bomb');
-    el.appendChild(Object.assign(document.createElement('div'),{className:'bomb-indicator'}));
-  }
   return el;
 }
 
@@ -831,9 +844,9 @@ function findBestSwap(){
   let bestLen=0,bestSwap=null;const tested=new Set();
   for(let col=0;col<COLS_PATTERN.length;col++)
     for(let row=0;row<COLS_PATTERN[col];row++){
-      if(!board[col][row]) continue;
+      if(!board[col][row]||board[col][row].type!=='normal') continue;
       for(const [nc,nr] of getNeighbors(col,row)){
-        if(!board[nc][nr]) continue;
+        if(!board[nc][nr]||board[nc][nr].type!=='normal') continue;
         const k1=`${col},${row}`,k2=`${nc},${nr}`;
         const key=k1<k2?`${k1}|${k2}`:`${k2}|${k1}`;
         if(tested.has(key)) continue; tested.add(key);
@@ -996,7 +1009,20 @@ function onDragEnd(e){
   const pt=getPointer(e);
   const dx=pt.x-startX,dy=pt.y-startY;
   if(Math.sqrt(dx*dx+dy*dy)<DRAG_THRESHOLD){
-    if(debugPlaceType&&playing&&!busy) placeDebugSpecial(col,row);
+    if(debugPlaceType&&playing&&!busy){ placeDebugSpecial(col,row); return; }
+    // 클릭: 특수블록 → 제자리 발동, 일반블록 → 흔들림
+    if(playing&&!busy&&!isBusyRainbow&&board[col]?.[row]){
+      if(isSpecial(col,row)){
+        tryActivateSpecialClick(col,row);
+      } else {
+        if(blockEls[col]?.[row]){
+          blockEls[col][row].classList.remove('shake');
+          void blockEls[col][row].offsetWidth;
+          blockEls[col][row].classList.add('shake');
+          setTimeout(()=>blockEls[col][row]?.classList.remove('shake'),400);
+        }
+      }
+    }
     return;
   }
   const target=findNeighborByAngle(col,row,dx,dy);
@@ -1016,6 +1042,43 @@ function findNeighborByAngle(col,row,dx,dy){
     if(diff<bestDiff){bestDiff=diff;best=[nc,nr];}
   }
   return best&&bestDiff<Math.PI/3?best:null;
+}
+
+// ── 클릭 발동 (특수블록 제자리 발동) ──
+function tryActivateSpecialClick(col,row){
+  if(!isSpecial(col,row)) return;
+  enqueueAnim(async()=>{
+    busy=true;isBusyNormal=true;
+    clearHint();
+    movesLeft--;updateMovesUI();
+    const cell=board[col][row];
+    if(cell.type==='rainbow'){
+      const tc=getMostFrequentColor();
+      if(tc!==null){
+        const cnt=await activateRainbow(col,row,tc);
+        score+=cnt*100;updateScoreUI();
+      } else {
+        board[col][row]=null;
+        if(blockEls[col][row]){blockEls[col][row].classList.add('matched');}
+        await delay(CFG.specialActivateDelay);
+        if(blockEls[col][row]){blockEls[col][row].remove();blockEls[col][row]=null;}
+      }
+    } else {
+      await activateSpecialAt(col,row);
+    }
+    isBusyRainbow=false;isBusyNormal=true;
+    await applyGravity();await fillEmpty();
+    let {lines:cl,cells:cc,clusters:ccl}=findAllMatches();
+    let combo=0;
+    while(cc.length>0||ccl.length>0){
+      combo++;
+      await processMatchStep(cl,cc,ccl,false,col,row,col,row,null,combo);
+      await applyGravity();await fillEmpty();
+      const chain=findAllMatches();cl=chain.lines;cc=chain.cells;ccl=chain.clusters;
+    }
+    checkGameEnd();busy=false;isBusyNormal=false;
+    startHintTimer();
+  });
 }
 
 // ── 스왑 ──
@@ -1072,6 +1135,30 @@ function trySwap(c1,r1,c2,r2){
       return;
     }
 
+    if(result.type==='special-activate'){
+      const {col,row}=result.specialPos;
+      const cell=board[col][row];
+      if(cell.type==='rainbow'){
+        const tc=getMostFrequentColor();
+        if(tc!==null){ const cnt=await activateRainbow(col,row,tc); score+=cnt*100;updateScoreUI(); }
+      } else {
+        await activateSpecialAt(col,row);
+      }
+      isBusyRainbow=false;isBusyNormal=true;
+      await applyGravity();await fillEmpty();
+      let {lines:cl,cells:cc,clusters:ccl}=findAllMatches();
+      let combo=0;
+      while(cc.length>0||ccl.length>0){
+        combo++;
+        await processMatchStep(cl,cc,ccl,false,c1,r1,c2,r2,null,combo);
+        await applyGravity();await fillEmpty();
+        const chain=findAllMatches();cl=chain.lines;cc=chain.cells;ccl=chain.clusters;
+      }
+      checkGameEnd();busy=false;isBusyNormal=false;
+      startHintTimer();
+      return;
+    }
+
     const {lines,cells,clusters,swapDir}=result;
     let combo=0,curLines=lines,curCells=cells,curClusters=clusters,isFirst=true;
     while(curCells.length>0||curClusters.length>0){
@@ -1108,9 +1195,8 @@ function computeSpecialEffect(col,row,cell){
       if(!hit.isStone) destroyed.push(hit.pos);
     }
   } else if(cell.type==='rainbow'){
-    const rnd=getRandomBlockPos(null);
-    if(rnd){
-      const tc=board[rnd[0]][rnd[1]].color;
+    const tc=getMostFrequentColor();
+    if(tc!==null){
       effects.push({type:'rainbow',col,row,targetColor:tc});
       for(let c=0;c<COLS_PATTERN.length;c++)
         for(let r=0;r<COLS_PATTERN[c];r++)
@@ -1305,7 +1391,7 @@ async function handleCrossEffect(c1,r1,c2,r2){
   }
   // ⑦ 무지개볼 x 줄볼: 순차 탐지→변환 후 동시 발동
   else if(combo==='rainbow+stripe'){
-    const targetColor=cellB.color;
+    const targetColor=getMostFrequentColor();
     await removeBoth();
     const converts=[],dirs=['up','ne','nw'];
     for(let c=0;c<COLS_PATTERN.length;c++)
@@ -1347,7 +1433,7 @@ async function handleCrossEffect(c1,r1,c2,r2){
   }
   // ⑧ 무지개볼 x 폭탄볼: 순차 탐지→변환 후 동시 발동
   else if(combo==='rainbow+bomb'){
-    const targetColor=cellB.color;
+    const targetColor=getMostFrequentColor();
     await removeBoth();
     const converts=[];
     for(let c=0;c<COLS_PATTERN.length;c++)
@@ -1400,7 +1486,7 @@ async function handleCrossEffect(c1,r1,c2,r2){
   }
   // ⑩ 무지개볼 x 타겟볼: 순차 탐지→변환 후 동시 발동
   else if(combo==='rainbow+target'){
-    const targetColor=cellB.color;
+    const targetColor=getMostFrequentColor();
     await removeBoth();
     const converts=[];
     for(let c=0;c<COLS_PATTERN.length;c++)
@@ -1619,6 +1705,13 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
     const newEl=createBlockEl(sc,sr,board[sc][sr]);
     newEl.classList.add('stripe-appear');
     container.appendChild(newEl);blockEls[sc][sr]=newEl;
+    // 특수블록 생성 시 인접 기믹 타격
+    for(const [nc,nr] of getNeighbors(sc,sr)){
+      if(gimmick[nc]?.[nr]?.type==='stone'){
+        const sk=`${nc},${nr}`;
+        if(!hitStones.has(sk)){ hitStones.add(sk); hitStone(nc,nr); }
+      }
+    }
     await delay(CFG.mergeDelay);
   }
 
@@ -1668,20 +1761,28 @@ function executeSwap(c1,r1,c2,r2){
     return {valid:true,type:'cross'};
   }
 
-  // 무지개볼 + 일반블록
-  const rb1=getType(c1,r1)==='rainbow',rb2=getType(c2,r2)==='rainbow';
-  if(rb1||rb2){
-    const rainbowPos=rb2?{col:c2,row:r2}:{col:c1,row:r1};
-    const otherPos=rb2?{col:c1,row:r1}:{col:c2,row:r2};
-    const targetColor=board[otherPos.col][otherPos.row]?.color;
-    if(targetColor!==null&&targetColor!==undefined){
-      return {valid:true,type:'rainbow',rainbowPos,otherPos,targetColor};
+  // 특수블록 + 일반블록 → 특수블록이 이동한 위치에서 즉시 발동
+  const sp1=isSpecial(c1,r1),sp2=isSpecial(c2,r2);
+  if(sp1||sp2){
+    // 무지개볼 + 일반블록: 스왑한 블록 색상 전체 제거
+    const rb1=getType(c1,r1)==='rainbow',rb2=getType(c2,r2)==='rainbow';
+    if(rb1||rb2){
+      const rainbowPos=rb2?{col:c2,row:r2}:{col:c1,row:r1};
+      const otherPos=rb2?{col:c1,row:r1}:{col:c2,row:r2};
+      const targetColor=board[otherPos.col][otherPos.row]?.color;
+      if(targetColor!==null&&targetColor!==undefined){
+        return {valid:true,type:'rainbow',rainbowPos,otherPos,targetColor};
+      }
+      // 일반블록이 아닌 경우 (특수블록+무지개볼은 이미 cross로 처리됨)
+      swapBoard(c1,r1,c2,r2);
+      return {valid:false};
     }
-    swapBoard(c1,r1,c2,r2); // 원복
-    return {valid:false};
+    // 일반 특수블록(줄볼/폭탄/타겟) + 일반블록 → 즉시 발동
+    const specialPos=sp1?{col:c1,row:r1}:{col:c2,row:r2};
+    return {valid:true,type:'special-activate',specialPos};
   }
 
-  // 일반 매치
+  // 일반블록 + 일반블록 → 매칭 검사
   const {lines,cells,clusters}=findAllMatches();
   if(cells.length===0&&clusters.length===0){
     swapBoard(c1,r1,c2,r2); // 원복

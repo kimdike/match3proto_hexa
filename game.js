@@ -34,6 +34,7 @@ const ALL_COLORS = [
 const CFG = {
   gravityTransition: 0.2,   gravityDelay: 240,
   fillTransition: 0.2,      fillDelay: 200,
+  diagTransition: 0.15,     diagDelay: 180,
   projectileTransition: 0.45,
   matchedDelay: 200,         mergeDelay: 130,
   explosionLifetime: 400,
@@ -47,6 +48,8 @@ const CFG_META = [
   {key:'gravityDelay',label:'gravity delay',desc:'낙하 애니메이션 완료 후 다음 단계 진행까지 대기 시간. gravity transition보다 약간 길게 설정 (권장: 100ms ~ 500ms)',unit:'ms',step:10,group:'speed'},
   {key:'fillTransition',label:'fill transition',desc:'빈 칸에 새 블록이 위에서 내려오는 애니메이션 시간. 낮을수록 빠르게 충전 (권장: 0.1s ~ 0.6s)',unit:'s',step:0.05,group:'speed'},
   {key:'fillDelay',label:'fill delay',desc:'새 블록 충전 완료 후 매치 검사까지 대기 시간. fill transition보다 약간 길게 설정 (권장: 150ms ~ 600ms)',unit:'ms',step:10,group:'speed'},
+  {key:'diagTransition',label:'diag transition',desc:'대각선 충전 시 블록이 옆으로 이동하는 애니메이션 시간. 낮을수록 빠름 (권장: 0.05s ~ 0.4s)',unit:'s',step:0.05,group:'speed'},
+  {key:'diagDelay',label:'diag delay',desc:'대각선 충전 완료 후 다음 단계까지 대기 시간 (권장: 50ms ~ 400ms)',unit:'ms',step:10,group:'speed'},
   {key:'projectileTransition',label:'projectile transition',desc:'타겟볼 발사체가 목표 지점까지 날아가는 시간. 낮으면 빠르게 적중 (권장: 0.1s ~ 0.6s)',unit:'s',step:0.05,group:'speed'},
   {key:'matchedDelay',label:'matched delay',desc:'매치된 블록의 pop 애니메이션 재생 후 DOM에서 제거까지 대기 시간 (권장: 200ms ~ 500ms)',unit:'ms',step:10,group:'timing'},
   {key:'mergeDelay',label:'merge delay',desc:'특수블록 생성 시 주변 블록이 중심으로 빨려드는 머지 애니메이션 시간 (권장: 200ms ~ 500ms)',unit:'ms',step:10,group:'timing'},
@@ -292,6 +295,7 @@ function getStripeImage(dir){
   return 'assets/specialblock/sb_stripe1.png';
 }
 const SPECIAL_IMAGES={bomb:'assets/specialblock/sb_bombball.png',target:'assets/specialblock/sb_targetball.png',rainbow:'assets/specialblock/sb_rainbow.png'};
+const OPPOSITE_DIR={up:'down',down:'up',ne:'sw',sw:'ne',nw:'se',se:'nw'};
 function getLineDirFromCells(line){
   const [c0,r0]=line[0],[c1,r1]=line[1];
   if(c1-c0===0) return 'up';
@@ -806,6 +810,33 @@ function getRandomStonePos(excludeSet){
   return cands.length?cands[Math.floor(Math.random()*cands.length)]:null;
 }
 
+// 타겟볼 범위 타격 패턴 (4칸)
+// swapDir: 스왑 방향 (null이면 클릭 발동 → 기본 패턴)
+function getTargetAreaCells(col,row,swapDir){
+  let dirs;
+  if(!swapDir){
+    // 클릭 발동: 자신 + 상/우하/좌하
+    dirs=['up','se','sw'];
+  } else {
+    // 스왑 발동: 스왑 방향 쪽 3칸
+    const patterns={
+      up:['up','nw','ne'],     // 아래→위 스왑: 상/좌상/우상
+      down:['down','sw','se'], // 위→아래 스왑: 하/좌하/우하
+      nw:['nw','up','sw'],     // 우하→좌상 스왑: 좌상/상/좌하
+      se:['se','ne','down'],   // 좌상→우하 스왑: 우하/우상/하
+      ne:['ne','up','se'],     // 좌하→우상 스왑: 우상/상/우하
+      sw:['sw','down','nw'],   // 우상→좌하 스왑: 좌하/하/좌상
+    };
+    dirs=patterns[swapDir]||['up','se','sw'];
+  }
+  const cells=[[col,row]]; // 자기 자신 포함
+  for(const d of dirs){
+    const p=step(col,row,d);
+    if(p) cells.push(p);
+  }
+  return cells;
+}
+
 // 타겟볼 타격 대상: 돌 기믹 우선, 없으면 랜덤 블록
 function getTargetBallTarget(excludeSet){
   const stone=getRandomStonePos(excludeSet);
@@ -976,6 +1007,16 @@ async function activateRainbow(col,row,targetColor){
     if(blockEls[c][r]){blockEls[c][r].classList.remove('rainbow-marked');blockEls[c][r].classList.add('matched');}
     board[c][r]=null;
   }
+  // 제거된 블록에 인접한 기믹 단계 -1
+  const hitSet=new Set();
+  for(const [c,r] of targets){
+    for(const [nc,nr] of getNeighbors(c,r)){
+      if(gimmick[nc]?.[nr]?.type==='stone'){
+        const sk=`${nc},${nr}`;
+        if(!hitSet.has(sk)){ hitSet.add(sk); hitStone(nc,nr); }
+      }
+    }
+  }
   await delay(300);
   if(blockEls[col][row]){blockEls[col][row].remove();blockEls[col][row]=null;}
   for(const [c,r] of targets){
@@ -1138,6 +1179,8 @@ function trySwap(c1,r1,c2,r2){
     if(result.type==='special-activate'){
       const {col,row}=result.specialPos;
       const cell=board[col][row];
+      // 타겟볼에 스왑 방향 전달 (범위 타격 패턴용)
+      if(cell.type==='target') cell._swapDir=getSwapDirection(c1,r1,c2,r2);
       if(cell.type==='rainbow'){
         const tc=getMostFrequentColor();
         if(tc!==null){ const cnt=await activateRainbow(col,row,tc); score+=cnt*100;updateScoreUI(); }
@@ -1181,19 +1224,32 @@ function computeSpecialEffect(col,row,cell){
   const effects=[]; // 애니메이션 이벤트
   if(cell.type==='stripe'){
     effects.push({type:'stripe',col,row,dir:cell.dir});
-    for(const [sc,sr] of getStripeLine(col,row,cell.dir))
-      if(board[sc][sr]!==null) destroyed.push([sc,sr]);
+    for(const [sc,sr] of getStripeLine(col,row,cell.dir)){
+      if(gimmick[sc]?.[sr]?.type==='stone') effects.push({type:'hit-stone',col:sc,row:sr});
+      else if(board[sc][sr]!==null) destroyed.push([sc,sr]);
+    }
   } else if(cell.type==='bomb'){
     effects.push({type:'bomb',col,row});
-    for(const [nc,nr] of getNeighbors(col,row))
-      if(board[nc][nr]!==null) destroyed.push([nc,nr]);
-  } else if(cell.type==='target'){
-    const hit=getTargetBallTarget(null);
-    if(hit){
-      const [tc,tr]=hit.pos;
-      effects.push({type:'target',fromCol:col,fromRow:row,toCol:tc,toRow:tr,color:cell.color,isStone:hit.isStone});
-      if(!hit.isStone) destroyed.push(hit.pos);
+    for(const [nc,nr] of getNeighbors(col,row)){
+      if(gimmick[nc]?.[nr]?.type==='stone') effects.push({type:'hit-stone',col:nc,row:nr});
+      else if(board[nc][nr]!==null) destroyed.push([nc,nr]);
     }
+  } else if(cell.type==='target'){
+    // 스텝1: 범위 4칸 즉시 제거
+    const areaCells=getTargetAreaCells(col,row,cell._swapDir||null);
+    const areaEffects=[];
+    for(const [ac,ar] of areaCells){
+      if(ac===col&&ar===row) continue;
+      if(gimmick[ac]?.[ar]?.type==='stone'){
+        areaEffects.push({type:'target-area-stone',col:ac,row:ar});
+      } else if(board[ac][ar]!==null){
+        destroyed.push([ac,ar]);
+      }
+    }
+    effects.push(...areaEffects);
+    // 스텝2는 별도 step으로 분리 (아래에서 처리)
+    cell._targetAreaCells=areaCells; // 발사체 제외용
+    cell._targetStep2=true;
   } else if(cell.type==='rainbow'){
     const tc=getMostFrequentColor();
     if(tc!==null){
@@ -1217,6 +1273,29 @@ function computeSpecialEffect(col,row,cell){
     const sub=computeSpecialEffect(cs.col,cs.row,cs.cell);
     allSteps.push(...sub);
   }
+  // 타겟볼 스텝2: 범위 타격 후 발사체 1개 (별도 step으로 분리)
+  if(cell._targetStep2){
+    const excludeSet=new Set((cell._targetAreaCells||[]).map(([c,r])=>`${c},${r}`));
+    const hit=getTargetBallTarget(excludeSet);
+    if(hit){
+      const [tc,tr]=hit.pos;
+      const step2effects=[{type:'target',fromCol:col,fromRow:row,toCol:tc,toRow:tr,color:null,isStone:hit.isStone}];
+      const step2destroyed=[];
+      const step2chain=[];
+      if(!hit.isStone&&board[tc]?.[tr]){
+        if(isSpecial(tc,tr)) step2chain.push({col:tc,row:tr,cell:{...board[tc][tr]}});
+        step2destroyed.push(hit.pos);
+        board[tc][tr]=null;
+      }
+      allSteps.push({col,row,cell,destroyed:step2destroyed,effects:step2effects,chainSpecials:step2chain});
+      for(const cs of step2chain){
+        const sub=computeSpecialEffect(cs.col,cs.row,cs.cell);
+        allSteps.push(...sub);
+      }
+    }
+    delete cell._targetStep2;
+    delete cell._targetAreaCells;
+  }
   return allSteps;
 }
 
@@ -1227,6 +1306,7 @@ async function animateSpecialSteps(steps){
     for(const fx of step.effects){
       if(fx.type==='stripe') showStripeBeam(fx.col,fx.row,fx.dir);
       if(fx.type==='bomb') showBombExplosion(fx.col,fx.row);
+      if(fx.type==='target-area-stone'||fx.type==='hit-stone') hitStone(fx.col,fx.row);
       if(fx.type==='target'){
         await fireTargetProjectile(fx.fromCol,fx.fromRow,fx.toCol,fx.toRow,fx.color);
         if(fx.isStone) hitStone(fx.toCol,fx.toRow);
@@ -1291,10 +1371,12 @@ async function handleCrossEffect(c1,r1,c2,r2){
     if(blockEls[c2][r2]){blockEls[c2][r2].remove();blockEls[c2][r2]=null;}
   }
 
-  // 셀 파괴 + 점수 + 특수블록 연쇄
+  // 셀 파괴 + 점수 + 특수블록 연쇄 + 기믹 타격
   async function destroyCells(cells){
     const chainSpecials=[],destroyed=[];
     for(const [c,r] of cells){
+      // 기믹 타격
+      if(gimmick[c]?.[r]?.type==='stone'){ hitStone(c,r); continue; }
       if(!board[c][r]) continue;
       if(isSpecial(c,r)) chainSpecials.push([c,r,{...board[c][r]}]);
       destroyed.push([c,r]);
@@ -1334,35 +1416,72 @@ async function handleCrossEffect(c1,r1,c2,r2){
     showBombExplosion(cB,rB);
     await destroyCells(getCellsInRange2(cB,rB));
   }
-  // ④ 줄볼 x 타겟볼: 타격 위치로 날아간 후 줄볼 효과
+  // ④ 줄볼 x 타겟볼: 끝점(c2,r2) 기준 범위 4칸 즉시 타격 → 타겟볼 1개 날아가서 줄볼 효과
   else if(combo==='stripe+target'){
     const sCell=typeA==='stripe'?cellA:cellB;
-    const tC=typeA==='target'?cA:cB, tR=typeA==='target'?rA:rB;
+    // 끝점(c2,r2)에서 발동, 방향=c1→c2
+    const swapDir=getSwapDirection(c1,r1,c2,r2);
     await removeBoth();
-    const hit=getTargetBallTarget(null);
+    // 스텝1: 끝점 기준 범위 4칸 즉시 타격
+    const areaCells=getTargetAreaCells(c2,r2,swapDir);
+    const areaKill=[];
+    for(const [c,r] of areaCells){
+      if(c===c2&&r===r2) continue;
+      if(gimmick[c]?.[r]?.type==='stone'){ hitStone(c,r); }
+      else if(board[c]?.[r]){ areaKill.push([c,r]); }
+    }
+    if(areaKill.length>0){
+      for(const [c,r] of areaKill){ if(blockEls[c][r]) blockEls[c][r].classList.add('matched'); board[c][r]=null; }
+      await delay(CFG.crossEffectDelay);
+      for(const [c,r] of areaKill){ if(blockEls[c]?.[r]){blockEls[c][r].remove();blockEls[c][r]=null;} }
+      score+=areaKill.length*100;updateScoreUI();
+    }
+    // 스텝2: 타겟볼 1개 날아가서 → 도착 지점에서 줄볼 효과 발동
+    const excludeSet=new Set([...areaCells.map(([c,r])=>`${c},${r}`),`${c1},${r1}`]);
+    const hit=getTargetBallTarget(excludeSet);
     if(hit){
       const [rc,rr]=hit.pos;
-      await fireTargetProjectile(tC,tR,rc,rr,sCell.color);
-      if(hit.isStone){ hitStone(rc,rr); }
-      else {
-        showStripeBeam(rc,rr,sCell.dir);
-        const lineCells=getStripeLine(rc,rr,sCell.dir);
-        lineCells.push([rc,rr]);
-        await destroyCells(lineCells);
+      await fireTargetProjectile(c2,r2,rc,rr,null);
+      if(hit.isStone) hitStone(rc,rr);
+      // 도착 지점에서 줄볼 효과 발동 (기믹/블록 무관)
+      showStripeBeam(rc,rr,sCell.dir);
+      const lineCells=getStripeLine(rc,rr,sCell.dir);
+      if(!hit.isStone) lineCells.push([rc,rr]);
+      // 라인 내 기믹 타격
+      for(const [lc,lr] of lineCells){
+        if(gimmick[lc]?.[lr]?.type==='stone') hitStone(lc,lr);
       }
+      await destroyCells(lineCells);
     }
   }
-  // ⑤ 타겟볼 x 타겟볼: 발사체 4개 동시 발사
+  // ⑤ 타겟볼 x 타겟볼: 마우스 놓은 지점(cB,rB) 주변 7칸 즉시 타격 → 타겟볼 4개 발사
   else if(combo==='target+target'){
     await removeBoth();
-    const excluded=new Set(),targets=[],hitInfo=[];
+    // 스텝1: cB 기준 자신+인접 6칸 = 7칸 즉시 타격
+    const areaCells=[[cB,rB],...getNeighbors(cB,rB)];
+    const areaKill=[];
+    for(const [c,r] of areaCells){
+      if(c===c1&&r===r1) continue; if(c===c2&&r===r2) continue;
+      if(gimmick[c]?.[r]?.type==='stone'){ hitStone(c,r); }
+      else if(board[c]?.[r]){ areaKill.push([c,r]); }
+    }
+    if(areaKill.length>0){
+      for(const [c,r] of areaKill){ if(blockEls[c][r]) blockEls[c][r].classList.add('matched'); board[c][r]=null; }
+      await delay(CFG.crossEffectDelay);
+      for(const [c,r] of areaKill){ if(blockEls[c]?.[r]){blockEls[c][r].remove();blockEls[c][r]=null;} }
+      score+=areaKill.length*100;updateScoreUI();
+    }
+    // 스텝2: 타겟볼 4개 발사 (기믹 우선)
+    const excluded=new Set(areaCells.map(([c,r])=>`${c},${r}`));
+    excluded.add(`${c1},${r1}`);excluded.add(`${c2},${r2}`);
+    const targets=[],hitInfo=[];
     for(let i=0;i<4;i++){
       const hit=getTargetBallTarget(excluded);
       if(hit){excluded.add(`${hit.pos[0]},${hit.pos[1]}`);targets.push(hit.pos);hitInfo.push(hit);}
     }
     const promises=targets.map((t,i)=>{
       const from=i<2?[cA,rA]:[cB,rB];
-      return fireTargetProjectile(from[0],from[1],t[0],t[1],cellA.color);
+      return fireTargetProjectile(from[0],from[1],t[0],t[1],null);
     });
     await Promise.all(promises);
     const blockTargets=[];
@@ -1372,21 +1491,41 @@ async function handleCrossEffect(c1,r1,c2,r2){
     }
     if(blockTargets.length>0) await destroyCells(blockTargets);
   }
-  // ⑥ 폭탄볼 x 타겟볼: 타격 위치로 날아간 후 폭탄 효과
+  // ⑥ 폭탄볼 x 타겟볼: 끝점(c2,r2) 기준 범위 4칸 즉시 타격 → 타겟볼 1개 날아가서 폭탄 효과
   else if(combo==='bomb+target'){
-    const tC=typeB==='target'?cB:cA, tR=typeB==='target'?rB:rA;
+    // 끝점(c2,r2)에서 발동, 방향=c1→c2
+    const swapDir=getSwapDirection(c1,r1,c2,r2);
     await removeBoth();
-    const hit=getTargetBallTarget(null);
+    // 스텝1: 끝점 기준 범위 4칸 즉시 타격
+    const areaCells=getTargetAreaCells(c2,r2,swapDir);
+    const areaKill=[];
+    for(const [c,r] of areaCells){
+      if(c===c2&&r===r2) continue;
+      if(gimmick[c]?.[r]?.type==='stone'){ hitStone(c,r); }
+      else if(board[c]?.[r]){ areaKill.push([c,r]); }
+    }
+    if(areaKill.length>0){
+      for(const [c,r] of areaKill){ if(blockEls[c][r]) blockEls[c][r].classList.add('matched'); board[c][r]=null; }
+      await delay(CFG.crossEffectDelay);
+      for(const [c,r] of areaKill){ if(blockEls[c]?.[r]){blockEls[c][r].remove();blockEls[c][r]=null;} }
+      score+=areaKill.length*100;updateScoreUI();
+    }
+    // 스텝2: 타겟볼 1개 날아가서 → 도착 지점에서 폭탄 효과 발동
+    const excludeSet=new Set([...areaCells.map(([c,r])=>`${c},${r}`),`${c1},${r1}`]);
+    const hit=getTargetBallTarget(excludeSet);
     if(hit){
       const [rc,rr]=hit.pos;
-      await fireTargetProjectile(tC,tR,rc,rr,cellA.color);
-      if(hit.isStone){ hitStone(rc,rr); }
-      else {
-        showBombExplosion(rc,rr);
-        const nbrs=getNeighbors(rc,rr).map(([c,r])=>[c,r]);
-        nbrs.push([rc,rr]);
-        await destroyCells(nbrs);
+      await fireTargetProjectile(c2,r2,rc,rr,null);
+      if(hit.isStone) hitStone(rc,rr);
+      // 도착 지점에서 폭탄 효과 발동 (기믹/블록 무관)
+      showBombExplosion(rc,rr);
+      const nbrs=getNeighbors(rc,rr).map(([c,r])=>[c,r]);
+      if(!hit.isStone) nbrs.push([rc,rr]);
+      // 폭발 범위 내 기믹 타격
+      for(const [nc,nr] of nbrs){
+        if(gimmick[nc]?.[nr]?.type==='stone') hitStone(nc,nr);
       }
+      await destroyCells(nbrs);
     }
   }
   // ⑦ 무지개볼 x 줄볼: 순차 탐지→변환 후 동시 발동
@@ -1482,6 +1621,10 @@ async function handleCrossEffect(c1,r1,c2,r2){
       if(blockEls[c][r]) blockEls[c][r].classList.add('rainbow-marked');
     }
     await delay(300);
+    // 모든 기믹도 타격
+    for(let c=0;c<COLS_PATTERN.length;c++)
+      for(let r=0;r<COLS_PATTERN[c];r++)
+        if(gimmick[c]?.[r]?.type==='stone') hitStone(c,r);
     await destroyCells(allCells);
   }
   // ⑩ 무지개볼 x 타겟볼: 순차 탐지→변환 후 동시 발동
@@ -1727,22 +1870,44 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
     if(blockEls[c][r]){blockEls[c][r].remove();blockEls[c][r]=null;}
   }
 
-  // 6c) 타겟볼 발동 (돌 기믹 우선 타격)
+  // 6c) 타겟볼 발동 (2스텝: 범위 즉시 제거 → 타겟볼 1개 발사)
   if(actTargets.length>0){
     const targetExclude=new Set(allCellSet);
     for(const t of actTargets){
-      const hit=getTargetBallTarget(targetExclude);if(!hit) continue;
-      const [rc,rr]=hit.pos;
-      targetExclude.add(`${rc},${rr}`);
-      await fireTargetProjectile(t.col,t.row,rc,rr,t.color);
-      if(hit.isStone){
-        hitStone(rc,rr);
-      } else {
-        if(blockEls[rc][rr]) blockEls[rc][rr].classList.add('matched');
-        board[rc][rr]=null;
-        score+=100;updateScoreUI();
-        await delay(CFG.specialActivateDelay);
-        if(blockEls[rc][rr]){blockEls[rc][rr].remove();blockEls[rc][rr]=null;}
+      // 스텝1: 범위 4칸 즉시 제거
+      const areaCells=getTargetAreaCells(t.col,t.row,null);
+      for(const [ac,ar] of areaCells){
+        if(ac===t.col&&ar===t.row) continue;
+        targetExclude.add(`${ac},${ar}`);
+        if(gimmick[ac]?.[ar]?.type==='stone'){
+          const sk=`${ac},${ar}`;
+          if(!hitStones.has(sk)){ hitStones.add(sk); hitStone(ac,ar); }
+        } else if(board[ac]?.[ar]!==null){
+          if(blockEls[ac][ar]) blockEls[ac][ar].classList.add('matched');
+          board[ac][ar]=null;
+          score+=100;updateScoreUI();
+        }
+      }
+      await delay(CFG.specialActivateDelay);
+      for(const [ac,ar] of areaCells){
+        if(ac===t.col&&ar===t.row) continue;
+        if(blockEls[ac]?.[ar]){blockEls[ac][ar].remove();blockEls[ac][ar]=null;}
+      }
+      // 스텝2: 타겟볼 1개 발사 (기믹 우선 → 랜덤)
+      const hit=getTargetBallTarget(targetExclude);
+      if(hit){
+        const [rc,rr]=hit.pos;
+        targetExclude.add(`${rc},${rr}`);
+        await fireTargetProjectile(t.col,t.row,rc,rr,null);
+        if(hit.isStone){
+          hitStone(rc,rr);
+        } else {
+          if(blockEls[rc][rr]) blockEls[rc][rr].classList.add('matched');
+          board[rc][rr]=null;
+          score+=100;updateScoreUI();
+          await delay(CFG.specialActivateDelay);
+          if(blockEls[rc][rr]){blockEls[rc][rr].remove();blockEls[rc][rr]=null;}
+        }
       }
     }
   }
@@ -1889,35 +2054,55 @@ async function animateDiagonalFill(moves){
     if(el){
       el.dataset.col=toCol;el.dataset.row=toRow;
       const pos=getBlockPos(toCol,toRow);
-      el.style.transition=`left ${CFG.gravityTransition/gameSpeed}s ease-in,top ${CFG.gravityTransition/gameSpeed}s ease-in`;
+      el.style.transition=`left ${CFG.diagTransition/gameSpeed}s ease-in,top ${CFG.diagTransition/gameSpeed}s ease-in`;
       el.style.left=`${pos.x}px`;el.style.top=`${pos.y}px`;
     }
   }
-  if(moves.length>0) await skippableDelay(CFG.gravityDelay);
+  if(moves.length>0) await skippableDelay(CFG.diagDelay);
   refreshBlockElsCoordinates();
 }
 
-// 기존 호환 래퍼
+// gravity + diagonal: 애니메이션 없이 반복 계산 → DOM 한 번에 이동
 async function applyGravity(){
+  let anyMoved=false;
   for(let i=0;i<30;i++){
     const moves=computeGravity();
     const diagMoves=computeDiagonalFill();
     if(moves.length===0&&diagMoves.length===0) break;
-    // 낙하 + 대각 애니메이션 동시 시작
     animateGravityDOM(moves);
     animateDiagonalDOM(diagMoves);
-    await skippableDelay(CFG.gravityDelay);
+    anyMoved=true;
+    // delay 없이 바로 다음 반복 (DOM transition은 비동기라 자연스럽게 이동)
+  }
+  if(anyMoved){
+    await skippableDelay(CFG.gravityDelay); // 전체 낙하 완료 후 1회만 대기
     refreshBlockElsCoordinates();
   }
 }
 
-// 낙하 + 대각 + 상단 충전을 동시에
+// 상단 충전 + 추가 낙하 반복 (빈 셀 없을 때까지)
 async function fillEmpty(){
-  const fills=computeFill();
-  if(fills.length===0) return;
-  animateFillDOM(fills);
-  await skippableDelay(CFG.fillDelay);
-  refreshBlockElsCoordinates();
+  for(let i=0;i<30;i++){
+    const fills=computeFill();
+    if(fills.length===0) break;
+    animateFillDOM(fills);
+    await skippableDelay(CFG.fillDelay);
+    refreshBlockElsCoordinates();
+    // fill 후 새 블록 낙하가 필요할 수 있음
+    let subMoved=false;
+    for(let j=0;j<30;j++){
+      const moves=computeGravity();
+      const diagMoves=computeDiagonalFill();
+      if(moves.length===0&&diagMoves.length===0) break;
+      animateGravityDOM(moves);
+      animateDiagonalDOM(diagMoves);
+      subMoved=true;
+    }
+    if(subMoved){
+      await skippableDelay(CFG.gravityDelay);
+      refreshBlockElsCoordinates();
+    }
+  }
 }
 
 // 애니메이션 DOM 조작만 (await 없음)
@@ -1934,7 +2119,7 @@ function animateGravityDOM(moves){
   }
 }
 function animateDiagonalDOM(moves){
-  const t=CFG.gravityTransition/gameSpeed;
+  const t=CFG.diagTransition/gameSpeed;
   for(const {col,fromRow,toCol,toRow} of moves){
     blockEls[toCol][toRow]=blockEls[col][fromRow];blockEls[col][fromRow]=null;
     const el=blockEls[toCol][toRow];
@@ -1974,16 +2159,18 @@ function canFillFromTop(col,row){
 function computeFill(){
   const fills=[];
   for(let col=0;col<COLS_PATTERN.length;col++){
+    // gravity 완료 후 최상단부터 연속된 빈 셀 수 카운트
     let emptyCount=0;
-    for(let r=0;r<COLS_PATTERN[col];r++){
-      if(board[col][r]===null&&!(gimmick[col]?.[r])&&canFillFromTop(col,r)) emptyCount++;
-    }
     for(let row=0;row<COLS_PATTERN[col];row++){
-      if(board[col][row]===null&&!(gimmick[col]?.[row])&&canFillFromTop(col,row)){
-        const ci=Math.floor(Math.random()*numColors);
-        board[col][row]=makeCell(ci);
-        fills.push({col,row,color:ci,emptyCount});
-      }
+      if(gimmick[col]?.[row]) break;
+      if(board[col][row]!==null) break;
+      emptyCount++;
+    }
+    // 최상단부터 한 번에 채움 (emptyCount로 낙하 높이 결정)
+    for(let row=0;row<emptyCount;row++){
+      const ci=Math.floor(Math.random()*numColors);
+      board[col][row]=makeCell(ci);
+      fills.push({col,row,emptyCount});
     }
   }
   return fills;

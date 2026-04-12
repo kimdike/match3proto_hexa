@@ -94,6 +94,43 @@
     .tool-btn.eraser { color: #e74c3c; }
     .tool-btn.eraser.active { border-color: #e74c3c; background: rgba(231,76,60,0.15); color: #e74c3c; }
 
+    /* ── 스테이지 설정 ── */
+    .setting-group { margin-bottom: 8px; }
+    .setting-group label {
+      display: block;
+      color: #aaa;
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+    .ct-btns { display: flex; gap: 4px; }
+    .ct-btn {
+      flex: 1;
+      padding: 6px;
+      border: 2px solid #444;
+      border-radius: 6px;
+      background: #2a2a3e;
+      color: #aaa;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .ct-btn:hover { border-color: #7c6fff; color: #fff; }
+    .ct-btn.active { border-color: #f1c40f; background: rgba(241,196,15,0.15); color: #f1c40f; }
+    .moves-input {
+      width: 100%;
+      padding: 6px 8px;
+      border: 2px solid #444;
+      border-radius: 6px;
+      background: #2a2a3e;
+      color: #e0e0e0;
+      font-size: 13px;
+      font-weight: bold;
+      text-align: center;
+      outline: none;
+    }
+    .moves-input:focus { border-color: #7c6fff; }
+
     /* ── 헥사 그리드 ── */
     .grid-area {
       position: relative;
@@ -184,6 +221,19 @@
   <div class="editor-body">
     <!-- 도구 패널 -->
     <div class="tool-panel">
+      <div class="tool-panel-title">스테이지 설정</div>
+      <div class="setting-group">
+        <label>블록 종류 수</label>
+        <div class="ct-btns">
+          <button class="ct-btn" data-ct="5">5</button>
+          <button class="ct-btn" data-ct="6">6</button>
+          <button class="ct-btn" data-ct="7">7</button>
+        </div>
+      </div>
+      <div class="setting-group">
+        <label>Move 수</label>
+        <input type="number" class="moves-input" id="moves-input" min="1" max="99" value="30">
+      </div>
       <div class="tool-panel-title">기믹 배치</div>
       <button class="tool-btn" data-tool="stone" data-level="1">
         <img src="assets/gimmick/stone_1.png"> 돌 1
@@ -214,7 +264,9 @@
   <div class="bottom-bar">
     <button class="action-btn danger" id="btn-reset-stage">이 스테이지 초기화</button>
     <button class="action-btn danger" id="btn-reset-all">전체 초기화</button>
+    <button class="action-btn" id="btn-import">JSON 가져오기</button>
     <button class="action-btn primary" id="btn-export">JSON 내보내기</button>
+    <input type="file" id="file-import" accept=".json" style="display:none">
   </div>
 
 <script>
@@ -232,6 +284,7 @@ const LS_KEY = 'hexMapEditorData';
 let currentStage = 1;
 let currentTool = null; // null | {tool:'stone',level:N} | {tool:'eraser'}
 let stageData = loadData();
+let stageSettings = loadSettings();
 
 // ── localStorage ──
 function loadData() {
@@ -262,6 +315,25 @@ function removeGimmick(stage, col, row) {
   if (!stageData[stage]) return;
   delete stageData[stage][`${col},${row}`];
   saveData();
+}
+
+// ── 스테이지 설정 localStorage ──
+function loadSettings() {
+  const raw = localStorage.getItem(LS_KEY + '_settings');
+  if (raw) { try { return JSON.parse(raw); } catch(e) {} }
+  return defaultSettings();
+}
+function defaultSettings() {
+  const s = {};
+  for (let i = 1; i <= TOTAL_STAGES; i++) s[i] = { colorTypes: 5, moves: 30 };
+  return s;
+}
+function saveSettings() {
+  localStorage.setItem(LS_KEY + '_settings', JSON.stringify(stageSettings));
+}
+function getStageSettings(stage) {
+  if (!stageSettings[stage]) stageSettings[stage] = { colorTypes: 5, moves: 30 };
+  return stageSettings[stage];
 }
 
 // ── 좌표 계산 ──
@@ -346,6 +418,15 @@ function renderGrid() {
   }
 
   updateSummary();
+  updateSettingsUI();
+}
+
+function updateSettingsUI() {
+  const settings = getStageSettings(currentStage);
+  document.querySelectorAll('.ct-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.ct) === settings.colorTypes);
+  });
+  document.getElementById('moves-input').value = settings.moves;
 }
 
 function onCellClick(col, row) {
@@ -396,14 +477,18 @@ function setupActions() {
   document.getElementById('btn-reset-stage').addEventListener('click', () => {
     if (!confirm(`Stage ${currentStage} 기믹을 전부 지울까요?`)) return;
     stageData[currentStage] = {};
+    stageSettings[currentStage] = { colorTypes: 5, moves: 30 };
     saveData();
+    saveSettings();
     renderGrid();
   });
 
   document.getElementById('btn-reset-all').addEventListener('click', () => {
     if (!confirm('전체 스테이지 기믹을 지울까요?')) return;
     for (let i = 1; i <= TOTAL_STAGES; i++) stageData[i] = {};
+    stageSettings = defaultSettings();
     saveData();
+    saveSettings();
     renderGrid();
   });
 
@@ -413,7 +498,8 @@ function setupActions() {
       const gimmicks = Object.values(stageData[i] || {}).map(g => ({
         col: g.col, row: g.row, type: g.type, level: g.level
       }));
-      stages.push({ stage: i, gimmicks });
+      const settings = getStageSettings(i);
+      stages.push({ stage: i, colorTypes: settings.colorTypes, moves: settings.moves, gimmicks });
     }
     const json = JSON.stringify({ stages }, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
@@ -424,11 +510,74 @@ function setupActions() {
     a.click();
     URL.revokeObjectURL(url);
   });
+
+  // JSON 가져오기
+  document.getElementById('btn-import').addEventListener('click', () => {
+    document.getElementById('file-import').click();
+  });
+  document.getElementById('file-import').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!data.stages || !Array.isArray(data.stages)) {
+          alert('올바른 stage_maps.json 형식이 아닙니다.');
+          return;
+        }
+        // 기존 데이터 초기화 후 로드
+        for (let i = 1; i <= TOTAL_STAGES; i++) stageData[i] = {};
+        stageSettings = defaultSettings();
+        for (const s of data.stages) {
+          const num = s.stage;
+          if (num < 1 || num > TOTAL_STAGES) continue;
+          // 기믹 로드
+          if (s.gimmicks) {
+            for (const g of s.gimmicks) {
+              stageData[num][`${g.col},${g.row}`] = { col: g.col, row: g.row, type: g.type, level: g.level };
+            }
+          }
+          // 설정 로드
+          if (s.colorTypes) stageSettings[num].colorTypes = s.colorTypes;
+          if (s.moves) stageSettings[num].moves = s.moves;
+        }
+        saveData();
+        saveSettings();
+        renderGrid();
+        alert('가져오기 완료!');
+      } catch (err) {
+        alert('JSON 파싱 실패: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = ''; // 같은 파일 재선택 허용
+  });
+}
+
+// ── 설정 UI ──
+function setupSettings() {
+  document.querySelectorAll('.ct-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const settings = getStageSettings(currentStage);
+      settings.colorTypes = parseInt(btn.dataset.ct);
+      saveSettings();
+      updateSettingsUI();
+    });
+  });
+  document.getElementById('moves-input').addEventListener('change', (e) => {
+    const val = parseInt(e.target.value);
+    if (val >= 1 && val <= 99) {
+      getStageSettings(currentStage).moves = val;
+      saveSettings();
+    }
+  });
 }
 
 // ── 초기화 ──
 buildTabs();
 setupTools();
+setupSettings();
 setupActions();
 renderGrid();
 </script>

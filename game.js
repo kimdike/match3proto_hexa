@@ -2658,12 +2658,13 @@ function startGame(){
   score=0;
   clearHint();clearAllBlocks();
 
-  // 스테이지 데이터 적용
+  // 스테이지 데이터 적용 (stage_maps.json 우선, 없으면 STAGES 폴백)
   const sd=STAGES[currentStage-1]||STAGES[STAGES.length-1];
+  const mapData=stageMaps?.stages?.find(s=>s.stage===currentStage);
   stageTarget=sd.target;
-  maxMoves=sd.moves;
+  maxMoves=mapData?.moves??sd.moves;
   movesLeft=maxMoves;
-  numColors=sd.colorTypes;
+  numColors=mapData?.colorTypes??sd.colorTypes;
 
   // 스테이지 맵 기믹 적용
   applyStageGimmicks(currentStage);
@@ -2737,9 +2738,10 @@ function updateLobbyStage(){
     stageBtn.style.display='';
     infoEl.style.display='';
     const sd=STAGES[currentStage-1];
+    const mapData=stageMaps?.stages?.find(s=>s.stage===currentStage);
     numEl.textContent=currentStage;
     document.getElementById('lobby-stage-target').textContent=`목표 ${sd.target.toLocaleString()}점`;
-    document.getElementById('lobby-stage-moves').textContent=`Move ${sd.moves}`;
+    document.getElementById('lobby-stage-moves').textContent=`Move ${mapData?.moves??sd.moves}`;
   }
 }
 

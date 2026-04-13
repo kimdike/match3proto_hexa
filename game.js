@@ -121,19 +121,64 @@ function applyPokemonBg(el,pokeNum,displaySize,transparent){
 let stageMaps=null; // stage_maps.json에서 로드
 
 async function loadStageMaps(){
+  // 1) script 태그로 로드된 전역변수 우선 (file:// 프로토콜 대응)
+  if(typeof STAGE_MAPS_DATA!=='undefined'){
+    stageMaps=STAGE_MAPS_DATA;
+    console.log('[stageMaps] script 로드 완료:',stageMaps.stages.length,'스테이지');
+    return;
+  }
+  // 2) HTTP 서버 환경이면 fetch 시도
   try{
-    const res=await fetch('stage_maps.json');
+    const res=await fetch('stage_maps.json?t='+Date.now());
+    if(!res.ok) throw new Error('HTTP '+res.status);
     stageMaps=await res.json();
-  }catch(e){ console.warn('stage_maps.json 로드 실패:',e); stageMaps={stages:[]}; }
+    console.log('[stageMaps] fetch 로드 완료:',stageMaps.stages.length,'스테이지');
+  }catch(e){ console.warn('[stageMaps] 로드 실패:',e); stageMaps={stages:[]}; }
 }
 
 function applyStageGimmicks(stageNum){
-  if(!stageMaps) return;
+  if(!stageMaps){ console.warn('[gimmicks] stageMaps is null'); return; }
   const stageData=stageMaps.stages.find(s=>s.stage===stageNum);
-  if(!stageData||!stageData.gimmicks) return;
+  if(!stageData){ console.warn('[gimmicks] stage',stageNum,'not found'); return; }
+  if(!stageData.gimmicks){ console.warn('[gimmicks] no gimmicks array for stage',stageNum); return; }
+  console.log('[gimmicks] loading',stageData.gimmicks.length,'gimmicks for stage',stageNum);
   for(const g of stageData.gimmicks){
     if(!gimmick[g.col]) gimmick[g.col]=[];
     gimmick[g.col][g.row]={type:g.type,level:g.level};
+  }
+}
+
+function applyStageCells(stageNum){
+  // 초기화: 모두 normal, 모든 컬럼 entrance
+  for(let col=0;col<COLS_PATTERN.length;col++){
+    cellType[col]=[];
+    for(let row=0;row<COLS_PATTERN[col];row++) cellType[col][row]='normal';
+  }
+  entranceCols=new Set();
+
+  if(!stageMaps){
+    for(let col=0;col<COLS_PATTERN.length;col++) entranceCols.add(col);
+    return;
+  }
+  const sd=stageMaps.stages.find(s=>s.stage===stageNum);
+  if(!sd||!sd.cells){
+    // cells 없으면 기본값(모든 컬럼 entrance)
+    for(let col=0;col<COLS_PATTERN.length;col++) entranceCols.add(col);
+    return;
+  }
+  for(const c of sd.cells){
+    if(c.type==='entrance'){
+      entranceCols.add(c.col);
+      if(c.row>=0&&cellType[c.col]) cellType[c.col][c.row]='entrance';
+    }
+    else if(c.type==='dead'&&cellType[c.col]) cellType[c.col][c.row]='dead';
+    else if(c.type==='pass'&&cellType[c.col]&&c.row>=0) cellType[c.col][c.row]='pass';
+  }
+  // 데드셀/엔트런스 hex-cell 가시성 업데이트
+  for(let col=0;col<COLS_PATTERN.length;col++){
+    for(let row=0;row<COLS_PATTERN[col];row++){
+      if(hexCellEls[col]?.[row]) hexCellEls[col][row].style.visibility=isNonPlayable(col,row)?'hidden':'';
+    }
   }
 }
 
@@ -149,6 +194,14 @@ let debugPlaceType = null; // null | 'stripe' | 'target' | 'bomb' | 'rainbow'
 const board=[], blockEls=[], cellPos=[];
 // gimmick[col][row] = { type:'stone', level:1~5 } | null
 const gimmick=[], gimmickEls=[];
+// 셀 타입: cellType[col][row] = 'normal'|'dead'
+const cellType=[];
+const hexCellEls=[]; // hex-cell DOM 참조 (데드셀 가시성 제어용)
+let entranceCols=new Set(); // 사출구가 있는 컬럼 (블록 충전 대상)
+function isDead(c,r){ return cellType[c]?.[r]==='dead'; }
+function isEntrance(c,r){ return cellType[c]?.[r]==='entrance'; }
+function isPass(c,r){ return cellType[c]?.[r]==='pass'; }
+function isNonPlayable(c,r){ const t=cellType[c]?.[r]; return !!t&&t!=='normal'; }
 let totalStones=0; // 남은 돌 총 개수
 let initialStones=0; // 시작 시 돌 총 개수 (승리조건 판별용)
 let dragState=null;
@@ -256,7 +309,7 @@ function getBlockPos(col,row){
 function getNeighbors(col,row){
   const long=isLongCol(col);
   const off=[[0,-1],[0,1],...(long?[[-1,-1],[-1,0],[1,-1],[1,0]]:[[-1,0],[-1,1],[1,0],[1,1]])];
-  return off.map(([dc,dr])=>[col+dc,row+dr]).filter(([c,r])=>isValid(c,r));
+  return off.map(([dc,dr])=>[col+dc,row+dr]).filter(([c,r])=>isValid(c,r)&&!isNonPlayable(c,r));
 }
 function isAdjacent(c1,r1,c2,r2){ return getNeighbors(c1,r1).some(([c,r])=>c===c2&&r===r2); }
 let gameSpeed=1; // 게임 배속 (0.5~5x)
@@ -577,7 +630,7 @@ function initBoard(){
     if(!gimmick[col]) gimmick[col]=[];
     if(!gimmickEls[col]) gimmickEls[col]=[];
     for(let row=0;row<COLS_PATTERN[col];row++){
-      if(gimmick[col][row]){ board[col][row]=null; continue; }
+      if(gimmick[col][row]||isNonPlayable(col,row)){ board[col][row]=null; continue; }
       const idx=shuffle([...Array(numColors).keys()]);
       for(const c of idx){ board[col][row]=makeCell(c); if(!hasMatchAt(col,row)&&!hasClusterAt(col,row)) break; }
     }
@@ -641,7 +694,7 @@ function createCells(){
   document.documentElement.style.setProperty('--hex-h',`${HEX_H}px`);
   document.documentElement.style.setProperty('--block-d',`${BLOCK_D}px`);
   for(let col=0;col<COLS_PATTERN.length;col++){
-    cellPos[col]=[];blockEls[col]=[];
+    cellPos[col]=[];blockEls[col]=[];hexCellEls[col]=[];
     for(let row=0;row<COLS_PATTERN[col];row++){
       const pos=getCellPos(col,row); cellPos[col][row]=pos;
       const cell=document.createElement('div'); cell.className='hex-cell';
@@ -649,6 +702,7 @@ function createCells(){
       cell.addEventListener('mouseover', () => { hoveredCell = { col, row }; });
       cell.addEventListener('mouseout', () => { hoveredCell = null; });
       container.appendChild(cell);
+      hexCellEls[col][row]=cell;
     }
   }
   container.addEventListener('mousedown',onDragStart);
@@ -1979,17 +2033,26 @@ async function animateSwap(c1,r1,c2,r2){
 // board 배열만 업데이트, 이동 정보 반환
 function computeGravity(){
   const moves=[];
+  // pass 셀은 블록 착지 불가 → wr 건너뛰기
+  function skipPass(col,w){
+    while(w>=0&&isPass(col,w)) w--;
+    return w;
+  }
   for(let col=0;col<COLS_PATTERN.length;col++){
-    let wr=COLS_PATTERN[col]-1;
+    let wr=skipPass(col,COLS_PATTERN[col]-1);
     for(let row=COLS_PATTERN[col]-1;row>=0;row--){
-      // 기믹 셀은 건너뜀 (블록이 통과 불가)
-      if(gimmick[col]?.[row]) { wr=row-1; continue; }
+      // dead/entrance/기믹: 완전 장벽 (블록 통과 불가)
+      if(gimmick[col]?.[row]||isDead(col,row)||isEntrance(col,row)){
+        wr=skipPass(col,row-1); continue;
+      }
+      // pass: 투명 통과 (블록 없음, 건너뜀)
+      if(isPass(col,row)) continue;
       if(board[col][row]!==null){
         if(row!==wr){
           board[col][wr]=board[col][row];board[col][row]=null;
           moves.push({col,fromRow:row,toRow:wr});
         }
-        wr--;
+        wr=skipPass(col,wr-1);
       }
     }
   }
@@ -2019,27 +2082,30 @@ function computeDiagonalFill(){
     changed=false;
     for(let col=0;col<COLS_PATTERN.length;col++){
       for(let row=0;row<COLS_PATTERN[col];row++){
-        if(board[col][row]!==null||gimmick[col]?.[row]) continue;
-        // 이 셀 위에 기믹이 있어서 수직 낙하가 차단되는지 체크
-        let blockedAbove=false;
+        if(board[col][row]!==null||gimmick[col]?.[row]||isNonPlayable(col,row)) continue;
+        // dead/기믹 아래만 대각선 충전 대상
+        // entrance 아래 → computeFill이 처리 (대각선 불필요)
+        // pass 아래 → 투명 통과이므로 대각선 불필요
+        let blockedByDeadOrGimmick=false;
         for(let r=row-1;r>=0;r--){
-          if(gimmick[col]?.[r]){blockedAbove=true;break;}
-          if(board[col][r]!==null) break; // 위에 블록이 있으면 수직 낙하로 채워질 것
+          if(isEntrance(col,r)) break; // entrance 위 → computeFill 담당
+          if(isPass(col,r)) continue;  // pass는 투명, 건너뜀
+          if(gimmick[col]?.[r]||isDead(col,r)){blockedByDeadOrGimmick=true;break;}
+          if(board[col][r]!==null) break;
         }
-        if(!blockedAbove) continue;
+        if(!blockedByDeadOrGimmick) continue;
         // 대각선 소스: 좌상단(nw) 우선, 우상단(ne) 차선
         const long=isLongCol(col);
         const diagSources=long
-          ?[[col-1,row-1],[col+1,row-1]] // long col: nw, ne
-          :[[col-1,row],[col+1,row]];     // short col: nw, ne
+          ?[[col-1,row-1],[col+1,row-1]]
+          :[[col-1,row],[col+1,row]];
         for(const [sc,sr] of diagSources){
           if(!isValid(sc,sr)) continue;
-          if(board[sc][sr]===null||gimmick[sc]?.[sr]) continue;
-          // 이동
+          if(board[sc][sr]===null||gimmick[sc]?.[sr]||isNonPlayable(sc,sr)) continue;
           board[col][row]=board[sc][sr];board[sc][sr]=null;
           moves.push({col:sc,fromRow:sr,toCol:col,toRow:row});
           changed=true;
-          break; // 왼쪽 우선
+          break;
         }
       }
     }
@@ -2133,11 +2199,11 @@ function animateDiagonalDOM(moves){
 }
 function animateFillDOM(fills){
   const container=document.getElementById('grid-container');
-  for(const {col,row,emptyCount} of fills){
+  for(const {col,row,dropDist} of fills){
     const pos=getBlockPos(col,row);
     const el=createBlockEl(col,row,board[col][row]);
     if(el){
-      el.style.top=`${pos.y-emptyCount*ROW_SPACING}px`;el.style.transition='none';
+      el.style.top=`${pos.y-dropDist*ROW_SPACING}px`;el.style.transition='none';
       container.appendChild(el);blockEls[col][row]=el;
       el.offsetHeight;
       el.style.transition=`top ${CFG.fillTransition/gameSpeed}s ease-in`;el.style.top=`${pos.y}px`;
@@ -2151,7 +2217,8 @@ function animateFillDOM(fills){
 // 위쪽에 기믹이 있으면 수직 충전 불가 (대각선 충전으로만 채움)
 function canFillFromTop(col,row){
   for(let r=row-1;r>=0;r--){
-    if(gimmick[col]?.[r]) return false;
+    if(gimmick[col]?.[r]||isDead(col,r)||isEntrance(col,r)) return false;
+    if(isPass(col,r)) continue; // pass는 투명, 통과
   }
   return true;
 }
@@ -2159,18 +2226,30 @@ function canFillFromTop(col,row){
 function computeFill(){
   const fills=[];
   for(let col=0;col<COLS_PATTERN.length;col++){
-    // gravity 완료 후 최상단부터 연속된 빈 셀 수 카운트
-    let emptyCount=0;
+    // 이 컬럼의 충전 소스: top entrance(row=-1) + 보드 내 entrance 셀
+    const sources=[];
+    if(entranceCols.has(col)) sources.push(-1);
     for(let row=0;row<COLS_PATTERN[col];row++){
-      if(gimmick[col]?.[row]) break;
-      if(board[col][row]!==null) break;
-      emptyCount++;
+      if(isEntrance(col,row)) sources.push(row);
     }
-    // 최상단부터 한 번에 채움 (emptyCount로 낙하 높이 결정)
-    for(let row=0;row<emptyCount;row++){
-      const ci=Math.floor(Math.random()*numColors);
-      board[col][row]=makeCell(ci);
-      fills.push({col,row,emptyCount});
+    // 각 소스에서 아래 방향으로 빈 셀 충전
+    // dead/entrance/기믹 = 장벽(중단), pass = 투명(통과)
+    for(const srcRow of sources){
+      const startRow=srcRow+1;
+      if(startRow<0||startRow>=COLS_PATTERN[col]) continue;
+      const targets=[];
+      for(let row=startRow;row<COLS_PATTERN[col];row++){
+        if(gimmick[col]?.[row]||isDead(col,row)||isEntrance(col,row)) break; // 장벽
+        if(isPass(col,row)) continue; // pass는 투명, 통과
+        if(board[col][row]!==null) break;
+        targets.push(row);
+      }
+      for(const row of targets){
+        if(board[col][row]!==null) continue; // 다른 소스가 이미 채운 경우 스킵
+        const ci=Math.floor(Math.random()*numColors);
+        board[col][row]=makeCell(ci);
+        fills.push({col,row,dropDist:row-srcRow});
+      }
     }
   }
   return fills;
@@ -2179,11 +2258,11 @@ function computeFill(){
 // 충전 애니메이션 (DOM만 조작, board 건드리지 않음)
 async function animateFill(fills){
   const container=document.getElementById('grid-container');
-  for(const {col,row,emptyCount} of fills){
+  for(const {col,row,dropDist} of fills){
     const pos=getBlockPos(col,row);
     const el=createBlockEl(col,row,board[col][row]);
     if(el){
-      el.style.top=`${pos.y-emptyCount*ROW_SPACING}px`;el.style.transition='none';
+      el.style.top=`${pos.y-dropDist*ROW_SPACING}px`;el.style.transition='none';
       container.appendChild(el);blockEls[col][row]=el;
       el.offsetHeight;
       el.style.transition=`top ${CFG.fillTransition/gameSpeed}s ease-in`;el.style.top=`${pos.y}px`;
@@ -2666,8 +2745,10 @@ function startGame(){
   movesLeft=maxMoves;
   numColors=mapData?.colorTypes??sd.colorTypes;
 
-  // 스테이지 맵 기믹 적용
+  // 스테이지 맵 셀 타입 + 기믹 적용
+  applyStageCells(currentStage);
   applyStageGimmicks(currentStage);
+  console.log('[startGame] stage',currentStage,'mapData:',!!mapData,'entrance:',entranceCols.size,'gimmicks:',gimmick.reduce((n,c)=>n+(c?c.filter(Boolean).length:0),0));
 
   // UI 갱신 후 게임 시작
   document.getElementById('settings-bar').classList.add('hidden');

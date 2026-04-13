@@ -1,7 +1,91 @@
-{
+var STAGE_MAPS_DATA = {
   "stages": [
     {
       "stage": 1,
+      "colorTypes": 5,
+      "moves": 30,
+      "cells": [
+        {
+          "col": 0,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 1,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 2,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 4,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 5,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 6,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 7,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 8,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 3,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 7,
+          "row": 2,
+          "type": "pass"
+        },
+        {
+          "col": 8,
+          "row": 2,
+          "type": "dead"
+        },
+        {
+          "col": 8,
+          "row": 3,
+          "type": "dead"
+        },
+        {
+          "col": 6,
+          "row": 2,
+          "type": "entrance"
+        },
+        {
+          "col": 0,
+          "row": 3,
+          "type": "entrance"
+        },
+        {
+          "col": 2,
+          "row": 3,
+          "type": "entrance"
+        },
+        {
+          "col": 4,
+          "row": 3,
+          "type": "dead"
+        }
+      ],
       "gimmicks": [
         {
           "col": 2,
@@ -103,6 +187,55 @@
     },
     {
       "stage": 2,
+      "colorTypes": 6,
+      "moves": 30,
+      "cells": [
+        {
+          "col": 0,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 1,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 2,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 3,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 4,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 5,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 6,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 7,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 8,
+          "row": -1,
+          "type": "entrance"
+        }
+      ],
       "gimmicks": [
         {
           "col": 2,
@@ -204,6 +337,55 @@
     },
     {
       "stage": 3,
+      "colorTypes": 6,
+      "moves": 30,
+      "cells": [
+        {
+          "col": 0,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 1,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 2,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 3,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 4,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 5,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 6,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 7,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 8,
+          "row": -1,
+          "type": "entrance"
+        }
+      ],
       "gimmicks": [
         {
           "col": 2,
@@ -299,6 +481,55 @@
     },
     {
       "stage": 4,
+      "colorTypes": 6,
+      "moves": 30,
+      "cells": [
+        {
+          "col": 0,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 1,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 2,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 3,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 4,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 5,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 6,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 7,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 8,
+          "row": -1,
+          "type": "entrance"
+        }
+      ],
       "gimmicks": [
         {
           "col": 3,
@@ -448,6 +679,55 @@
     },
     {
       "stage": 5,
+      "colorTypes": 6,
+      "moves": 30,
+      "cells": [
+        {
+          "col": 0,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 1,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 2,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 3,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 4,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 5,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 6,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 7,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 8,
+          "row": -1,
+          "type": "entrance"
+        }
+      ],
       "gimmicks": [
         {
           "col": 8,
@@ -543,6 +823,55 @@
     },
     {
       "stage": 6,
+      "colorTypes": 7,
+      "moves": 30,
+      "cells": [
+        {
+          "col": 0,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 1,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 2,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 3,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 4,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 5,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 6,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 7,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 8,
+          "row": -1,
+          "type": "entrance"
+        }
+      ],
       "gimmicks": [
         {
           "col": 0,
@@ -620,6 +949,55 @@
     },
     {
       "stage": 7,
+      "colorTypes": 6,
+      "moves": 30,
+      "cells": [
+        {
+          "col": 0,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 1,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 2,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 3,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 4,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 5,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 6,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 7,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 8,
+          "row": -1,
+          "type": "entrance"
+        }
+      ],
       "gimmicks": [
         {
           "col": 0,
@@ -679,6 +1057,55 @@
     },
     {
       "stage": 8,
+      "colorTypes": 7,
+      "moves": 30,
+      "cells": [
+        {
+          "col": 0,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 1,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 2,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 3,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 4,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 5,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 6,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 7,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 8,
+          "row": -1,
+          "type": "entrance"
+        }
+      ],
       "gimmicks": [
         {
           "col": 0,
@@ -858,6 +1285,55 @@
     },
     {
       "stage": 9,
+      "colorTypes": 6,
+      "moves": 30,
+      "cells": [
+        {
+          "col": 0,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 1,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 2,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 3,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 4,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 5,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 6,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 7,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 8,
+          "row": -1,
+          "type": "entrance"
+        }
+      ],
       "gimmicks": [
         {
           "col": 4,
@@ -941,6 +1417,55 @@
     },
     {
       "stage": 10,
+      "colorTypes": 6,
+      "moves": 30,
+      "cells": [
+        {
+          "col": 0,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 1,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 2,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 3,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 4,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 5,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 6,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 7,
+          "row": -1,
+          "type": "entrance"
+        },
+        {
+          "col": 8,
+          "row": -1,
+          "type": "entrance"
+        }
+      ],
       "gimmicks": [
         {
           "col": 8,
@@ -958,7 +1483,7 @@
           "col": 8,
           "row": 1,
           "type": "stone",
-          "level": 1
+          "level": 5
         },
         {
           "col": 6,
@@ -994,19 +1519,19 @@
           "col": 7,
           "row": 1,
           "type": "stone",
-          "level": 1
+          "level": 5
         },
         {
           "col": 8,
           "row": 2,
           "type": "stone",
-          "level": 1
+          "level": 5
         },
         {
           "col": 7,
           "row": 2,
           "type": "stone",
-          "level": 1
+          "level": 5
         },
         {
           "col": 5,
@@ -1066,13 +1591,13 @@
           "col": 7,
           "row": 6,
           "type": "stone",
-          "level": 1
+          "level": 5
         },
         {
           "col": 8,
           "row": 7,
           "type": "stone",
-          "level": 1
+          "level": 5
         },
         {
           "col": 8,
@@ -1084,43 +1609,43 @@
           "col": 8,
           "row": 6,
           "type": "stone",
-          "level": 1
+          "level": 5
         },
         {
           "col": 8,
           "row": 5,
           "type": "stone",
-          "level": 1
+          "level": 5
         },
         {
           "col": 8,
           "row": 4,
           "type": "stone",
-          "level": 1
+          "level": 5
         },
         {
           "col": 8,
           "row": 3,
           "type": "stone",
-          "level": 1
+          "level": 5
         },
         {
           "col": 7,
           "row": 3,
           "type": "stone",
-          "level": 1
+          "level": 5
         },
         {
           "col": 7,
           "row": 4,
           "type": "stone",
-          "level": 1
+          "level": 5
         },
         {
           "col": 7,
           "row": 5,
           "type": "stone",
-          "level": 1
+          "level": 5
         },
         {
           "col": 6,
@@ -1149,4 +1674,4 @@
       ]
     }
   ]
-}
+};

@@ -6,6 +6,14 @@
 - [ ] 속도 조절 슬라이더 UI (우측 패널)
 - [ ] 매칭 계산 속도 개선 (배치 처리 방식)
 
+### 리팩토링 후 정리 (2026.04.18 완료분 기반)
+- [ ] Dead code / debug 로그 정리
+  - `ui.js` `lastCleared` (write만 있고 read 없음)
+  - `ui.js` setupUI Space 키 핸들러 DEBUG 로그 다수
+  - `main.js` removeBlockAt / updateHoveredCellFromMouse DEBUG 로그
+  - `gravity.js` dead code 4개 (animateGravity / animateDiagonalFill / animateFill / canFillFromTop)
+- [ ] `boardData` 미사용 export 객체 제거 또는 실제 사용처 연결 (game.js)
+
 ---
 
 ## ✅ 완료된 작업
@@ -70,6 +78,18 @@
 - [x] 대각선 충전 fill→gravity 루프 최적화
 - [x] 무지개x무지개 교차 후 충전 멈춤 버그 수정
 - [x] diag transition / diag delay 인스펙터 항목 추가
+- [x] **리팩토링 & 모듈화 완료** (2026.04.18)
+  - game.js 2948줄 → 516줄 (-2432)
+  - 10개 모듈 분리: config / grid / board / match / special / gravity / animation / ui / game / main
+- [x] 폭탄×폭탄 19칸 범위 누락 버그 수정 (entrance/dead/pass gateway 문제)
+- [x] 줄볼×폭탄 교차 기준점 버그 수정 (드래그 방향 대칭 깨짐)
+- [x] 무지개×무지개 돌 기믹 2단계 감소 버그 수정
+- [x] 폭탄×폭탄 / 무지개×무지개 배치 동시 발동 구현
+- [x] 대각선 충전 DOM desync 수정 (fills 스냅샷 패턴)
+- [x] 대각선 충전 연출 C안 구조 (fill+gravity+diag 동시 트리거, 폭포 느낌)
+- [x] gravity→diagonal 정직한 L자 경로 (CSS transition 완료 후 꺾임)
+- [x] gravity/diagonal transition 속도 단축 (스피디 + 정직 유지)
+- [x] .claude/ 추적 제외 + .gitignore 추가
 
 ---
 
@@ -79,7 +99,7 @@
 - 코어 게임플레이 완성
 
 ### Phase 2 - 다음 작업 (리팩토링)
-- [ ] 리팩토링 & 모듈화
+- [x] 리팩토링 & 모듈화 ✅ (2026.04.18 완료, 10개 모듈)
   - game.js → grid.js / block.js / match.js / special.js / animation.js / ui.js
 - [ ] 충전 애니메이션 매끄럽게 (대각선 경로 폴리싱, pathfinding 기반)
 - [ ] 실시간 매칭 완전 구현
@@ -114,8 +134,6 @@
 
 ---
 
-- [ ] 리팩토링 & 모듈화
-  - game.js → grid.js / block.js / match.js / special.js / animation.js / ui.js
 - [ ] 터치 이벤트 지원 (모바일)
 - [ ] 사운드 효과 추가
 - [ ] GitHub Pages 배포
@@ -123,3 +141,4 @@
   - 현재: 목적지로 직선 이동하는 케이스 존재
   - 리팩토링 시 pathfinding 기반 낙하 시스템으로 통째로 교체 예정
   - gravity/diagonal이 board계산+DOM이동 한 세트로 묶여있어 지금 단계에서 수정 시 안정성 위험
+  - (2026.04.18) 폭포 연출 + 정직한 L자 경로까지 구현됨. pathfinding 기반 교체는 여전히 추후 과제

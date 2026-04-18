@@ -1,68 +1,8 @@
 // ── 헥사 3매치 퍼즐 ──
+// 상수/설정값은 config.js로 분리되어 있음 (index.html에서 먼저 로드)
 
-const COLS_PATTERN = [9, 8, 9, 8, 9, 8, 9, 8, 9];
-const HEX_SIZE = 36;
-const HEX_W = HEX_SIZE * 2;
-const HEX_H = Math.sqrt(3) * HEX_SIZE;
-const COL_SPACING = HEX_SIZE * 1.5;
-const ROW_SPACING = HEX_H;
-const BLOCK_D = 55;
-// ── 스테이지 데이터 ──
-const STAGES = [
-  { stage:1,  target:10000, moves:30, colorTypes:5 },
-  { stage:2,  target:15000, moves:28, colorTypes:5 },
-  { stage:3,  target:20000, moves:26, colorTypes:6 },
-  { stage:4,  target:25000, moves:25, colorTypes:6 },
-  { stage:5,  target:30000, moves:24, colorTypes:7 },
-  { stage:6,  target:35000, moves:23, colorTypes:7 },
-  { stage:7,  target:40000, moves:22, colorTypes:7 },
-  { stage:8,  target:45000, moves:21, colorTypes:7 },
-  { stage:9,  target:48000, moves:20, colorTypes:7 },
-  { stage:10, target:50000, moves:20, colorTypes:7 },
-];
 let currentStage = parseInt(localStorage.getItem('hexPuzzleStage')) || 1;
 let stageTarget = STAGES[0].target;
-
-const ALL_COLORS = [
-  { name:'red',bg:'#e74c3c' },{ name:'orange',bg:'#f39c12' },
-  { name:'yellow',bg:'#f1c40f' },{ name:'green',bg:'#2ecc71' },
-  { name:'blue',bg:'#3498db' },{ name:'indigo',bg:'#5b6abf' },
-  { name:'violet',bg:'#9b59b6' },
-];
-
-// ── 조절 가능한 설정값 ──
-const CFG = {
-  gravityTransition: 0.2,   gravityDelay: 240,
-  fillTransition: 0.2,      fillDelay: 200,
-  diagTransition: 0.15,     diagDelay: 180,
-  projectileTransition: 0.45,
-  matchedDelay: 200,         mergeDelay: 130,
-  explosionLifetime: 400,
-  specialActivateDelay: 100, crossEffectDelay: 200,
-  score3match: 300, score4match: 500, score5match: 800,
-  combo2bonus: 500, combo3bonus: 1000, combo4bonus: 2000,
-};
-const CFG_DEFAULTS = {...CFG};
-const CFG_META = [
-  {key:'gravityTransition',label:'gravity transition',desc:'매치 후 블록이 아래로 떨어지는 애니메이션 시간. 낮을수록 빠르게 착지 (권장: 0.1s ~ 0.5s)',unit:'s',step:0.05,group:'speed'},
-  {key:'gravityDelay',label:'gravity delay',desc:'낙하 애니메이션 완료 후 다음 단계 진행까지 대기 시간. gravity transition보다 약간 길게 설정 (권장: 100ms ~ 500ms)',unit:'ms',step:10,group:'speed'},
-  {key:'fillTransition',label:'fill transition',desc:'빈 칸에 새 블록이 위에서 내려오는 애니메이션 시간. 낮을수록 빠르게 충전 (권장: 0.1s ~ 0.6s)',unit:'s',step:0.05,group:'speed'},
-  {key:'fillDelay',label:'fill delay',desc:'새 블록 충전 완료 후 매치 검사까지 대기 시간. fill transition보다 약간 길게 설정 (권장: 150ms ~ 600ms)',unit:'ms',step:10,group:'speed'},
-  {key:'diagTransition',label:'diag transition',desc:'대각선 충전 시 블록이 옆으로 이동하는 애니메이션 시간. 낮을수록 빠름 (권장: 0.05s ~ 0.4s)',unit:'s',step:0.05,group:'speed'},
-  {key:'diagDelay',label:'diag delay',desc:'대각선 충전 완료 후 다음 단계까지 대기 시간 (권장: 50ms ~ 400ms)',unit:'ms',step:10,group:'speed'},
-  {key:'projectileTransition',label:'projectile transition',desc:'타겟볼 발사체가 목표 지점까지 날아가는 시간. 낮으면 빠르게 적중 (권장: 0.1s ~ 0.6s)',unit:'s',step:0.05,group:'speed'},
-  {key:'matchedDelay',label:'matched delay',desc:'매치된 블록의 pop 애니메이션 재생 후 DOM에서 제거까지 대기 시간 (권장: 200ms ~ 500ms)',unit:'ms',step:10,group:'timing'},
-  {key:'mergeDelay',label:'merge delay',desc:'특수블록 생성 시 주변 블록이 중심으로 빨려드는 머지 애니메이션 시간 (권장: 200ms ~ 500ms)',unit:'ms',step:10,group:'timing'},
-  {key:'explosionLifetime',label:'explosion lifetime',desc:'폭탄볼 폭발 이펙트(원형 파동)가 화면에 표시되는 시간 (권장: 300ms ~ 700ms)',unit:'ms',step:10,group:'timing'},
-  {key:'specialActivateDelay',label:'special activate delay',desc:'특수블록이 발동한 후 파괴된 블록이 사라지기까지 대기하는 시간. 짧으면 발동 연출이 빠르게 진행돼요 (권장: 50ms ~ 500ms)',unit:'ms',step:10,group:'timing'},
-  {key:'crossEffectDelay',label:'cross effect delay',desc:'특수블록 교차 효과 발동 후 파괴된 블록이 사라지기까지 대기하는 시간. 짧으면 교차 연출이 빠르게 진행돼요 (권장: 50ms ~ 500ms)',unit:'ms',step:10,group:'timing'},
-  {key:'score3match',label:'3매치 점수',desc:'블록 3개를 한 줄로 매치했을 때 획득하는 기본 점수 (권장: 100 ~ 500)',unit:'',step:50,group:'score'},
-  {key:'score4match',label:'4매치 점수',desc:'블록 4개를 한 줄로 매치했을 때 획득하는 점수. 특수블록도 함께 생성됨 (권장: 300 ~ 800)',unit:'',step:50,group:'score'},
-  {key:'score5match',label:'5매치 점수',desc:'블록 5개를 한 줄로 매치했을 때 획득하는 점수. 상위 특수블록 생성 (권장: 500 ~ 1500)',unit:'',step:50,group:'score'},
-  {key:'combo2bonus',label:'2연쇄 보너스',desc:'연쇄 2회 달성 시 추가 보너스 점수. 연쇄가 시작되는 첫 보상 (권장: 200 ~ 1000)',unit:'',step:100,group:'score'},
-  {key:'combo3bonus',label:'3연쇄 보너스',desc:'연쇄 3회 달성 시 추가 보너스 점수 (권장: 500 ~ 2000)',unit:'',step:100,group:'score'},
-  {key:'combo4bonus',label:'4연쇄+ 보너스',desc:'연쇄 4회 이상 달성 시 추가 보너스 점수. 최대 보상 단계 (권장: 1000 ~ 5000)',unit:'',step:100,group:'score'},
-];
 
 function calcLineScore(len) {
   if(len===3) return CFG.score3match; if(len===4) return CFG.score4match;
@@ -74,11 +14,6 @@ function calcComboBonus(combo) {
 }
 
 // ── 스킨 시스템 ──
-const SPRITE_SHEET='pokemon_sprites_1.png';
-const SPRITE_COLS=15, SPRITE_SIZE=215, SHEET_W=3228, SHEET_H=2375;
-const DEFAULT_UNLOCKED=[1,4,7,10,15,20,25];
-const DEFAULT_SLOTS=[1,4,7,10,15,20,25];
-
 function loadSkinData(){
   let unlocked=JSON.parse(localStorage.getItem('hexPuzzleUnlocked')||'null');
   if(!unlocked){ unlocked=[...DEFAULT_UNLOCKED]; localStorage.setItem('hexPuzzleUnlocked',JSON.stringify(unlocked)); }
@@ -205,13 +140,10 @@ function isNonPlayable(c,r){ const t=cellType[c]?.[r]; return !!t&&t!=='normal';
 let totalStones=0; // 남은 돌 총 개수
 let initialStones=0; // 시작 시 돌 총 개수 (승리조건 판별용)
 let dragState=null;
-const DRAG_THRESHOLD=20;
 let hintTimer=null, hintedCells=[];
-const HINT_DELAY=5000;
 
 // ── 매치 로그 ──
 const matchLogs=[];
-const MAX_MATCH_LOGS=20;
 
 function formatLogTime(d){
   const mm=String(d.getMonth()+1).padStart(2,'0');
@@ -256,7 +188,6 @@ let isBusyNormal=false;
 const animQueue=[];  // [{fn, ts}, ...]
 let animRunning=false;
 let skipDelay=false; // true면 delay()가 즉시 resolve → 연출 빠르게 감기
-const SWAP_EXPIRE_MS=1500; // 입력 만료 시간
 
 function enqueueAnim(asyncFn){
   animQueue.push({fn:asyncFn, ts:Date.now()});
@@ -313,7 +244,6 @@ function getNeighbors(col,row){
 }
 function isAdjacent(c1,r1,c2,r2){ return getNeighbors(c1,r1).some(([c,r])=>c===c2&&r===r2); }
 let gameSpeed=1; // 게임 배속 (0.5~5x)
-const SPEED_STEPS=[0.5,1,2,3,4,5];
 function delay(ms){ return new Promise(r=>setTimeout(r, Math.round(ms/gameSpeed))); }
 function skippableDelay(ms){ return new Promise(r=>setTimeout(r, skipDelay?0:Math.round(ms/gameSpeed))); }
 function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
@@ -328,7 +258,6 @@ function step(col,row,dir){
   }
   const nc=col+dc,nr=row+dr; return isValid(nc,nr)?[nc,nr]:null;
 }
-const AXES=[['up','down'],['ne','sw'],['nw','se']];
 
 function getSwapDirection(c1,r1,c2,r2){
   const dc=c2-c1,dr=r2-r1,long=isLongCol(c1);
@@ -347,8 +276,6 @@ function getStripeImage(dir){
     case'ne':case'sw':return 'assets/specialblock/sb_stripe3.png'; }
   return 'assets/specialblock/sb_stripe1.png';
 }
-const SPECIAL_IMAGES={bomb:'assets/specialblock/sb_bombball.png',target:'assets/specialblock/sb_targetball.png',rainbow:'assets/specialblock/sb_rainbow.png'};
-const OPPOSITE_DIR={up:'down',down:'up',ne:'sw',sw:'ne',nw:'se',se:'nw'};
 function getLineDirFromCells(line){
   const [c0,r0]=line[0],[c1,r1]=line[1];
   if(c1-c0===0) return 'up';
@@ -2494,7 +2421,6 @@ function placeDebugSpecial(col,row){
 
 // ── 개발자 모드 ──
 let devUnlocked=false, devPanelOpen=false;
-const DEV_PASSWORD='1013love';
 
 function setupDevMode(){
   // 비밀번호 팝업

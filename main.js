@@ -194,8 +194,11 @@ function trySwap(c1,r1,c2,r2){
 function getCellFromMouse(){
   const container=document.getElementById('grid-container');
   const rect=container.getBoundingClientRect();
-  const localX=lastMouseX-rect.left;
-  const localY=lastMouseY-rect.top;
+  // 그리드는 CSS transform scale이 적용돼 있으므로 마우스 좌표를 원본 좌표계로 환산
+  const totalW=(COLS_PATTERN.length-1)*COL_SPACING+HEX_W;
+  const scale=rect.width/totalW || 1;
+  const localX=(lastMouseX-rect.left)/scale;
+  const localY=(lastMouseY-rect.top)/scale;
   let best=null; let bestDist=Infinity;
   for(let col=0;col<COLS_PATTERN.length;col++){
     for(let row=0;row<COLS_PATTERN[col];row++){
@@ -298,7 +301,9 @@ function startGame(){
   document.getElementById('settings-bar').classList.add('hidden');
   document.getElementById('info-bar').classList.remove('hidden');
   updateScoreUI();updateMovesUI();
-  document.getElementById('target-value').textContent=stageTarget.toLocaleString();
+  // target-value 요소는 HUD에서 제거됨 — 존재할 때만 갱신
+  const _tgtEl=document.getElementById('target-value');
+  if(_tgtEl) _tgtEl.textContent=stageTarget.toLocaleString();
   initBoard();spawnAllBlocks();spawnGimmicks();
   totalStones=countStones();
   initialStones=totalStones;

@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
   <title>헥사 3매치 퍼즐</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -63,14 +63,8 @@
   </div>
 
   <div id="game-container" class="hidden">
-    <div id="theme-toggle" class="theme-btn">🌙</div>
-    <div id="dev-mode-btn">개발자 모드</div>
-    <h1>헥사 3매치 퍼즐</h1>
-
-    <div id="high-score-bar">최고 점수: <span id="high-score-value">0</span>점</div>
-
-    <!-- 설정 바 (Play 전) -->
-    <div id="settings-bar">
+    <!-- 설정 바 (Play 전, 레거시 — 로비에서 바로 startGame으로 넘어가므로 거의 노출 안 됨) -->
+    <div id="settings-bar" class="hidden">
       <div class="setting-group">
         <span class="label">블록 종류</span>
         <button class="opt-btn color-btn selected" data-count="5">5</button>
@@ -86,28 +80,25 @@
       <button id="play-btn">PLAY</button>
     </div>
 
-    <!-- 미션 표시 -->
-    <div id="mission-display" class="hidden">
-      <img src="assets/gimmick/stone_1.png" class="mission-icon" alt="stone">
-      <span>×</span>
-      <span id="mission-count">0</span>
-    </div>
-
-    <!-- 게임 정보 바 (Play 후) -->
+    <!-- 인게임 HUD (Play 후): 좌=미션 | 중앙=MOVES+STOP | 우=캐릭터 자리 -->
     <div id="info-bar" class="hidden">
-      <div class="info-item">
-        <span class="info-label">SCORE</span>
-        <span id="score-value" class="info-value">0</span>
+      <div class="hud-left">
+        <div id="mission-display" class="hidden">
+          <img src="assets/gimmick/stone_1.png" class="mission-icon" alt="stone">
+          <span class="mission-x">×</span>
+          <span id="mission-count">0</span>
+        </div>
       </div>
-      <div class="info-item">
-        <span class="info-label">TARGET</span>
-        <span id="target-value" class="info-value">20,000</span>
+      <div class="hud-center">
+        <div class="info-item">
+          <span class="info-label">MOVES</span>
+          <span id="moves-value" class="info-value">30</span>
+        </div>
+        <button id="stop-btn">STOP</button>
       </div>
-      <div class="info-item">
-        <span class="info-label">MOVES</span>
-        <span id="moves-value" class="info-value">30</span>
+      <div class="hud-right">
+        <div class="hud-char-placeholder" aria-hidden="true"></div>
       </div>
-      <button id="stop-btn">STOP</button>
     </div>
 
     <!-- Stop 확인 팝업 -->
@@ -215,6 +206,10 @@
         <button id="restart-btn">다시 하기</button>
       </div>
     </div>
+
+    <!-- 하단 고정 버튼: 좌하단=테마 / 우하단=개발자 모드 -->
+    <div id="theme-toggle" class="theme-btn">🌙</div>
+    <div id="dev-mode-btn">개발자 모드</div>
   </div>
   <script src="config.js"></script>
   <script src="grid.js"></script>

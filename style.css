@@ -14,6 +14,8 @@
   --panel-bg: #1e1e3a;
   --panel-border: #3a3a6e;
   --overlay-bg: rgba(10, 10, 25, 0.85);
+  --outer-bg: linear-gradient(135deg, #05050c 0%, #0f0f1a 100%);
+  --frame-shadow: 0 0 40px rgba(0, 0, 0, 0.75);
 }
 
 body.dark-mode {
@@ -26,6 +28,8 @@ body.dark-mode {
   --panel-bg: #1e1e3a;
   --panel-border: #3a3a6e;
   --overlay-bg: rgba(10, 10, 25, 0.85);
+  --outer-bg: linear-gradient(135deg, #05050c 0%, #0f0f1a 100%);
+  --frame-shadow: 0 0 40px rgba(0, 0, 0, 0.75);
 }
 
 body.light-mode {
@@ -38,30 +42,46 @@ body.light-mode {
   --panel-bg: #ffffff;
   --panel-border: #e2e8f0;
   --overlay-bg: rgba(0, 0, 0, 0.5);
+  --outer-bg: linear-gradient(135deg, #cfd2db 0%, #e8e9ef 100%);
+  --frame-shadow: 0 0 40px rgba(0, 0, 0, 0.25);
 }
 
 body {
-  background: var(--bg-color);
+  background: var(--outer-bg);
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
   font-family: 'Segoe UI', sans-serif;
   user-select: none;
+  touch-action: none;
+  overflow: hidden;
   transition: background 0.3s ease;
 }
 
+/* 390×844 모바일 프레임 — 화면 중앙 배치, 뷰포트가 작으면 JS에서 scale로 축소 */
 #game-container {
+  width: 390px;
+  height: 844px;
+  flex-shrink: 0;
+  background: var(--bg-color);
+  box-shadow: var(--frame-shadow);
   text-align: center;
   position: relative;
+  overflow: hidden;
+  touch-action: none;
+  display: flex;
+  flex-direction: column;
+  transition: background 0.3s ease;
 }
 
+/* ── 하단 고정 버튼: 좌하단=테마 / 우하단=개발자 ── */
 #theme-toggle {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 40px;
-  height: 40px;
+  bottom: 16px;
+  left: 16px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   background: var(--button-bg);
   border: 2px solid var(--button-border);
@@ -71,12 +91,15 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
 }
 
 #theme-toggle:hover {
   background: var(--accent-color);
   color: #fff;
+  transform: translateY(-1px);
 }
 
 h1 {
@@ -100,21 +123,24 @@ h1 {
 /* ── 미션 표시 ── */
 
 #mission-display {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  margin-bottom: 10px;
+  gap: 4px;
   color: var(--text-color);
-  font-size: 18px;
+  font-size: 15px;
   font-weight: bold;
 }
 
 #mission-display.hidden { display: none; }
 
+.mission-x {
+  color: var(--secondary-text);
+  font-size: 13px;
+}
+
 .mission-icon {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   object-fit: contain;
 }
 
@@ -198,55 +224,75 @@ h1 {
 #play-btn:hover { background: #6a5ce6; }
 #play-btn:active { transform: scale(0.96); }
 
-/* ── 게임 정보 바 ── */
+/* ── 인게임 HUD (상단 1줄: 좌 미션 / 중앙 MOVES+STOP / 우 캐릭터 자리) ── */
 
 #info-bar {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 40px;
-  margin-bottom: 20px;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  background: linear-gradient(to bottom, rgba(10,10,25,0.6), rgba(10,10,25,0.2));
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 #info-bar.hidden { display: none; }
 
+.hud-left, .hud-center, .hud-right {
+  display: flex;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.hud-left  { justify-content: flex-start; }
+.hud-center {
+  justify-content: center;
+  gap: 10px;
+}
+.hud-right { justify-content: flex-end; }
+
+.hud-char-placeholder {
+  width: 48px;
+  height: 48px;
+  /* 추후 캐릭터 이미지 삽입 예정 — 현재는 빈 자리 */
+}
+
 .info-item {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
 }
 
 .info-label {
   color: var(--secondary-text);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: bold;
   letter-spacing: 2px;
 }
 
 .info-value {
   color: var(--text-color);
-  font-size: 24px;
+  font-size: 20px;
   font-weight: bold;
-  min-width: 80px;
 }
 
-#score-value { color: #f1c40f; }
 #moves-value { color: #3498db; }
 #moves-value.low { color: #e74c3c; }
 
 #stop-btn {
-  padding: 6px 18px;
+  padding: 6px 14px;
   border: 2px solid #e74c3c;
-  border-radius: 8px;
+  border-radius: 18px;
   background: transparent;
   color: #e74c3c;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: bold;
   letter-spacing: 1px;
   cursor: pointer;
   transition: all 0.15s;
-  margin-left: 12px;
 }
 
 #stop-btn:hover {
@@ -261,7 +307,8 @@ h1 {
 #grid-container {
   position: relative;
   margin: 0 auto;
-  overflow: hidden;
+  overflow: visible;    /* transform: scale()로 축소된 후에도 9열 전체 표시되도록 자식 clip 금지 */
+  flex-shrink: 0;       /* flex 부모(grid-wrapper) 안에서 레이아웃 폭이 줄어들지 않도록 고정 */
 }
 
 /* 셀 배경 (헥사곤, 고정) */
@@ -653,10 +700,10 @@ h1 {
 
 #dev-mode-btn {
   position: absolute;
-  top: 10px;
-  right: 60px;
-  padding: 6px 14px;
-  border-radius: 6px;
+  bottom: 16px;
+  right: 16px;
+  padding: 10px 14px;
+  border-radius: 22px;
   background: var(--button-bg);
   border: 2px solid var(--button-border);
   color: var(--secondary-text);
@@ -664,10 +711,12 @@ h1 {
   font-weight: bold;
   letter-spacing: 1px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
 }
 
-#dev-mode-btn:hover { border-color: var(--accent-color); color: var(--text-color); }
+#dev-mode-btn:hover { border-color: var(--accent-color); color: var(--text-color); transform: translateY(-1px); }
 #dev-mode-btn.active { border-color: #2ecc71; color: #2ecc71; }
 
 /* ── 개발자 비밀번호 팝업 ── */
@@ -734,9 +783,11 @@ h1 {
 
 #grid-wrapper {
   display: flex;
-  align-items: flex-start;
+  align-items: center;       /* 세로 중앙: 프레임 내 남은 세로 공간에 그리드 정렬 */
   gap: 16px;
   justify-content: center;
+  flex: 1;                    /* 프레임 내 상단 HUD 이후 남은 공간 모두 차지 */
+  min-height: 0;              /* flex child가 overflow 없이 shrink 가능하도록 */
 }
 
 #dev-panel {
@@ -1463,7 +1514,7 @@ h1 {
 }
 
 #grid-wrapper {
-  align-items: flex-start;
+  align-items: center;   /* flex-row: 세로 중앙 / flex-column(모바일): 가로 중앙 정렬 */
 }
 
 @media (max-width: 768px) {
@@ -1586,4 +1637,12 @@ h1 {
     gap: 10px;
     margin-bottom: 8px;
   }
+}
+
+
+/* ── 360px 이하 (초소형 디스플레이) ── */
+/* 프레임(390×844)이 뷰포트보다 크므로 JS resizeGrid가 transform:scale로 축소.
+   CSS 레이아웃 차원의 추가 보정이 필요하면 이 블록에 규칙 추가. */
+@media (max-width: 360px) {
+  body { font-size: 13px; }
 }

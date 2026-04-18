@@ -77,8 +77,9 @@ function updateMissionUI(){
   }
 }
 
-function updateHighScoreUI(){document.getElementById('high-score-value').textContent=highScore.toLocaleString();}
-function updateScoreUI(){document.getElementById('score-value').textContent=score.toLocaleString();}
+// high-score / score 표시 제거됨 — DOM 엘리먼트 없을 수 있으므로 null 가드
+function updateHighScoreUI(){const el=document.getElementById('high-score-value');if(el) el.textContent=highScore.toLocaleString();}
+function updateScoreUI(){const el=document.getElementById('score-value');if(el) el.textContent=score.toLocaleString();}
 function updateMovesUI(){
   const el=document.getElementById('moves-value');
   el.textContent=movesLeft;el.classList.toggle('low',movesLeft<=5);
@@ -440,25 +441,30 @@ function buildInspector(){
 }
 
 // ── 반응형 스케일 ──
+// 390×844 모바일 프레임 + 내부 그리드 각각 scale 계산
+const FRAME_W=390, FRAME_H=844;
 function resizeGrid(){
+  const gameContainer=document.getElementById('game-container');
   const container=document.getElementById('grid-container');
   const wrapper=document.getElementById('grid-wrapper');
+
+  // 1) 그리드 scale: 9열 전체가 잘림 없이 390 프레임 너비에 꽉 차도록
+  //    상단 HUD(~60px) + 하단 버튼 영역(~80px) 제외한 공간 활용
   const totalW=(COLS_PATTERN.length-1)*COL_SPACING+HEX_W;
   const totalH=9*ROW_SPACING+HEX_H*0.5;
-  // 패널 열림 시 패널 너비(~230px+gap) 고려
-  const devPanel=document.getElementById('dev-panel');
-  const panelW=devPanel&&!devPanel.classList.contains('hidden')?devPanel.offsetWidth+16:0;
-  const availW=window.innerWidth-32-panelW; // 좌우 16px 여백
-  const availH=window.innerHeight-200; // 상단 UI + 여유
-  const scaleW=availW/totalW;
-  const scaleH=availH/totalH;
-  const scale=Math.min(scaleW,scaleH,1); // 1 초과 안 함
-  container.style.transform=`scale(${scale})`;
+  const gridAvailW=FRAME_W;        // 전체 폭 활용
+  const gridAvailH=FRAME_H-160;    // 상단 HUD + 하단 버튼 여유
+  const gridScale=Math.min(gridAvailW/totalW, gridAvailH/totalH, 1);
+  container.style.transform=`scale(${gridScale})`;
   container.style.transformOrigin='top center';
-  // wrapper에 실제 크기 반영 (레이아웃 흐름 유지)
   container.style.width=`${totalW}px`;
   container.style.height=`${totalH}px`;
-  wrapper.style.minHeight=`${totalH*scale}px`;
+  wrapper.style.minHeight=`${totalH*gridScale}px`;
+
+  // 2) 프레임 scale: 390×844 박스를 뷰포트에 맞춤 (작을 때만 축소, 큰 화면에서는 1배 유지)
+  const frameScale=Math.min(window.innerWidth/FRAME_W, window.innerHeight/FRAME_H, 1);
+  gameContainer.style.transform=`scale(${frameScale})`;
+  gameContainer.style.transformOrigin='center center';
 }
 
 // ── 화면 전환 ──

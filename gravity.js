@@ -100,7 +100,8 @@ async function animateDiagonalFill(moves){
   refreshBlockElsCoordinates();
 }
 
-// gravity + diagonal: 애니메이션 없이 반복 계산 → DOM 한 번에 이동
+// gravity + diagonal: 단계 간 짧게 겹쳐 "폭포처럼 흐르는" 연출
+// (각 단계 transition이 완전히 끝나기 전에 다음 단계 시작 → 연속성 확보)
 async function applyGravity(){
   let anyMoved=false;
   for(let i=0;i<30;i++){
@@ -110,36 +111,36 @@ async function applyGravity(){
     animateGravityDOM(moves);
     animateDiagonalDOM(diagMoves);
     anyMoved=true;
-    // delay 없이 바로 다음 반복 (DOM transition은 비동기라 자연스럽게 이동)
+    await skippableDelay(CFG.gravityDelay/3); // 다음 단계 일찍 시작 (연속 흐름)
   }
   if(anyMoved){
-    await skippableDelay(CFG.gravityDelay); // 전체 낙하 완료 후 1회만 대기
+    await skippableDelay(CFG.gravityDelay); // 마지막 transition 완료 + 보드 안정화
     refreshBlockElsCoordinates();
   }
 }
 
-// 상단 충전 + 추가 낙하 반복 (빈 셀 없을 때까지)
+// 상단 충전 + 낙하 + 대각 충전을 매 iter에 동시 트리거 (폭포 연출)
+// 서브루프 제거: 한 반복에서 computeFill/computeGravity/computeDiagonalFill
+// 세 계산을 모두 수행하고, 대응 애니메이션을 동시에 시작 → 블록이 끊김 없이 흘러내림
 async function fillEmpty(){
-  for(let i=0;i<30;i++){
+  let anyActivity=false;
+  let i;
+  for(i=0;i<30;i++){
     const fills=computeFill();
-    if(fills.length===0) break;
-    animateFillDOM(fills);
-    await skippableDelay(CFG.fillDelay);
+    const moves=computeGravity();
+    const diagMoves=computeDiagonalFill();
+    if(fills.length===0 && moves.length===0 && diagMoves.length===0){
+      break;
+    }
+    if(fills.length>0) animateFillDOM(fills);
+    if(moves.length>0) animateGravityDOM(moves);
+    if(diagMoves.length>0) animateDiagonalDOM(diagMoves);
+    anyActivity=true;
+    await skippableDelay(CFG.gravityDelay*0.33); // iter 간 짧게 겹쳐 연속 흐름
+  }
+  if(anyActivity){
+    await skippableDelay(CFG.gravityDelay); // 루프 끝난 후 1회 안정화
     refreshBlockElsCoordinates();
-    // fill 후 새 블록 낙하가 필요할 수 있음
-    let subMoved=false;
-    for(let j=0;j<30;j++){
-      const moves=computeGravity();
-      const diagMoves=computeDiagonalFill();
-      if(moves.length===0&&diagMoves.length===0) break;
-      animateGravityDOM(moves);
-      animateDiagonalDOM(diagMoves);
-      subMoved=true;
-    }
-    if(subMoved){
-      await skippableDelay(CFG.gravityDelay);
-      refreshBlockElsCoordinates();
-    }
   }
 }
 
@@ -171,9 +172,10 @@ function animateDiagonalDOM(moves){
 }
 function animateFillDOM(fills){
   const container=document.getElementById('grid-container');
-  for(const {col,row,dropDist} of fills){
+  for(const {col,row,dropDist,block} of fills){
     const pos=getBlockPos(col,row);
-    const el=createBlockEl(col,row,board[col][row]);
+    // block 스냅샷 사용 (board[col][row]는 같은 iter의 gravity로 이미 이동된 상태일 수 있음)
+    const el=createBlockEl(col,row,block);
     if(el){
       el.style.top=`${pos.y-dropDist*ROW_SPACING}px`;el.style.transition='none';
       container.appendChild(el);blockEls[col][row]=el;
@@ -220,7 +222,8 @@ function computeFill(){
         if(board[col][row]!==null) continue; // 다른 소스가 이미 채운 경우 스킵
         const ci=Math.floor(Math.random()*numColors);
         board[col][row]=makeCell(ci);
-        fills.push({col,row,dropDist:row-srcRow});
+        // block 필드로 셀 스냅샷 저장 → 같은 iter에서 gravity가 이동시켜도 animateFillDOM이 정확히 DOM 생성 가능
+        fills.push({col,row,dropDist:row-srcRow,block:board[col][row]});
       }
     }
   }

@@ -1,0 +1,331 @@
+// ── 헥사 3매치 퍼즐: 진입점 / 게임 흐름 제어 / 이벤트 핸들러 ──
+// 모든 모듈 로드 후 마지막에 실행
+// config/grid/board/match/special/gravity/animation/ui 다음, stage_maps.js 다음, game.js 다음 로드
+
+// ── 드래그 (마우스 + 터치) ──
+function getPointer(e){
+  if(e.touches&&e.touches.length>0) return {x:e.touches[0].clientX,y:e.touches[0].clientY};
+  if(e.changedTouches&&e.changedTouches.length>0) return {x:e.changedTouches[0].clientX,y:e.changedTouches[0].clientY};
+  return {x:e.clientX,y:e.clientY};
+}
+function onDragStart(e){
+  if(!playing||isBusyRainbow) return;
+  const pt=getPointer(e);
+  const block=e.target.closest('.hex-block'); if(!block) return;
+  e.preventDefault();clearHint();
+  const col=parseInt(block.dataset.col),row=parseInt(block.dataset.row);
+  dragState={col,row,startX:pt.x,startY:pt.y,el:block};
+  block.classList.add('dragging');
+}
+function onDragMove(e){if(!dragState) return; e.preventDefault();}
+function onDragEnd(e){
+  if(!dragState) return;
+  const {col,row,startX,startY,el}=dragState;
+  el.classList.remove('dragging');dragState=null;
+  const pt=getPointer(e);
+  const dx=pt.x-startX,dy=pt.y-startY;
+  if(Math.sqrt(dx*dx+dy*dy)<DRAG_THRESHOLD){
+    if(debugPlaceType&&playing&&!busy){ placeDebugSpecial(col,row); return; }
+    // 클릭: 특수블록 → 제자리 발동, 일반블록 → 흔들림
+    if(playing&&!busy&&!isBusyRainbow&&board[col]?.[row]){
+      if(isSpecial(col,row)){
+        tryActivateSpecialClick(col,row);
+      } else {
+        if(blockEls[col]?.[row]){
+          blockEls[col][row].classList.remove('shake');
+          void blockEls[col][row].offsetWidth;
+          blockEls[col][row].classList.add('shake');
+          setTimeout(()=>blockEls[col][row]?.classList.remove('shake'),400);
+        }
+      }
+    }
+    return;
+  }
+  const target=findNeighborByAngle(col,row,dx,dy);
+  if(!target) return;
+  if(isBusyRainbow) return; // 무지개볼 연출 중 → 무시
+  // isBusyNormal이든 idle이든 즉시 실행
+  trySwap(col,row,target[0],target[1]);
+}
+function findNeighborByAngle(col,row,dx,dy){
+  const angle=Math.atan2(dy,dx);
+  const neighbors=getNeighbors(col,row);
+  let best=null,bestDiff=Infinity;
+  for(const [nc,nr] of neighbors){
+    const np=getBlockPos(nc,nr),op=getBlockPos(col,row);
+    const na=Math.atan2(np.y-op.y,np.x-op.x);
+    let diff=Math.abs(angle-na);if(diff>Math.PI) diff=2*Math.PI-diff;
+    if(diff<bestDiff){bestDiff=diff;best=[nc,nr];}
+  }
+  return best&&bestDiff<Math.PI/3?best:null;
+}
+
+// ── 클릭 발동 (특수블록 제자리 발동) ──
+function tryActivateSpecialClick(col,row){
+  if(!isSpecial(col,row)) return;
+  enqueueAnim(async()=>{
+    busy=true;isBusyNormal=true;
+    clearHint();
+    movesLeft--;updateMovesUI();
+    const cell=board[col][row];
+    if(cell.type==='rainbow'){
+      const tc=getMostFrequentColor();
+      if(tc!==null){
+        const cnt=await activateRainbow(col,row,tc);
+        score+=cnt*100;updateScoreUI();
+      } else {
+        board[col][row]=null;
+        if(blockEls[col][row]){blockEls[col][row].classList.add('matched');}
+        await delay(CFG.specialActivateDelay);
+        if(blockEls[col][row]){blockEls[col][row].remove();blockEls[col][row]=null;}
+      }
+    } else {
+      await activateSpecialAt(col,row);
+    }
+    isBusyRainbow=false;isBusyNormal=true;
+    await applyGravity();await fillEmpty();
+    let {lines:cl,cells:cc,clusters:ccl}=findAllMatches();
+    let combo=0;
+    while(cc.length>0||ccl.length>0){
+      combo++;
+      await processMatchStep(cl,cc,ccl,false,col,row,col,row,null,combo);
+      await applyGravity();await fillEmpty();
+      const chain=findAllMatches();cl=chain.lines;cc=chain.cells;ccl=chain.clusters;
+    }
+    checkGameEnd();busy=false;isBusyNormal=false;
+    startHintTimer();
+  });
+}
+
+// ── 스왑 ──
+function trySwap(c1,r1,c2,r2){
+  if(isBusyRainbow) return;
+
+  enqueueAnim(async()=>{
+    busy=true;isBusyNormal=true;
+
+    const result=executeSwap(c1,r1,c2,r2);
+
+    if(!result.valid){
+      await animateSwap(c1,r1,c2,r2);
+      await animateSwap(c1,r1,c2,r2);
+      busy=false;isBusyNormal=false;
+      return;
+    }
+
+    await animateSwap(c1,r1,c2,r2);
+    movesLeft--;updateMovesUI();
+
+    if(result.type==='cross'){
+      await handleCrossEffect(c1,r1,c2,r2);
+      isBusyRainbow=false;isBusyNormal=true;
+      await applyGravity();await fillEmpty();
+      let {lines:cl,cells:cc,clusters:ccl}=findAllMatches();
+      let combo=0;
+      while(cc.length>0||ccl.length>0){
+        combo++;
+        await processMatchStep(cl,cc,ccl,false,c1,r1,c2,r2,null,combo);
+        await applyGravity();await fillEmpty();
+        const chain=findAllMatches();cl=chain.lines;cc=chain.cells;ccl=chain.clusters;
+      }
+      checkGameEnd();busy=false;isBusyNormal=false;
+      startHintTimer();
+      return;
+    }
+
+    if(result.type==='rainbow'){
+      const cnt=await activateRainbow(result.rainbowPos.col,result.rainbowPos.row,result.targetColor);
+      score+=cnt*100;updateScoreUI();
+      isBusyRainbow=false;isBusyNormal=true;
+      await applyGravity();await fillEmpty();
+      let {lines:cl,cells:cc,clusters:ccl}=findAllMatches();
+      let combo=1;
+      while(cc.length>0||ccl.length>0){
+        combo++;
+        await processMatchStep(cl,cc,ccl,false,c1,r1,c2,r2,null,combo);
+        await applyGravity();await fillEmpty();
+        const chain=findAllMatches();cl=chain.lines;cc=chain.cells;ccl=chain.clusters;
+      }
+      checkGameEnd();busy=false;isBusyNormal=false;
+      startHintTimer();
+      return;
+    }
+
+    if(result.type==='special-activate'){
+      const {col,row}=result.specialPos;
+      const cell=board[col][row];
+      // 타겟볼에 스왑 방향 전달 (범위 타격 패턴용)
+      if(cell.type==='target') cell._swapDir=getSwapDirection(c1,r1,c2,r2);
+      if(cell.type==='rainbow'){
+        const tc=getMostFrequentColor();
+        if(tc!==null){ const cnt=await activateRainbow(col,row,tc); score+=cnt*100;updateScoreUI(); }
+      } else {
+        await activateSpecialAt(col,row);
+      }
+      isBusyRainbow=false;isBusyNormal=true;
+      await applyGravity();await fillEmpty();
+      let {lines:cl,cells:cc,clusters:ccl}=findAllMatches();
+      let combo=0;
+      while(cc.length>0||ccl.length>0){
+        combo++;
+        await processMatchStep(cl,cc,ccl,false,c1,r1,c2,r2,null,combo);
+        await applyGravity();await fillEmpty();
+        const chain=findAllMatches();cl=chain.lines;cc=chain.cells;ccl=chain.clusters;
+      }
+      checkGameEnd();busy=false;isBusyNormal=false;
+      startHintTimer();
+      return;
+    }
+
+    const {lines,cells,clusters,swapDir}=result;
+    let combo=0,curLines=lines,curCells=cells,curClusters=clusters,isFirst=true;
+    while(curCells.length>0||curClusters.length>0){
+      combo++;
+      await processMatchStep(curLines,curCells,curClusters,isFirst,c1,r1,c2,r2,swapDir,combo);
+      isFirst=false;
+      await applyGravity();await fillEmpty();
+      const chain=findAllMatches();curLines=chain.lines;curCells=chain.cells;curClusters=chain.clusters;
+    }
+    checkGameEnd();busy=false;isBusyNormal=false;
+    startHintTimer();
+  });
+}
+
+function getCellFromMouse(){
+  const container=document.getElementById('grid-container');
+  const rect=container.getBoundingClientRect();
+  const localX=lastMouseX-rect.left;
+  const localY=lastMouseY-rect.top;
+  let best=null; let bestDist=Infinity;
+  for(let col=0;col<COLS_PATTERN.length;col++){
+    for(let row=0;row<COLS_PATTERN[col];row++){
+      const cp=cellPos[col][row];
+      const centerX=cp.x+HEX_W/2;
+      const centerY=cp.y+HEX_H/2;
+      const dx=centerX-localX; const dy=centerY-localY;
+      const d=dx*dx+dy*dy;
+      if(d<bestDist){ bestDist=d; best={col,row}; }
+    }
+  }
+  if(best&&bestDist<=(HEX_W*0.9)*(HEX_W*0.9)) return best;
+  return null;
+}
+
+function updateHoveredCellFromMouse(){
+  hoveredCell=getCellFromMouse();
+  console.log('DEBUG: updateHoveredCellFromMouse', hoveredCell);
+}
+
+async function processPendingMatches(){
+  if(!playing) return;
+  let {lines,cells,clusters} = findAllMatches();
+  if(cells.length===0&&clusters.length===0) return;
+  let combo=0;
+  while(cells.length>0||clusters.length>0){
+    combo++;
+    await processMatchStep(lines,cells,clusters,false,-1,-1,-1,-1,null,combo);
+    await applyGravity();await fillEmpty();
+    const next = findAllMatches();
+    lines=next.lines; cells=next.cells; clusters=next.clusters;
+  }
+  checkGameEnd();
+}
+
+// ── 게임 종료 ──
+function checkGameEnd(){
+  if(!playing) return;
+  // 돌 기믹이 있으면 돌 전부 제거가 클리어 조건
+  if(hasStones()){
+    if(totalStones<=0){playing=false;setTimeout(()=>showEndScreen(true),400);}
+    else if(movesLeft<=0){playing=false;setTimeout(()=>showEndScreen(false),400);}
+  } else {
+    if(score>=stageTarget){playing=false;setTimeout(()=>showEndScreen(true),400);}
+    else if(movesLeft<=0){playing=false;setTimeout(()=>showEndScreen(false),400);}
+  }
+}
+
+
+function resetToStart(){
+  hideEndScreen();hideConfirm();clearHint();
+  playing=false;busy=false;isBusyRainbow=false;isBusyNormal=false;dragState=null;
+  animQueue.length=0;animRunning=false;skipDelay=false;
+  debugPlaceType=null;
+  document.querySelectorAll('.debug-btn').forEach(b=>{b.classList.remove('active');b.textContent=b.textContent.replace(' \u2705','');});
+  clearAllBlocks();
+  document.getElementById('info-bar').classList.add('hidden');
+  document.getElementById('settings-bar').classList.remove('hidden');
+  showScreen('lobby-screen');
+  updateLobbyStage();
+}
+
+async function removeBlockAt(col, row) {
+  console.log('DEBUG: removeBlockAt', {col,row,boardValue: board[col]?.[row], playing, busy});
+  if (!board[col] || !board[col][row]) return;
+  board[col][row] = null;
+  if (blockEls[col][row]) {
+    blockEls[col][row].remove();
+    blockEls[col][row] = null;
+  }
+  // 충전: 빈 칸 채우기 + 매치 처리
+  busy = true; isBusyNormal=true;
+  clearHint();
+  await applyGravity();await fillEmpty();
+  await processPendingMatches();
+  updateHoveredCellFromMouse();
+  busy = false; isBusyNormal=false;
+  startHintTimer();
+}
+
+function startGame(){
+  // 상태 완전 초기화 (스테이지 건너뛰기 방지)
+  playing=false;busy=false;isBusyRainbow=false;isBusyNormal=false;
+  dragState=null;animQueue.length=0;animRunning=false;skipDelay=false;
+  score=0;
+  clearHint();clearAllBlocks();
+
+  // 스테이지 데이터 적용 (stage_maps.json 우선, 없으면 STAGES 폴백)
+  const sd=STAGES[currentStage-1]||STAGES[STAGES.length-1];
+  const mapData=stageMaps?.stages?.find(s=>s.stage===currentStage);
+  stageTarget=sd.target;
+  maxMoves=mapData?.moves??sd.moves;
+  movesLeft=maxMoves;
+  numColors=mapData?.colorTypes??sd.colorTypes;
+
+  // 스테이지 맵 셀 타입 + 기믹 적용
+  applyStageCells(currentStage);
+  applyStageGimmicks(currentStage);
+  console.log('[startGame] stage',currentStage,'mapData:',!!mapData,'entrance:',entranceCols.size,'gimmicks:',gimmick.reduce((n,c)=>n+(c?c.filter(Boolean).length:0),0));
+
+  // UI 갱신 후 게임 시작
+  document.getElementById('settings-bar').classList.add('hidden');
+  document.getElementById('info-bar').classList.remove('hidden');
+  updateScoreUI();updateMovesUI();
+  document.getElementById('target-value').textContent=stageTarget.toLocaleString();
+  initBoard();spawnAllBlocks();spawnGimmicks();
+  totalStones=countStones();
+  initialStones=totalStones;
+  refreshBlockElsCoordinates();
+  updateMissionUI();
+
+  // 매치 로그 초기화
+  clearMatchLogs();
+
+  // 모든 초기화 완료 후 playing 활성화
+  playing=true;
+  startHintTimer();
+}
+
+// ── 시작 ──
+(async()=>{
+  await loadStageMaps();
+  createCells();
+  setupUI();
+  setupDevMode();
+  setupScreenNav();
+  setupSkinScreen();
+  updateTheme();
+  updateHighScoreUI();
+  resizeGrid();
+  window.addEventListener('resize',resizeGrid);
+})();
+

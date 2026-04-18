@@ -133,10 +133,7 @@ const gimmick=[], gimmickEls=[];
 const cellType=[];
 const hexCellEls=[]; // hex-cell DOM 참조 (데드셀 가시성 제어용)
 let entranceCols=new Set(); // 사출구가 있는 컬럼 (블록 충전 대상)
-function isDead(c,r){ return cellType[c]?.[r]==='dead'; }
-function isEntrance(c,r){ return cellType[c]?.[r]==='entrance'; }
-function isPass(c,r){ return cellType[c]?.[r]==='pass'; }
-function isNonPlayable(c,r){ const t=cellType[c]?.[r]; return !!t&&t!=='normal'; }
+// 셀 타입 헬퍼(isDead/isEntrance/isPass/isNonPlayable)는 grid.js로 이동
 let totalStones=0; // 남은 돌 총 개수
 let initialStones=0; // 시작 시 돌 총 개수 (승리조건 판별용)
 let dragState=null;
@@ -228,45 +225,13 @@ function getMostFrequentColor(){
   for(const [color,cnt] of counts) if(cnt>bestCnt){bestCnt=cnt;best=color;}
   return best;
 }
-function isValid(c,r){ return c>=0 && c<COLS_PATTERN.length && r>=0 && r<COLS_PATTERN[c]; }
-function isLongCol(c){ return COLS_PATTERN[c]===9; }
-function getCellPos(col,row){
-  return { x:col*COL_SPACING, y:row*ROW_SPACING+(isLongCol(col)?0:ROW_SPACING*0.5) };
-}
-function getBlockPos(col,row){
-  const cp=cellPos[col][row];
-  return { x:cp.x+(HEX_W-BLOCK_D)/2, y:cp.y+(HEX_H-BLOCK_D)/2 };
-}
-function getNeighbors(col,row){
-  const long=isLongCol(col);
-  const off=[[0,-1],[0,1],...(long?[[-1,-1],[-1,0],[1,-1],[1,0]]:[[-1,0],[-1,1],[1,0],[1,1]])];
-  return off.map(([dc,dr])=>[col+dc,row+dr]).filter(([c,r])=>isValid(c,r)&&!isNonPlayable(c,r));
-}
-function isAdjacent(c1,r1,c2,r2){ return getNeighbors(c1,r1).some(([c,r])=>c===c2&&r===r2); }
+// 그리드/인접 함수(isValid/isLongCol/getCellPos/getBlockPos/getNeighbors/isAdjacent)는 grid.js로 이동
 let gameSpeed=1; // 게임 배속 (0.5~5x)
 function delay(ms){ return new Promise(r=>setTimeout(r, Math.round(ms/gameSpeed))); }
 function skippableDelay(ms){ return new Promise(r=>setTimeout(r, skipDelay?0:Math.round(ms/gameSpeed))); }
 function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
 
-// ── 6방향 이동 ──
-function step(col,row,dir){
-  const long=isLongCol(col); let dc,dr;
-  switch(dir){
-    case'up':dc=0;dr=-1;break;case'down':dc=0;dr=1;break;
-    case'ne':[dc,dr]=long?[1,-1]:[1,0];break;case'sw':[dc,dr]=long?[-1,0]:[-1,1];break;
-    case'nw':[dc,dr]=long?[-1,-1]:[-1,0];break;case'se':[dc,dr]=long?[1,0]:[1,1];break;
-  }
-  const nc=col+dc,nr=row+dr; return isValid(nc,nr)?[nc,nr]:null;
-}
-
-function getSwapDirection(c1,r1,c2,r2){
-  const dc=c2-c1,dr=r2-r1,long=isLongCol(c1);
-  if(dc===0&&dr===-1) return 'up'; if(dc===0&&dr===1) return 'down';
-  if(long){ if(dc===1&&dr===-1) return 'ne'; if(dc===1&&dr===0) return 'se'; if(dc===-1&&dr===-1) return 'nw'; if(dc===-1&&dr===0) return 'sw'; }
-  else { if(dc===1&&dr===0) return 'ne'; if(dc===1&&dr===1) return 'se'; if(dc===-1&&dr===0) return 'nw'; if(dc===-1&&dr===1) return 'sw'; }
-  return null;
-}
-function getStripeAxis(dir){ for(const [a,b] of AXES) if(dir===a||dir===b) return [a,b]; return ['up','down']; }
+// 6방향 이동/스왑 방향/축 판별(step/getSwapDirection/getStripeAxis)은 grid.js로 이동
 function getStripeAngle(dir){
   switch(dir){ case'up':case'down':return 90; case'ne':case'sw':return -30; case'nw':case'se':return 30; } return 0;
 }
@@ -276,12 +241,7 @@ function getStripeImage(dir){
     case'ne':case'sw':return 'assets/specialblock/sb_stripe3.png'; }
   return 'assets/specialblock/sb_stripe1.png';
 }
-function getLineDirFromCells(line){
-  const [c0,r0]=line[0],[c1,r1]=line[1];
-  if(c1-c0===0) return 'up';
-  const p0=getBlockPos(c0,r0),p1=getBlockPos(c1,r1);
-  return Math.atan2(p1.y-p0.y,p1.x-p0.x)<0?'ne':'se';
-}
+// getLineDirFromCells는 grid.js로 이동
 
 // ── 매치 감지 ──
 function countLine(col,row,dir,color){
@@ -374,31 +334,7 @@ function getStripeLine(col,row,dir){
 
 // ── 교차 효과 헬퍼 ──
 // 2칸 범위 내 모든 셀 (폭탄x폭탄용, ~19칸)
-function getCellsInRange2(col,row){
-  const result=new Set();
-  result.add(`${col},${row}`);
-  for(const [nc,nr] of getNeighbors(col,row)){
-    result.add(`${nc},${nr}`);
-    for(const [nc2,nr2] of getNeighbors(nc,nr)) result.add(`${nc2},${nr2}`);
-  }
-  return [...result].map(k=>k.split(',').map(Number));
-}
-// 줄볼 방향의 수직 오프셋 방향 2개
-function getPerpDirs(dir){
-  const axis=getStripeAxis(dir),key=axis.slice().sort().join(',');
-  return {'down,up':['ne','nw'],'ne,sw':['nw','se'],'nw,se':['ne','sw']}[key]||['ne','nw'];
-}
-// 3줄 스트라이프 셀 (줄볼x폭탄볼용)
-function get3LineStripeCells(col,row,dir){
-  const cells=new Set(),axis=getStripeAxis(dir),perpDirs=getPerpDirs(dir);
-  const origins=[[col,row]];
-  for(const pd of perpDirs){const s=step(col,row,pd);if(s) origins.push(s);}
-  for(const [oc,or_] of origins){
-    cells.add(`${oc},${or_}`);
-    for(const d of axis){let pos=step(oc,or_,d);while(pos){cells.add(`${pos[0]},${pos[1]}`);pos=step(pos[0],pos[1],d);}}
-  }
-  return [...cells].map(k=>k.split(',').map(Number));
-}
+// getCellsInRange2/getPerpDirs/get3LineStripeCells는 grid.js로 이동
 
 // ── 연결 그룹 탐색 (같은 색 매치셀 인접 연결) ──
 function findConnectedGroups(matchedCells){
@@ -1382,14 +1318,14 @@ async function handleCrossEffect(c1,r1,c2,r2){
     for(const [c,r] of getStripeLine(cB,rB,cellB.dir)) cells.add(`${c},${r}`);
     await destroyCells([...cells].map(k=>k.split(',').map(Number)));
   }
-  // ② 줄볼 x 폭탄볼: 1줄→3줄 증폭
+  // ② 줄볼 x 폭탄볼: 1줄→3줄 증폭. 기준점은 드래그 끝점(c2,r2)로 고정
   else if(combo==='bomb+stripe'){
     const sDir=cellB.dir;
     await removeBoth();
     const perpDirs=getPerpDirs(sDir);
-    showStripeBeam(cB,rB,sDir);
-    for(const pd of perpDirs){const s=step(cB,rB,pd);if(s) showStripeBeam(s[0],s[1],sDir);}
-    await destroyCells(get3LineStripeCells(cB,rB,sDir));
+    showStripeBeam(c2,r2,sDir);
+    for(const pd of perpDirs){const s=step(c2,r2,pd);if(s) showStripeBeam(s[0],s[1],sDir);}
+    await destroyCells(get3LineStripeCells(c2,r2,sDir));
   }
   // ③ 폭탄볼 x 폭탄볼: 드래그 목적지(c2,r2=cB,rB) 기준 2칸 범위(19칸) 제거
   else if(combo==='bomb+bomb'){

@@ -5,7 +5,6 @@
 const matchLogs=[]; // 개발자 패널 매치 로그 버퍼
 let devUnlocked=false, devPanelOpen=false;
 let skinEditingSlot=-1; // -1: 슬롯 미선택
-let lastCleared=false;   // showEndScreen에서 설정됨 (현재 read 사용처 없음)
 
 // ── 포켓몬 스프라이트 배경 ──
 function getPokemonBgStyle(pokeNum,displaySize){
@@ -87,7 +86,6 @@ function updateMovesUI(){
 
 // ── 게임 종료/확인 오버레이 ──
 function showEndScreen(cleared){
-  lastCleared=cleared;
   const o=document.getElementById('end-overlay');
   const icon=document.getElementById('end-icon');
   const title=document.getElementById('end-title');
@@ -176,12 +174,11 @@ function setupUI(){
   document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
   document.addEventListener('keydown', (e) => {
     const mouseCell = getCellFromMouse();
-    console.log('DEBUG: keydown', e.code, 'mouseCell=', mouseCell, 'hoveredCell=', hoveredCell, 'playing=', playing, 'busy=', busy);
     if (e.code !== 'Space') return;
     e.preventDefault();
-    if (!mouseCell) { console.log('DEBUG: Space ignored (no cell under mouse)'); return; }
-    if (!playing) { console.log('DEBUG: Space ignored (not playing)'); return; }
-    if (busy) { console.log('DEBUG: Space ignored (busy)'); return; }
+    if (!mouseCell) return;
+    if (!playing) return;
+    if (busy) return;
     hoveredCell = mouseCell;
     removeBlockAt(mouseCell.col, mouseCell.row).catch(err => console.error('removeBlockAt error', err));
   });

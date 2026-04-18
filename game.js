@@ -115,56 +115,6 @@ function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.rando
 // hasClusterAt은 match.js로 이동
 // initBoard는 board.js로 이동
 
-// ── boardData: 보드 로직 레이어 ──
-// 순수 보드 로직 함수/데이터를 하나의 네임스페이스로 묶음
-// 기존 전역 함수는 그대로 유지 (호이스팅), boardData는 참조를 모음
-// 2단계부터 이 객체를 통해 로직/애니메이션 분리 진행
-const boardData = {
-  // ── 데이터 ──
-  board,               // board[col][row] = {color, type, dir} | null
-  cellPos,             // cellPos[col][row] = {x, y} — 셀 좌표 (createCells에서 채움)
-  get numColors(){ return numColors; },
-  set numColors(v){ numColors = v; },
-
-  // ── 상수 ──
-  COLS_PATTERN,
-  AXES,
-  HEX_W, HEX_H, HEX_SIZE, COL_SPACING, ROW_SPACING, BLOCK_D,
-
-  // ── 셀/블록 생성 ──
-  makeCell,
-
-  // ── 보드 접근자 ──
-  getColor, getType, isSpecial, isValid, isLongCol,
-
-  // ── 좌표 계산 ──
-  getCellPos, getBlockPos,
-
-  // ── 인접/이동 ──
-  getNeighbors, isAdjacent, step,
-
-  // ── 방향/축 유틸 ──
-  getSwapDirection, getStripeAxis, getStripeAngle, getLineDirFromCells,
-
-  // ── 매치 감지 ──
-  countLine, hasMatchAt, findAllMatches,
-  findConnectedGroups, determineSpecial,
-
-  // ── 특수블록 범위 계산 ──
-  getStripeLine, getCellsInRange2, getPerpDirs, get3LineStripeCells,
-  getRandomBlockPos,
-
-  // ── 보드 조작 ──
-  swapBoard, executeSwap, hasClusterAt, initBoard,
-  computeGravity, computeFill, computeSpecialEffect,
-
-  // ── 점수 계산 ──
-  calcLineScore, calcComboBonus,
-
-  // ── 힌트 (순수 로직) ──
-  findBestSwap,
-};
-
 // 렌더링/블록 DOM/기믹 관리(createCells, createBlockEl, spawnAllBlocks, clearAllBlocks,
 // createGimmickEl, placeStone, removeGimmickEl, hitStone, spawnGimmicks,
 // countStones, hasStones, getRandomStonePos)는 board.js로 이동
@@ -495,12 +445,12 @@ function executeSwap(c1,r1,c2,r2){
 // ── 중력/충전/대각선 충전은 gravity.js로 이동 ──
 // (computeGravity / computeDiagonalFill / applyGravity / fillEmpty /
 //  animateGravityDOM / animateDiagonalDOM / animateFillDOM /
-//  computeFill / canFillFromTop / refreshBlockElsCoordinates /
+//  computeFill / refreshBlockElsCoordinates /
 //  animateGravity / animateDiagonalFill / animateFill)
 
 
 // getCellFromMouse, updateHoveredCellFromMouse, processPendingMatches, checkGameEnd은 main.js로 이동
-// showEndScreen / hideEndScreen / showConfirm / hideConfirm / lastCleared는 ui.js로 이동
+// showEndScreen / hideEndScreen / showConfirm / hideConfirm는 ui.js로 이동
 // resetToStart는 main.js로 이동
 
 // setupUI / toggleTheme / updateTheme는 ui.js로 이동

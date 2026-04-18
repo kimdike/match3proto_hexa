@@ -213,7 +213,6 @@ function getCellFromMouse(){
 
 function updateHoveredCellFromMouse(){
   hoveredCell=getCellFromMouse();
-  console.log('DEBUG: updateHoveredCellFromMouse', hoveredCell);
 }
 
 async function processPendingMatches(){
@@ -259,7 +258,6 @@ function resetToStart(){
 }
 
 async function removeBlockAt(col, row) {
-  console.log('DEBUG: removeBlockAt', {col,row,boardValue: board[col]?.[row], playing, busy});
   if (!board[col] || !board[col][row]) return;
   board[col][row] = null;
   if (blockEls[col][row]) {

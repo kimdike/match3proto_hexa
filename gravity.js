@@ -31,21 +31,6 @@ function computeGravity(){
   return moves;
 }
 
-// 낙하 애니메이션 (DOM만 조작, board 건드리지 않음)
-async function animateGravity(moves){
-  for(const {col,fromRow,toRow} of moves){
-    blockEls[col][toRow]=blockEls[col][fromRow];blockEls[col][fromRow]=null;
-    const el=blockEls[col][toRow];
-    if(el){
-      el.dataset.row=toRow;
-      const pos=getBlockPos(col,toRow);
-      el.style.transition=`top ${CFG.gravityTransition/gameSpeed}s ease-in`;el.style.top=`${pos.y}px`;
-    }
-  }
-  if(moves.length>0) await skippableDelay(CFG.gravityDelay);
-  refreshBlockElsCoordinates();
-}
-
 // 대각선 충전 — 기믹 아래 빈 셀을 대각선 위 블록으로 채움
 function computeDiagonalFill(){
   const moves=[];
@@ -83,21 +68,6 @@ function computeDiagonalFill(){
     }
   }
   return moves;
-}
-
-async function animateDiagonalFill(moves){
-  for(const {col,fromRow,toCol,toRow} of moves){
-    blockEls[toCol][toRow]=blockEls[col][fromRow];blockEls[col][fromRow]=null;
-    const el=blockEls[toCol][toRow];
-    if(el){
-      el.dataset.col=toCol;el.dataset.row=toRow;
-      const pos=getBlockPos(toCol,toRow);
-      el.style.transition=`left ${CFG.diagTransition/gameSpeed}s ease-in,top ${CFG.diagTransition/gameSpeed}s ease-in`;
-      el.style.left=`${pos.x}px`;el.style.top=`${pos.y}px`;
-    }
-  }
-  if(moves.length>0) await skippableDelay(CFG.diagDelay);
-  refreshBlockElsCoordinates();
 }
 
 // gravity + diagonal: 단계 간 짧게 겹쳐 "폭포처럼 흐르는" 연출
@@ -195,15 +165,6 @@ function animateFillDOM(fills){
 }
 
 // ── 충전 로직 (순수, DOM 무관) ──
-// 위쪽에 기믹이 있으면 수직 충전 불가 (대각선 충전으로만 채움)
-function canFillFromTop(col,row){
-  for(let r=row-1;r>=0;r--){
-    if(gimmick[col]?.[r]||isDead(col,r)||isEntrance(col,r)) return false;
-    if(isPass(col,r)) continue; // pass는 투명, 통과
-  }
-  return true;
-}
-
 function computeFill(){
   const fills=[];
   for(let col=0;col<COLS_PATTERN.length;col++){
@@ -236,28 +197,6 @@ function computeFill(){
   }
   return fills;
 }
-
-// 충전 애니메이션 (DOM만 조작, board 건드리지 않음)
-async function animateFill(fills){
-  const container=document.getElementById('grid-container');
-  for(const {col,row,dropDist} of fills){
-    const pos=getBlockPos(col,row);
-    const el=createBlockEl(col,row,board[col][row]);
-    if(el){
-      el.style.top=`${pos.y-dropDist*ROW_SPACING}px`;el.style.transition='none';
-      container.appendChild(el);blockEls[col][row]=el;
-      el.offsetHeight;
-      el.style.transition=`top ${CFG.fillTransition/gameSpeed}s ease-in`;el.style.top=`${pos.y}px`;
-    }else{
-      blockEls[col][row]=null;
-    }
-  }
-  if(fills.length>0){
-    await skippableDelay(CFG.fillDelay);
-    refreshBlockElsCoordinates();
-  }
-}
-
 
 function refreshBlockElsCoordinates(){
   for(let col=0;col<COLS_PATTERN.length;col++){

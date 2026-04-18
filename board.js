@@ -121,8 +121,8 @@ function createBlockEl(col,row,cell){
   const pos=getBlockPos(col,row);
   const el=document.createElement('div');
   el.className='hex-block'; el.dataset.col=col; el.dataset.row=row;
-  el.addEventListener('mouseover', () => { hoveredCell = { col, row }; console.log('DEBUG: block mouseover (block)', hoveredCell); });
-  el.addEventListener('mouseout', () => { hoveredCell = null; console.log('DEBUG: block mouseout (block)'); });
+  el.addEventListener('mouseover', () => { hoveredCell = { col, row }; });
+  el.addEventListener('mouseout', () => { hoveredCell = null; });
   // 특수블록: 이미지 아이콘
   if(cell.type==='stripe'||cell.type==='bomb'||cell.type==='target'||cell.type==='rainbow'){
     const imgSrc=cell.type==='stripe'?getStripeImage(cell.dir):SPECIAL_IMAGES[cell.type];

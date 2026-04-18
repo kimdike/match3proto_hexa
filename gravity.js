@@ -101,7 +101,7 @@ async function animateDiagonalFill(moves){
 }
 
 // gravity + diagonal: 단계 간 짧게 겹쳐 "폭포처럼 흐르는" 연출
-// (각 단계 transition이 완전히 끝나기 전에 다음 단계 시작 → 연속성 확보)
+// gravity → 짧은 시차 → diagonal 순서로 "직선 낙하 후 꺾여서 흘러들어감" 느낌
 async function applyGravity(){
   let anyMoved=false;
   for(let i=0;i<30;i++){
@@ -109,7 +109,10 @@ async function applyGravity(){
     const diagMoves=computeDiagonalFill();
     if(moves.length===0&&diagMoves.length===0) break;
     animateGravityDOM(moves);
-    animateDiagonalDOM(diagMoves);
+    if(diagMoves.length>0){
+      if(moves.length>0) await skippableDelay(CFG.gravityTransition*1000); // 직선 낙하 완전히 착지 후 대각 시작
+      animateDiagonalDOM(diagMoves);
+    }
     anyMoved=true;
     await skippableDelay(CFG.gravityDelay/3); // 다음 단계 일찍 시작 (연속 흐름)
   }
@@ -132,9 +135,13 @@ async function fillEmpty(){
     if(fills.length===0 && moves.length===0 && diagMoves.length===0){
       break;
     }
+    // fill + gravity는 동시 (위에서 사출 + 직선 낙하), diagonal은 직선 착지 후 시작 (꺾이는 느낌)
     if(fills.length>0) animateFillDOM(fills);
     if(moves.length>0) animateGravityDOM(moves);
-    if(diagMoves.length>0) animateDiagonalDOM(diagMoves);
+    if(diagMoves.length>0){
+      if(moves.length>0) await skippableDelay(CFG.gravityTransition*1000); // 직선 낙하 완전히 착지 후 대각 시작
+      animateDiagonalDOM(diagMoves);
+    }
     anyActivity=true;
     await skippableDelay(CFG.gravityDelay*0.33); // iter 간 짧게 겹쳐 연속 흐름
   }

@@ -34,9 +34,9 @@ const ALL_COLORS = [
 
 // ── 조절 가능한 설정값 (인스펙터에서 수정) ──
 const CFG = {
-  gravityTransition: 0.2,   gravityDelay: 240,
+  gravityTransition: 0.1,   gravityDelay: 240,
   fillTransition: 0.2,      fillDelay: 200,
-  diagTransition: 0.15,     diagDelay: 180,
+  diagTransition: 0.075,    diagDelay: 180,
   projectileTransition: 0.45,
   matchedDelay: 200,         mergeDelay: 130,
   explosionLifetime: 400,

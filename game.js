@@ -245,15 +245,7 @@ function startHintTimer(){
   clearHint(); if(!playing||busy) return;
   hintTimer=setTimeout(()=>{if(!playing||busy) return; const b=findBestSwap(); if(b) showHint(b.c1,b.r1,b.c2,b.r2);},HINT_DELAY);
 }
-function clearHint(){
-  if(hintTimer){clearTimeout(hintTimer);hintTimer=null;}
-  for(const {col,row} of hintedCells) if(blockEls[col]?.[row]) blockEls[col][row].classList.remove('hint');
-  hintedCells=[];
-}
-function showHint(c1,r1,c2,r2){
-  hintedCells=[{col:c1,row:r1},{col:c2,row:r2}];
-  for(const {col,row} of hintedCells) if(blockEls[col]?.[row]) blockEls[col][row].classList.add('hint');
-}
+// clearHint / showHint는 animation.js로 이동
 function findBestSwap(){
   let bestLen=0,bestSwap=null;const tested=new Set();
   for(let col=0;col<COLS_PATTERN.length;col++)
@@ -282,56 +274,7 @@ function updateMovesUI(){
   const el=document.getElementById('moves-value');
   el.textContent=movesLeft;el.classList.toggle('low',movesLeft<=5);
 }
-function getComboMessage(combo){
-  if(combo===2) return '굿!';
-  if(combo===3) return '어-썸!';
-  if(combo===4) return '쩌는 콤보!';
-  const texts=['오지고 지리고 렛잇고!','연쇄 덕좀 보시네예!','고득점 가즈아!'];
-  return texts[Math.floor(Math.random()*texts.length)];
-}
-
-function getComboStyle(combo){
-  if(combo===2) return { bg:'#3498db', size:'30px' };
-  if(combo===3) return { bg:'#9b59b6', size:'36px' };
-  if(combo===4) return { bg:'#e67e22', size:'42px' };
-  return { bg:'#f1c40f', size:'48px' };
-}
-
-function showScorePopup(x,y,pts){
-  const container=document.getElementById('grid-container');
-  const p=document.createElement('div');p.className='score-popup';
-  p.textContent=`+${pts}`;p.style.left=`${x}px`;p.style.top=`${y}px`;
-  container.appendChild(p);setTimeout(()=>p.remove(),800);
-}
-
-function showCombo(combo,bonus){
-  const el=document.getElementById('combo-display');
-  const msg=getComboMessage(combo);
-  const style=getComboStyle(combo);
-  el.innerHTML=`<div class="combo-line combo-count">${combo} COMBO!</div><div class="combo-line combo-msg">${msg}</div>`;
-  el.style.fontSize=style.size;
-  el.style.color=style.bg;
-  el.style.textShadow=`0 0 12px ${style.bg}, 0 0 20px ${style.bg}, 0 0 30px rgba(255,255,255,0.8)`;
-  el.style.background='transparent';
-  el.style.border='none';
-  el.style.padding='0';
-  el.classList.remove('hidden','show','hide');
-  el.offsetHeight; // reflow
-  el.classList.add('show');
-  if(el._comboTimer){ clearTimeout(el._comboTimer); }
-  el._comboTimer=setTimeout(()=>{
-    el.classList.add('hide');
-    el._comboTimer=setTimeout(()=>{ el.classList.remove('show','hide'); },500);
-  },2000);
-
-  if(bonus>0){
-    const container=document.getElementById('grid-container');
-    const cx=container.offsetWidth/2-30,cy=container.offsetHeight/2+30;
-    const p=document.createElement('div');p.className='score-popup combo-bonus';
-    p.textContent=`COMBO +${bonus}`;p.style.left=`${cx}px`;p.style.top=`${cy}px`;
-    container.appendChild(p);setTimeout(()=>p.remove(),800);
-  }
-}
+// getComboMessage / getComboStyle / showScorePopup / showCombo는 animation.js로 이동
 
 // ── 이펙트 ──
 // showStripeBeam / showBombExplosion / fireTargetProjectile / activateRainbow는 special.js로 이동
@@ -800,23 +743,7 @@ function executeSwap(c1,r1,c2,r2){
   return {valid:true,type:'normal',lines,cells,clusters,swapDir};
 }
 
-async function animateSwap(c1,r1,c2,r2){
-  const el1=blockEls[c1]?.[r1],el2=blockEls[c2]?.[r2];
-  if(!el1||!el2) return;
-  const p1=getBlockPos(c1,r1),p2=getBlockPos(c2,r2);
-  const swapT=0.2/gameSpeed;
-  el1.style.transition=`left ${swapT}s ease,top ${swapT}s ease`;
-  el2.style.transition=`left ${swapT}s ease,top ${swapT}s ease`;
-  el1.style.zIndex='3';el2.style.zIndex='3';
-  el1.style.left=`${p2.x}px`;el1.style.top=`${p2.y}px`;
-  el2.style.left=`${p1.x}px`;el2.style.top=`${p1.y}px`;
-  await skippableDelay(220);
-  el1.style.zIndex='';el2.style.zIndex='';
-  el1.style.transition='';el2.style.transition='';
-  el1.dataset.col=c2;el1.dataset.row=r2;
-  el2.dataset.col=c1;el2.dataset.row=r1;
-  blockEls[c1][r1]=el2;blockEls[c2][r2]=el1;
-}
+// animateSwap은 animation.js로 이동
 
 // ── 중력/충전/대각선 충전은 gravity.js로 이동 ──
 // (computeGravity / computeDiagonalFill / applyGravity / fillEmpty /

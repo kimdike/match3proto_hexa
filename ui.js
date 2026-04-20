@@ -210,11 +210,21 @@ function setupDevMode(){
   const pwError=document.getElementById('dev-pw-error');
   const devBtn=document.getElementById('dev-mode-btn');
 
+  const devPanel=document.getElementById('dev-panel');
+  function openDevPanel(){
+    devPanelOpen=true;
+    devPanel.classList.remove('hidden');
+    devBtn.classList.add('active');
+  }
+  function closeDevPanel(){
+    devPanelOpen=false;
+    devPanel.classList.add('hidden');
+    devBtn.classList.remove('active');
+  }
+
   devBtn.addEventListener('click',()=>{
     if(devUnlocked){
-      devPanelOpen=!devPanelOpen;
-      document.getElementById('dev-panel').classList.toggle('hidden',!devPanelOpen);
-      devBtn.classList.toggle('active',devPanelOpen);
+      devPanelOpen?closeDevPanel():openDevPanel();
     }else{
       pwOverlay.classList.remove('hidden');
       pwInput.value='';pwError.classList.add('hidden');
@@ -222,12 +232,17 @@ function setupDevMode(){
     }
   });
 
+  // 백드롭(카드 바깥) 클릭으로 닫기
+  devPanel.addEventListener('click',e=>{
+    if(e.target===devPanel) closeDevPanel();
+  });
+  document.getElementById('dev-panel-close').addEventListener('click',closeDevPanel);
+
   function tryPassword(){
     if(pwInput.value.toLowerCase()===DEV_PASSWORD){
-      devUnlocked=true;devPanelOpen=true;
+      devUnlocked=true;
       pwOverlay.classList.add('hidden');
-      document.getElementById('dev-panel').classList.remove('hidden');
-      devBtn.classList.add('active');
+      openDevPanel();
     }else{
       pwError.classList.remove('hidden');
       pwInput.value='';pwInput.focus();
@@ -443,6 +458,8 @@ function buildInspector(){
 // ── 반응형 스케일 ──
 // 390×844 모바일 프레임 + 내부 그리드 각각 scale 계산
 const FRAME_W=390, FRAME_H=844;
+const FRAME_SCREEN_IDS=['main-screen','character-select-screen','nickname-screen','lobby-screen','game-container'];
+
 function resizeGrid(){
   const gameContainer=document.getElementById('game-container');
   const container=document.getElementById('grid-container');
@@ -465,48 +482,217 @@ function resizeGrid(){
   const frameScale=Math.min(window.innerWidth/FRAME_W, window.innerHeight/FRAME_H, 1);
   gameContainer.style.transform=`scale(${frameScale})`;
   gameContainer.style.transformOrigin='center center';
+
+  // 그 외 프레임 기반 화면들(메인/캐릭터 선택/닉네임/로비)도 동일 스케일
+  FRAME_SCREEN_IDS.forEach(id=>{
+    if(id==='game-container') return;
+    const el=document.getElementById(id);
+    if(el){
+      el.style.transform=`scale(${frameScale})`;
+      el.style.transformOrigin='center center';
+    }
+  });
 }
 
 // ── 화면 전환 ──
 function showScreen(id){
-  ['main-screen','lobby-screen','skin-screen','game-container'].forEach(s=>{
-    document.getElementById(s).classList.add('hidden');
+  ['main-screen','character-select-screen','nickname-screen','lobby-screen','skin-screen','game-container'].forEach(s=>{
+    const el=document.getElementById(s);
+    if(el) el.classList.add('hidden');
   });
   document.getElementById(id).classList.remove('hidden');
   if(id==='game-container') resizeGrid();
 }
 
+// ── 플레이어 프로필 (localStorage) ──
+function loadPlayerProfile(){
+  return {
+    name: localStorage.getItem('hexPuzzlePlayerName')||'',
+    character: localStorage.getItem('hexPuzzlePlayerCharacter')||'',
+  };
+}
+function savePlayerProfile(name,character){
+  localStorage.setItem('hexPuzzlePlayerName',name);
+  localStorage.setItem('hexPuzzlePlayerCharacter',character);
+}
+function hasPlayerProfile(){
+  const p=loadPlayerProfile();
+  return !!(p.name&&(p.character==='man'||p.character==='woman'));
+}
+function getCharacterImgPath(character){
+  return character==='woman'?'assets/character_woman.png':'assets/character_man.png';
+}
+
 function updateLobbyStage(){
   const stageBtn=document.getElementById('lobby-stage-btn');
   const numEl=document.getElementById('lobby-stage-num');
-  const infoEl=document.getElementById('lobby-stage-info');
   if(currentStage>STAGES.length){
     // 올클리어
-    stageBtn.style.display='none';
-    infoEl.style.display='none';
+    if(stageBtn) stageBtn.style.display='none';
     let allClear=document.querySelector('.lobby-all-clear');
-    if(!allClear){
+    if(!allClear&&stageBtn){
       allClear=document.createElement('div');
       allClear.className='lobby-all-clear';
       allClear.textContent='ALL STAGE CLEAR!';
       stageBtn.parentNode.insertBefore(allClear,stageBtn);
     }
   } else {
-    stageBtn.style.display='';
-    infoEl.style.display='';
-    const sd=STAGES[currentStage-1];
-    const mapData=stageMaps?.stages?.find(s=>s.stage===currentStage);
-    numEl.textContent=currentStage;
-    document.getElementById('lobby-stage-target').textContent=`목표 ${sd.target.toLocaleString()}점`;
-    document.getElementById('lobby-stage-moves').textContent=`Move ${mapData?.moves??sd.moves}`;
+    if(stageBtn) stageBtn.style.display='';
+    const allClear=document.querySelector('.lobby-all-clear');
+    if(allClear) allClear.remove();
+    if(numEl) numEl.textContent=currentStage;
   }
 }
 
-function setupScreenNav(){
-  // 메인 → 로비
-  document.getElementById('main-start-btn').addEventListener('click',()=>{
+// ── 로비 프로필 적용 (상단 뱃지 + 중앙 일러스트) ──
+function updateLobbyProfile(){
+  const p=loadPlayerProfile();
+  const nameEl=document.getElementById('lobby-player-name');
+  const profileImg=document.getElementById('lobby-profile-img');
+  const charImg=document.getElementById('lobby-character-img');
+  if(nameEl) nameEl.textContent=p.name||'Player';
+  if(p.character){
+    const path=getCharacterImgPath(p.character);
+    if(profileImg) profileImg.src=path;
+    if(charImg) charImg.src=path;
+  }
+}
+
+// ── 캐릭터 선택 화면 ──
+let selectedCharacter=null;
+function setupCharacterSelect(){
+  const cards=document.querySelectorAll('.cs-card');
+  const confirmBtn=document.getElementById('cs-confirm-btn');
+  if(!confirmBtn) return;
+  cards.forEach(card=>{
+    card.addEventListener('click',()=>{
+      cards.forEach(c=>c.classList.remove('selected'));
+      card.classList.add('selected');
+      selectedCharacter=card.dataset.character;
+      confirmBtn.disabled=false;
+    });
+  });
+  confirmBtn.addEventListener('click',()=>{
+    if(!selectedCharacter) return;
+    const nnImg=document.getElementById('nn-character-img');
+    if(nnImg) nnImg.src=getCharacterImgPath(selectedCharacter);
+    showScreen('nickname-screen');
+    const input=document.getElementById('nn-input');
+    setTimeout(()=>input?.focus(),50); // 화면 전환 후 포커스
+  });
+}
+function resetCharacterSelectUI(){
+  selectedCharacter=null;
+  document.querySelectorAll('.cs-card').forEach(c=>c.classList.remove('selected'));
+  const confirmBtn=document.getElementById('cs-confirm-btn');
+  if(confirmBtn) confirmBtn.disabled=true;
+}
+
+// ── 닉네임 입력 화면 ──
+function setupNicknameScreen(){
+  const input=document.getElementById('nn-input');
+  const counter=document.getElementById('nn-counter-num');
+  const confirmBtn=document.getElementById('nn-confirm-btn');
+  const backBtn=document.getElementById('nn-back-btn');
+  if(!input||!confirmBtn) return;
+
+  function updateCounter(){
+    const len=input.value.length;
+    if(counter) counter.textContent=len;
+    confirmBtn.disabled=input.value.trim().length===0;
+  }
+  function confirmNickname(){
+    const name=input.value.trim();
+    if(!name||!selectedCharacter) return;
+    savePlayerProfile(name,selectedCharacter);
+    updateLobbyProfile();
     showScreen('lobby-screen');
     updateLobbyStage();
+  }
+
+  input.addEventListener('input',updateCounter);
+  input.addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&!confirmBtn.disabled) confirmNickname();
+  });
+  confirmBtn.addEventListener('click',confirmNickname);
+  if(backBtn){
+    backBtn.addEventListener('click',()=>{
+      showScreen('character-select-screen');
+    });
+  }
+}
+function resetNicknameUI(){
+  const input=document.getElementById('nn-input');
+  const counter=document.getElementById('nn-counter-num');
+  const confirmBtn=document.getElementById('nn-confirm-btn');
+  if(input) input.value='';
+  if(counter) counter.textContent='0';
+  if(confirmBtn) confirmBtn.disabled=true;
+}
+
+// ── 메인 화면 BGM ──
+let bgmResumeHandler=null;
+function removeBgmResumeListeners(){
+  if(!bgmResumeHandler) return;
+  document.removeEventListener('pointerdown',bgmResumeHandler);
+  document.removeEventListener('keydown',bgmResumeHandler);
+  document.removeEventListener('touchstart',bgmResumeHandler);
+  bgmResumeHandler=null;
+}
+
+function startMainBgm(){
+  const bgm=document.getElementById('main-bgm');
+  if(!bgm) return;
+  bgm.volume=0.4;
+  const p=bgm.play();
+  if(p&&typeof p.catch==='function'){
+    p.catch(()=>{
+      // 자동재생 차단 → 첫 인터랙션 시 재생, 재생 시작 후 리스너 전체 해제
+      bgmResumeHandler=()=>{
+        bgm.play().catch(()=>{});
+        removeBgmResumeListeners();
+      };
+      document.addEventListener('pointerdown',bgmResumeHandler);
+      document.addEventListener('keydown',bgmResumeHandler);
+      document.addEventListener('touchstart',bgmResumeHandler,{passive:true});
+    });
+  }
+}
+
+function stopMainBgm(){
+  removeBgmResumeListeners();
+  const bgm=document.getElementById('main-bgm');
+  if(!bgm) return;
+  bgm.pause();
+  bgm.currentTime=0;
+}
+
+function setupScreenNav(){
+  // 메인 BGM 자동재생 시도
+  startMainBgm();
+
+  // 메인 로고 "띠용" 클릭 효과 (시각 효과만, 네비게이션 없음)
+  const logoImg=document.querySelector('.main-logo-img');
+  if(logoImg){
+    logoImg.addEventListener('click',()=>{
+      logoImg.classList.remove('bounced');
+      void logoImg.offsetWidth; // reflow로 애니메이션 재시작
+      logoImg.classList.add('bounced');
+    });
+  }
+
+  // 메인 → 로비 or 캐릭터 선택 (프로필 유무에 따라)
+  document.getElementById('main-start-btn').addEventListener('click',()=>{
+    stopMainBgm();
+    if(hasPlayerProfile()){
+      updateLobbyProfile();
+      showScreen('lobby-screen');
+      updateLobbyStage();
+    } else {
+      resetCharacterSelectUI();
+      resetNicknameUI();
+      showScreen('character-select-screen');
+    }
   });
   // 로비 하단 버튼
   document.querySelectorAll('.lobby-menu-btn').forEach(btn=>{
@@ -530,6 +716,19 @@ function setupScreenNav(){
     showScreen('game-container');
     if(!playing) startGame();
   });
+
+  // 처음으로 → 프로필 삭제 + 메인 화면 (BGM 재시작)
+  const resetBtn=document.getElementById('lobby-reset-btn');
+  if(resetBtn){
+    resetBtn.addEventListener('click',()=>{
+      localStorage.removeItem('hexPuzzlePlayerName');
+      localStorage.removeItem('hexPuzzlePlayerCharacter');
+      localStorage.removeItem('hexPuzzleStage');
+      currentStage=1;
+      showScreen('main-screen');
+      startMainBgm();
+    });
+  }
 }
 
 // ── 스킨 화면 ──

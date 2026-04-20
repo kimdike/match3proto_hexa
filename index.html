@@ -4,37 +4,91 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
   <title>헥사 3매치 퍼즐</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;500;700&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <!-- ── 메인 화면 ── -->
   <div id="main-screen">
-    <div class="main-title-area">
-      <div class="main-logo">⬡</div>
-      <h1 class="main-title">헥사 3매치 퍼즐</h1>
-      <p class="main-subtitle">Hexa Match Puzzle</p>
+    <img class="main-bg" src="assets/main_bg.jpg" alt="" aria-hidden="true">
+    <div class="main-scrim"></div>
+    <div class="main-content">
+      <img class="main-logo-img" src="assets/main_logo.png" alt="Pokémon Match-3">
+      <p class="main-subtitle">A PUZZLE ADVENTURE</p>
+      <button id="main-start-btn" class="main-press-start">PRESS TO START</button>
     </div>
-    <button id="main-start-btn">게임 시작</button>
+    <audio id="main-bgm" src="assets/main_bgm.mp3" loop preload="auto"></audio>
+  </div>
+
+  <!-- ── 캐릭터 선택 화면 (최초 1회) ── -->
+  <div id="character-select-screen" class="hidden">
+    <div class="cs-header">
+      <h2 class="cs-title">TRAINER SELECT</h2>
+      <p class="cs-subtitle">함께 모험을 떠날 트레이너를 선택해주세요</p>
+    </div>
+    <div class="cs-cards">
+      <button class="cs-card" data-character="man" type="button">
+        <div class="cs-card-illust">
+          <img src="assets/character_man.png" alt="소년 트레이너">
+        </div>
+        <div class="cs-card-name">소년 트레이너</div>
+      </button>
+      <button class="cs-card" data-character="woman" type="button">
+        <div class="cs-card-illust">
+          <img src="assets/character_woman.png" alt="소녀 트레이너">
+        </div>
+        <div class="cs-card-name">소녀 트레이너</div>
+      </button>
+    </div>
+    <button id="cs-confirm-btn" class="cs-confirm-btn" type="button" disabled>다음</button>
+  </div>
+
+  <!-- ── 닉네임 입력 화면 ── -->
+  <div id="nickname-screen" class="hidden">
+    <button id="nn-back-btn" class="nn-back-btn" type="button" aria-label="뒤로">←</button>
+    <div class="nn-content">
+      <div class="nn-character-icon">
+        <img id="nn-character-img" src="" alt="선택한 트레이너">
+      </div>
+      <h2 class="nn-title">NICKNAME</h2>
+      <p class="nn-subtitle">모험에서 불릴 이름을 정해주세요 (최대 12자)</p>
+      <input type="text" id="nn-input" class="nn-input" maxlength="12" placeholder="닉네임 입력" autocomplete="off" spellcheck="false">
+      <div class="nn-counter"><span id="nn-counter-num">0</span> / 12</div>
+    </div>
+    <button id="nn-confirm-btn" class="nn-confirm-btn" type="button" disabled>START</button>
   </div>
 
   <!-- ── 로비 화면 ── -->
   <div id="lobby-screen" class="hidden">
-    <div class="lobby-content">
-      <div class="lobby-character-area">
-        <div class="lobby-character-placeholder">캐릭터 준비 중</div>
+    <div class="lobby-top">
+      <div class="lobby-profile">
+        <div class="lobby-profile-icon">
+          <img id="lobby-profile-img" src="" alt="">
+        </div>
+        <div class="lobby-profile-info">
+          <div class="lobby-league-label">KANTO LEAGUE</div>
+          <div class="lobby-player-name" id="lobby-player-name">PlayerName</div>
+        </div>
       </div>
-      <button id="lobby-stage-btn" class="lobby-stage-btn">
-        <span class="lobby-stage-label">STAGE</span>
-        <span id="lobby-stage-num" class="lobby-stage-num">1</span>
-      </button>
-      <div id="lobby-stage-info" class="lobby-stage-info">
-        <span id="lobby-stage-target"></span> · <span id="lobby-stage-moves"></span>
-      </div>
+      <button id="lobby-reset-btn" class="lobby-reset-btn" type="button" aria-label="처음으로">처음으로</button>
     </div>
+    <div class="lobby-character-area">
+      <img id="lobby-character-img" class="lobby-character-img" src="" alt="">
+    </div>
+    <button id="lobby-stage-btn" class="lobby-adventure-btn" type="button">
+      <span class="lobby-adventure-info">
+        <span class="lobby-adventure-label">ADVENTURE START</span>
+        <span class="lobby-adventure-level">LEVEL <span id="lobby-stage-num">1</span></span>
+      </span>
+      <span class="lobby-adventure-arrow" aria-hidden="true">▶</span>
+    </button>
     <div class="lobby-bottom-bar">
-      <button class="lobby-menu-btn" data-target="skin"><span class="lobby-menu-icon">🎨</span><span>스킨</span></button>
-      <button class="lobby-menu-btn" data-target="shop"><span class="lobby-menu-icon">🛒</span><span>상점</span></button>
-      <button class="lobby-menu-btn" data-target="collection"><span class="lobby-menu-icon">📖</span><span>도감</span></button>
+      <button class="lobby-menu-btn" data-target="skin" type="button"><span class="lobby-menu-icon">🎨</span><span>스킨</span></button>
+      <button class="lobby-menu-btn" data-target="shop" type="button"><span class="lobby-menu-icon">🛒</span><span>상점</span></button>
+      <button class="lobby-menu-btn" data-target="collection" type="button"><span class="lobby-menu-icon">📖</span><span>도감</span></button>
+      <button class="lobby-menu-btn" data-target="locked" type="button"><span class="lobby-menu-icon">🔒</span><span>준비중</span></button>
     </div>
   </div>
 
@@ -116,7 +170,12 @@
       <div id="grid-container">
         <div id="combo-display" class="hidden"></div>
       </div>
-      <div id="dev-panel" class="hidden">
+    </div>
+
+    <!-- 개발자 모드 오버레이 -->
+    <div id="dev-panel" class="hidden">
+      <div id="dev-panel-card">
+        <button id="dev-panel-close" aria-label="닫기">×</button>
         <div class="dev-section">
           <div class="dev-section-title">게임 배속</div>
           <div class="dev-speed-row">

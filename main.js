@@ -324,10 +324,14 @@ function startGame(){
   createCells();
   setupUI();
   setupDevMode();
+  setupCharacterSelect();
+  setupNicknameScreen();
   setupScreenNav();
   setupSkinScreen();
   updateTheme();
   updateHighScoreUI();
+  // 기존 저장된 프로필이 있으면 로비 프로필/스테이지 초기 상태만 채움 (화면 전환은 PRESS TO START에서 분기)
+  if(hasPlayerProfile()) updateLobbyProfile();
   resizeGrid();
   window.addEventListener('resize',resizeGrid);
 })();

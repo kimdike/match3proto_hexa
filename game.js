@@ -306,13 +306,14 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
   // 6a) 특수볼 생성 연출
   if(specialInfo){
     const tPos=getBlockPos(specialInfo.col,specialInfo.row);
+    const adj=BLOCK_D*((CFG.blockScale||1.0)-1)/2;
     for(const [c,r] of specialInfo.mergeCells){
       if(c===specialInfo.col&&r===specialInfo.row) continue;
       const el=blockEls[c][r]; if(!el) continue;
       el.classList.add('merging');
       const mt=0.3/gameSpeed;
       el.style.transition=`left ${mt}s ease-in,top ${mt}s ease-in,transform ${mt}s ease-in,opacity ${mt}s ease-in`;
-      el.style.left=`${tPos.x}px`;el.style.top=`${tPos.y}px`;
+      el.style.left=`${tPos.x-adj}px`;el.style.top=`${tPos.y-adj}px`;
       el.style.transform='scale(0.2)';el.style.opacity='0';
     }
     const pivotEl=blockEls[specialInfo.col][specialInfo.row];

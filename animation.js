@@ -8,12 +8,13 @@ async function animateSwap(c1,r1,c2,r2){
   const el1=blockEls[c1]?.[r1],el2=blockEls[c2]?.[r2];
   if(!el1||!el2) return;
   const p1=getBlockPos(c1,r1),p2=getBlockPos(c2,r2);
+  const adj=BLOCK_D*((CFG.blockScale||1.0)-1)/2;
   const swapT=0.2/gameSpeed;
   el1.style.transition=`left ${swapT}s ease,top ${swapT}s ease`;
   el2.style.transition=`left ${swapT}s ease,top ${swapT}s ease`;
   el1.style.zIndex='3';el2.style.zIndex='3';
-  el1.style.left=`${p2.x}px`;el1.style.top=`${p2.y}px`;
-  el2.style.left=`${p1.x}px`;el2.style.top=`${p1.y}px`;
+  el1.style.left=`${p2.x-adj}px`;el1.style.top=`${p2.y-adj}px`;
+  el2.style.left=`${p1.x-adj}px`;el2.style.top=`${p1.y-adj}px`;
   await skippableDelay(220);
   el1.style.zIndex='';el2.style.zIndex='';
   el1.style.transition='';el2.style.transition='';

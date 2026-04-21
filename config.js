@@ -43,6 +43,7 @@ const CFG = {
   specialActivateDelay: 100, crossEffectDelay: 200,
   score3match: 300, score4match: 500, score5match: 800,
   combo2bonus: 500, combo3bonus: 1000, combo4bonus: 2000,
+  blockScale: 1.1,
 };
 const CFG_DEFAULTS = {...CFG};
 const CFG_META = [
@@ -64,6 +65,7 @@ const CFG_META = [
   {key:'combo2bonus',label:'2연쇄 보너스',desc:'연쇄 2회 달성 시 추가 보너스 점수. 연쇄가 시작되는 첫 보상 (권장: 200 ~ 1000)',unit:'',step:100,group:'score'},
   {key:'combo3bonus',label:'3연쇄 보너스',desc:'연쇄 3회 달성 시 추가 보너스 점수 (권장: 500 ~ 2000)',unit:'',step:100,group:'score'},
   {key:'combo4bonus',label:'4연쇄+ 보너스',desc:'연쇄 4회 이상 달성 시 추가 보너스 점수. 최대 보상 단계 (권장: 1000 ~ 5000)',unit:'',step:100,group:'score'},
+  {key:'blockScale',label:'block scale',desc:'블록 이미지 크기 배율이에요. 1.0이 기본 크기예요 (권장: 0.5 ~ 2.0)',unit:'x',step:0.05,group:'visual'},
 ];
 
 // ── 스킨/스프라이트 시트 ──

@@ -6,6 +6,11 @@ const matchLogs=[]; // 개발자 패널 매치 로그 버퍼
 let devUnlocked=false, devPanelOpen=false;
 let skinEditingSlot=-1; // -1: 슬롯 미선택
 
+// ── 배치 도구 상태 (슬라이드 패널) ──
+let debugPlaceDir=null;                 // 줄볼 방향: 'up'|'se'|'ne'
+let placementGimmickType=null;          // null | {type:'stone',level:N} | {type:'clear'}
+let placementCoordVisible=false;
+
 // ── 포켓몬 스프라이트 배경 ──
 function getPokemonBgStyle(pokeNum,displaySize){
   const col=(pokeNum-1)%SPRITE_COLS;
@@ -190,7 +195,7 @@ function placeDebugSpecial(col,row){
   if(!board[col]||!board[col][row]) return;
   const oldCell=board[col][row];
   const color=debugPlaceType==='rainbow'?null:oldCell.color;
-  const dir=debugPlaceType==='stripe'?['up','ne','nw'][Math.floor(Math.random()*3)]:null;
+  const dir=debugPlaceType==='stripe'?(debugPlaceDir||'up'):null;
   board[col][row]=makeCell(color,debugPlaceType,dir);
   // DOM 교체
   const container=document.getElementById('grid-container');
@@ -243,6 +248,9 @@ function setupDevMode(){
       devUnlocked=true;
       pwOverlay.classList.add('hidden');
       openDevPanel();
+      // 배치 도구 탭 노출
+      const placeTab=document.getElementById('placement-tab');
+      if(placeTab) placeTab.classList.remove('hidden');
     }else{
       pwError.classList.remove('hidden');
       pwInput.value='';pwInput.focus();
@@ -260,107 +268,6 @@ function setupDevMode(){
     const idx=parseInt(speedSlider.value);
     gameSpeed=SPEED_STEPS[idx];
     speedLabel.textContent=gameSpeed+'x';
-  });
-
-  // 배치 모드 전체 해제
-  let debugGimmickType=null; // null | {type:'stone',level:N} | {type:'clear'}
-  function clearAllDebugModes(){
-    debugPlaceType=null;
-    debugGimmickType=null;
-    document.querySelectorAll('.debug-btn[data-type],.gimmick-btn,#gimmick-clear-btn').forEach(b=>b.classList.remove('active'));
-  }
-
-  // 특수블록 배치 버튼
-  document.querySelectorAll('.debug-btn[data-type]').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const type=btn.dataset.type;
-      if(debugPlaceType===type){
-        clearAllDebugModes();
-      } else {
-        clearAllDebugModes();
-        debugPlaceType=type;
-        btn.classList.add('active');
-      }
-    });
-  });
-
-  // 기믹 배치 버튼
-  document.querySelectorAll('.gimmick-btn').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const type=btn.dataset.gimmick;
-      const level=parseInt(btn.dataset.level);
-      const key=`${type}_${level}`;
-      if(debugGimmickType&&`${debugGimmickType.type}_${debugGimmickType.level}`===key){
-        clearAllDebugModes();
-      } else {
-        clearAllDebugModes();
-        debugGimmickType={type,level};
-        btn.classList.add('active');
-      }
-    });
-  });
-
-  document.getElementById('gimmick-clear-btn').addEventListener('click',()=>{
-    if(debugGimmickType?.type==='clear'){
-      clearAllDebugModes();
-    } else {
-      clearAllDebugModes();
-      debugGimmickType={type:'clear'};
-      document.getElementById('gimmick-clear-btn').classList.add('active');
-    }
-  });
-
-  // 셀 클릭 시 기믹 배치 처리
-  document.getElementById('grid-container').addEventListener('click',(e)=>{
-    if(!debugGimmickType||!devUnlocked) return;
-    const rect=document.getElementById('grid-container').getBoundingClientRect();
-    const scale=rect.width/((COLS_PATTERN.length-1)*COL_SPACING+HEX_W);
-    const mx=(e.clientX-rect.left)/scale, my=(e.clientY-rect.top)/scale;
-    let bestCol=-1,bestRow=-1,bestDist=Infinity;
-    for(let c=0;c<COLS_PATTERN.length;c++){
-      for(let r=0;r<COLS_PATTERN[c];r++){
-        const p=cellPos[c][r];
-        const cx=p.x+HEX_W/2, cy=p.y+HEX_H/2;
-        const d=(mx-cx)**2+(my-cy)**2;
-        if(d<bestDist){bestDist=d;bestCol=c;bestRow=r;}
-      }
-    }
-    if(bestCol<0) return;
-    if(debugGimmickType.type==='clear'){
-      removeGimmickEl(bestCol,bestRow);
-      totalStones=countStones();initialStones=totalStones;
-      updateMissionUI();
-    } else {
-      placeStone(bestCol,bestRow,debugGimmickType.level);
-      initialStones=countStones();
-    }
-  });
-
-  // 좌표 보기 토글
-  let coordVisible=false;
-  const coordBtn=document.getElementById('coord-toggle-btn');
-  coordBtn.addEventListener('click',()=>{
-    coordVisible=!coordVisible;
-    coordBtn.classList.toggle('active',coordVisible);
-    document.querySelectorAll('.coord-label').forEach(el=>el.remove());
-    if(coordVisible){
-      const container=document.getElementById('grid-container');
-      for(let col=0;col<COLS_PATTERN.length;col++){
-        for(let row=0;row<COLS_PATTERN[col];row++){
-          const pos=cellPos[col][row];
-          const lbl=document.createElement('div');
-          lbl.className='coord-label';
-          lbl.textContent=`${col},${row}`;
-          lbl.style.left=`${pos.x}px`;
-          lbl.style.top=`${pos.y}px`;
-          lbl.style.width=`${HEX_W}px`;
-          lbl.style.height=`${HEX_H}px`;
-          lbl.style.lineHeight=`${HEX_H}px`;
-          lbl.style.transform='none';
-          container.appendChild(lbl);
-        }
-      }
-    }
   });
 
   // 스테이지 이동 치트
@@ -400,7 +307,7 @@ function showInspConfirm(onConfirm){
 // ── 인스펙터 UI 빌드 ──
 function buildInspector(){
   const container=document.getElementById('dev-inspector');
-  const groups={speed:'⚡ 속도',timing:'✨ 연출 타이밍',score:'🎯 점수'};
+  const groups={speed:'⚡ 속도',timing:'✨ 연출 타이밍',score:'🎯 점수',visual:'🎨 비주얼'};
   const byGroup={};
   for(const m of CFG_META){
     if(!byGroup[m.group]) byGroup[m.group]=[];
@@ -432,6 +339,7 @@ function buildInspector(){
           const inp=container.querySelector(`.insp-input[data-key="${m.key}"]`);
           if(inp) inp.value=CFG_DEFAULTS[m.key];
         }
+        if(grp==='visual') applyBlockScale();
       });
     });
   });
@@ -440,7 +348,10 @@ function buildInspector(){
     if(!e.target.classList.contains('insp-input')) return;
     const key=e.target.dataset.key;
     const val=parseFloat(e.target.value);
-    if(!isNaN(val)&&key in CFG) CFG[key]=val;
+    if(!isNaN(val)&&key in CFG){
+      CFG[key]=val;
+      if(key==='blockScale') applyBlockScale();
+    }
   });
   // 툴팁 위치 (fixed 기반)
   container.querySelectorAll('.insp-help').forEach(btn=>{
@@ -466,11 +377,11 @@ function resizeGrid(){
   const wrapper=document.getElementById('grid-wrapper');
 
   // 1) 그리드 scale: 9열 전체가 잘림 없이 390 프레임 너비에 꽉 차도록
-  //    상단 HUD(~60px) + 하단 버튼 영역(~80px) 제외한 공간 활용
+  //    상단 HUD(120px + 캐릭터 돌출 10px) + 하단 STOP 영역(~130px) 제외한 공간 활용
   const totalW=(COLS_PATTERN.length-1)*COL_SPACING+HEX_W;
   const totalH=9*ROW_SPACING+HEX_H*0.5;
   const gridAvailW=FRAME_W;        // 전체 폭 활용
-  const gridAvailH=FRAME_H-160;    // 상단 HUD + 하단 버튼 여유
+  const gridAvailH=FRAME_H-260;    // 상단 확장 HUD + 하단 STOP/버튼 영역
   const gridScale=Math.min(gridAvailW/totalW, gridAvailH/totalH, 1);
   container.style.transform=`scale(${gridScale})`;
   container.style.transformOrigin='top center';
@@ -501,7 +412,20 @@ function showScreen(id){
     if(el) el.classList.add('hidden');
   });
   document.getElementById(id).classList.remove('hidden');
-  if(id==='game-container') resizeGrid();
+  if(id==='game-container'){
+    resizeGrid();
+    updateHudCharacter();
+  }
+}
+
+// ── 인게임 HUD 중앙 캐릭터 (로비/닉네임과 동일 이미지) ──
+function updateHudCharacter(){
+  const img=document.getElementById('hud-character-img');
+  if(!img) return;
+  const p=loadPlayerProfile();
+  if(p.character){
+    img.src=getCharacterImgPath(p.character);
+  }
 }
 
 // ── 플레이어 프로필 (localStorage) ──
@@ -804,4 +728,182 @@ function setupSkinScreen(){
   document.getElementById('skin-back-btn').addEventListener('click',()=>{
     showScreen('lobby-screen');
   });
+}
+
+// ── 배치 도구 슬라이드 패널 ──
+function setupPlacementPanel(){
+  const tab=document.getElementById('placement-tab');
+  const panel=document.getElementById('placement-panel');
+  if(!tab||!panel) return;
+
+  // 탭 토글
+  tab.addEventListener('click',(e)=>{
+    e.stopPropagation();
+    const open=panel.classList.toggle('open');
+    tab.textContent=open?'▶':'◀';
+  });
+
+  // 배치 버튼 바인딩
+  panel.querySelectorAll('.placement-btn').forEach(btn=>{
+    if(btn.id==='placement-coord-toggle') return;
+    btn.addEventListener('click',()=>handlePlacementBtn(btn));
+  });
+
+  // 팔레트 해제 버튼
+  document.getElementById('placement-palette-clear').addEventListener('click',clearPlacementSelection);
+
+  // 좌표 보기 토글
+  document.getElementById('placement-coord-toggle').addEventListener('click',togglePlacementCoord);
+
+  // 셀 클릭 시 기믹 배치 (특수블록 배치는 main.js onDragEnd의 placeDebugSpecial이 담당)
+  document.getElementById('grid-container').addEventListener('click',(e)=>{
+    if(!placementGimmickType||!devUnlocked) return;
+    const rect=document.getElementById('grid-container').getBoundingClientRect();
+    const scale=rect.width/((COLS_PATTERN.length-1)*COL_SPACING+HEX_W);
+    const mx=(e.clientX-rect.left)/scale, my=(e.clientY-rect.top)/scale;
+    let bestCol=-1,bestRow=-1,bestDist=Infinity;
+    for(let c=0;c<COLS_PATTERN.length;c++){
+      for(let r=0;r<COLS_PATTERN[c];r++){
+        const p=cellPos[c][r];
+        const cx=p.x+HEX_W/2, cy=p.y+HEX_H/2;
+        const d=(mx-cx)**2+(my-cy)**2;
+        if(d<bestDist){bestDist=d;bestCol=c;bestRow=r;}
+      }
+    }
+    if(bestCol<0) return;
+    if(placementGimmickType.type==='clear'){
+      removeGimmickEl(bestCol,bestRow);
+      totalStones=countStones();initialStones=totalStones;
+      updateMissionUI();
+    } else {
+      placeStone(bestCol,bestRow,placementGimmickType.level);
+      initialStones=countStones();
+    }
+  });
+}
+
+function handlePlacementBtn(btn){
+  const type=btn.dataset.placeType;
+  const gimmick=btn.dataset.placeGimmick;
+  const label=btn.dataset.placeLabel||btn.textContent.trim();
+
+  if(type){
+    // 특수블록 선택
+    const dir=btn.dataset.placeDir||null;
+    const curKey=debugPlaceType?`${debugPlaceType}_${debugPlaceDir||''}`:'';
+    const newKey=`${type}_${dir||''}`;
+    if(curKey===newKey){
+      clearPlacementSelection();
+    } else {
+      clearPlacementSelection();
+      debugPlaceType=type;
+      debugPlaceDir=dir;
+      btn.classList.add('active');
+      updatePlacementPalette({kind:'special',type,dir,label});
+    }
+  } else if(gimmick){
+    // 기믹 선택
+    const level=btn.dataset.placeLevel?parseInt(btn.dataset.placeLevel):null;
+    const curKey=placementGimmickType
+      ?(placementGimmickType.type==='clear'?'clear':`${placementGimmickType.type}_${placementGimmickType.level}`)
+      :'';
+    const newKey=gimmick==='clear'?'clear':`${gimmick}_${level}`;
+    if(curKey===newKey){
+      clearPlacementSelection();
+    } else {
+      clearPlacementSelection();
+      placementGimmickType=gimmick==='clear'?{type:'clear'}:{type:gimmick,level};
+      btn.classList.add('active');
+      updatePlacementPalette({kind:'gimmick',type:gimmick,level,label});
+    }
+  }
+}
+
+function clearPlacementSelection(){
+  debugPlaceType=null;
+  debugPlaceDir=null;
+  placementGimmickType=null;
+  document.querySelectorAll('#placement-panel .placement-btn').forEach(b=>{
+    if(b.id==='placement-coord-toggle') return;
+    b.classList.remove('active');
+  });
+  updatePlacementPalette(null);
+}
+
+function updatePlacementPalette(sel){
+  const empty=document.getElementById('placement-palette-empty');
+  const selected=document.getElementById('placement-palette-selected');
+  if(!empty||!selected) return;
+  if(!sel){
+    empty.classList.remove('hidden');
+    selected.classList.add('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+  selected.classList.remove('hidden');
+  const icon=document.getElementById('placement-palette-icon');
+  const name=document.getElementById('placement-palette-name');
+  name.textContent=sel.label;
+  icon.style.backgroundImage='';
+  if(sel.kind==='special'){
+    const src=sel.type==='stripe'?getStripeImage(sel.dir):SPECIAL_IMAGES[sel.type];
+    if(src) icon.style.backgroundImage=`url(${src})`;
+  } else if(sel.kind==='gimmick'){
+    if(sel.type==='stone'&&sel.level){
+      icon.style.backgroundImage=`url(assets/gimmick/stone_${sel.level}.png)`;
+    }
+  }
+}
+
+function togglePlacementCoord(){
+  const btn=document.getElementById('placement-coord-toggle');
+  placementCoordVisible=!placementCoordVisible;
+  btn.classList.toggle('active',placementCoordVisible);
+  document.querySelectorAll('.coord-label').forEach(el=>el.remove());
+  if(!placementCoordVisible) return;
+  const container=document.getElementById('grid-container');
+  for(let col=0;col<COLS_PATTERN.length;col++){
+    for(let row=0;row<COLS_PATTERN[col];row++){
+      const pos=cellPos[col][row];
+      const lbl=document.createElement('div');
+      lbl.className='coord-label';
+      lbl.textContent=`${col},${row}`;
+      lbl.style.left=`${pos.x}px`;
+      lbl.style.top=`${pos.y}px`;
+      lbl.style.width=`${HEX_W}px`;
+      lbl.style.height=`${HEX_H}px`;
+      lbl.style.lineHeight=`${HEX_H}px`;
+      lbl.style.transform='none';
+      container.appendChild(lbl);
+    }
+  }
+}
+
+// ── 블록 배율 적용 (인스펙터 실시간 반영) ──
+function applyBlockScale(){
+  const scale=CFG.blockScale||1.0;
+  const baseD=BLOCK_D*scale;
+  const adj=BLOCK_D*(scale-1)/2;                  // 셀 중앙 정렬 보정값
+  document.documentElement.style.setProperty('--block-d',`${baseD}px`);
+  // 포켓몬/특수블록은 inline width/height를 쓰므로 재계산
+  const bigSz=Math.round(BLOCK_D*1.1*scale);
+  const offset=-(bigSz-baseD)/2;
+  for(let col=0;col<COLS_PATTERN.length;col++){
+    const arr=blockEls[col]||[];
+    for(let row=0;row<arr.length;row++){
+      const el=arr[row];
+      if(!el) continue;
+      if(el.classList.contains('pokemon-block')||el.classList.contains('special-block')){
+        el.style.width=`${bigSz}px`;
+        el.style.height=`${bigSz}px`;
+        el.style.margin=`${offset}px 0 0 ${offset}px`;
+      }
+      // 위치 재계산: 기본 pos(BLOCK_D 기준) - 보정값 → 셀 중앙 고정
+      if(cellPos[col]?.[row]){
+        const pos=getBlockPos(col,row);
+        el.style.left=`${pos.x-adj}px`;
+        el.style.top=`${pos.y-adj}px`;
+      }
+    }
+  }
 }

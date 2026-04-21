@@ -251,7 +251,8 @@ function resetToStart(){
   hideEndScreen();hideConfirm();clearHint();
   playing=false;busy=false;isBusyRainbow=false;isBusyNormal=false;dragState=null;
   animQueue.length=0;animRunning=false;skipDelay=false;
-  debugPlaceType=null;
+  // 배치 도구 상태 초기화 (특수블록/기믹 선택 해제)
+  if(typeof clearPlacementSelection==='function') clearPlacementSelection();
   document.querySelectorAll('.debug-btn').forEach(b=>{b.classList.remove('active');b.textContent=b.textContent.replace(' \u2705','');});
   clearAllBlocks();
   document.getElementById('info-bar').classList.add('hidden');
@@ -324,6 +325,7 @@ function startGame(){
   createCells();
   setupUI();
   setupDevMode();
+  setupPlacementPanel();
   setupCharacterSelect();
   setupNicknameScreen();
   setupScreenNav();

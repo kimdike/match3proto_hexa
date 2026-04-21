@@ -122,20 +122,23 @@ async function fillEmpty(){
 }
 
 // 애니메이션 DOM 조작만 (await 없음)
+// 모든 좌표 할당은 blockScale 보정값(adj)만큼 좌상단으로 당겨 셀 중앙 정렬 유지
 function animateGravityDOM(moves){
   const t=CFG.gravityTransition/gameSpeed;
+  const adj=BLOCK_D*((CFG.blockScale||1.0)-1)/2;
   for(const {col,fromRow,toRow} of moves){
     blockEls[col][toRow]=blockEls[col][fromRow];blockEls[col][fromRow]=null;
     const el=blockEls[col][toRow];
     if(el){
       el.dataset.row=toRow;
       const pos=getBlockPos(col,toRow);
-      el.style.transition=`top ${t}s ease-in`;el.style.top=`${pos.y}px`;
+      el.style.transition=`top ${t}s ease-in`;el.style.top=`${pos.y-adj}px`;
     }
   }
 }
 function animateDiagonalDOM(moves){
   const t=CFG.diagTransition/gameSpeed;
+  const adj=BLOCK_D*((CFG.blockScale||1.0)-1)/2;
   for(const {col,fromRow,toCol,toRow} of moves){
     blockEls[toCol][toRow]=blockEls[col][fromRow];blockEls[col][fromRow]=null;
     const el=blockEls[toCol][toRow];
@@ -143,21 +146,22 @@ function animateDiagonalDOM(moves){
       el.dataset.col=toCol;el.dataset.row=toRow;
       const pos=getBlockPos(toCol,toRow);
       el.style.transition=`left ${t}s ease-in,top ${t}s ease-in`;
-      el.style.left=`${pos.x}px`;el.style.top=`${pos.y}px`;
+      el.style.left=`${pos.x-adj}px`;el.style.top=`${pos.y-adj}px`;
     }
   }
 }
 function animateFillDOM(fills){
   const container=document.getElementById('grid-container');
+  const adj=BLOCK_D*((CFG.blockScale||1.0)-1)/2;
   for(const {col,row,dropDist,block} of fills){
     const pos=getBlockPos(col,row);
     // block 스냅샷 사용 (board[col][row]는 같은 iter의 gravity로 이미 이동된 상태일 수 있음)
     const el=createBlockEl(col,row,block);
     if(el){
-      el.style.top=`${pos.y-dropDist*ROW_SPACING}px`;el.style.transition='none';
+      el.style.top=`${pos.y-adj-dropDist*ROW_SPACING}px`;el.style.transition='none';
       container.appendChild(el);blockEls[col][row]=el;
       el.offsetHeight;
-      el.style.transition=`top ${CFG.fillTransition/gameSpeed}s ease-in`;el.style.top=`${pos.y}px`;
+      el.style.transition=`top ${CFG.fillTransition/gameSpeed}s ease-in`;el.style.top=`${pos.y-adj}px`;
     }else{
       blockEls[col][row]=null;
     }
@@ -199,6 +203,7 @@ function computeFill(){
 }
 
 function refreshBlockElsCoordinates(){
+  const adj=BLOCK_D*((CFG.blockScale||1.0)-1)/2;
   for(let col=0;col<COLS_PATTERN.length;col++){
     for(let row=0;row<COLS_PATTERN[col];row++){
       const el = blockEls[col][row];
@@ -206,8 +211,8 @@ function refreshBlockElsCoordinates(){
       el.dataset.col = col;
       el.dataset.row = row;
       const pos=getBlockPos(col,row);
-      el.style.left=`${pos.x}px`;
-      el.style.top=`${pos.y}px`;
+      el.style.left=`${pos.x-adj}px`;
+      el.style.top=`${pos.y-adj}px`;
     }
   }
 }

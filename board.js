@@ -89,7 +89,7 @@ function createCells(){
   const container=document.getElementById('grid-container');
   document.documentElement.style.setProperty('--hex-w',`${HEX_W}px`);
   document.documentElement.style.setProperty('--hex-h',`${HEX_H}px`);
-  document.documentElement.style.setProperty('--block-d',`${BLOCK_D}px`);
+  document.documentElement.style.setProperty('--block-d',`${BLOCK_D*(CFG.blockScale||1.0)}px`);
   for(let col=0;col<COLS_PATTERN.length;col++){
     cellPos[col]=[];blockEls[col]=[];hexCellEls[col]=[];
     for(let row=0;row<COLS_PATTERN[col];row++){
@@ -123,28 +123,33 @@ function createBlockEl(col,row,cell){
   el.className='hex-block'; el.dataset.col=col; el.dataset.row=row;
   el.addEventListener('mouseover', () => { hoveredCell = { col, row }; });
   el.addEventListener('mouseout', () => { hoveredCell = null; });
+  // 블록 크기 배율 (개발자 모드 인스펙터 "🎨 비주얼" → blockScale)
+  const bs=CFG.blockScale||1.0;
+  const baseD=BLOCK_D*bs;
   // 특수블록: 이미지 아이콘
   if(cell.type==='stripe'||cell.type==='bomb'||cell.type==='target'||cell.type==='rainbow'){
     const imgSrc=cell.type==='stripe'?getStripeImage(cell.dir):SPECIAL_IMAGES[cell.type];
-    const spSz=Math.round(BLOCK_D*1.1);
+    const spSz=Math.round(BLOCK_D*1.1*bs);
     el.style.width=`${spSz}px`;el.style.height=`${spSz}px`;
-    el.style.margin=`${-(spSz-BLOCK_D)/2}px 0 0 ${-(spSz-BLOCK_D)/2}px`;
+    el.style.margin=`${-(spSz-baseD)/2}px 0 0 ${-(spSz-baseD)/2}px`;
     el.classList.add('special-block',cell.type);
     el.style.backgroundImage=`url(${imgSrc})`;
   } else {
     // 일반블록: 포켓몬 스킨 또는 단색
     const pokeNum=skinData.slots[cell.color];
     if(pokeNum){
-      const pokeSz=Math.round(BLOCK_D*1.1);
+      const pokeSz=Math.round(BLOCK_D*1.1*bs);
       el.style.width=`${pokeSz}px`;el.style.height=`${pokeSz}px`;
-      el.style.margin=`${-(pokeSz-BLOCK_D)/2}px 0 0 ${-(pokeSz-BLOCK_D)/2}px`;
+      el.style.margin=`${-(pokeSz-baseD)/2}px 0 0 ${-(pokeSz-baseD)/2}px`;
       el.classList.add('pokemon-block');
       applyPokemonBg(el,pokeNum,pokeSz,true);
     } else {
       el.style.background=ALL_COLORS[cell.color].bg;
     }
   }
-  el.style.left=`${pos.x}px`;el.style.top=`${pos.y}px`;
+  // blockScale 적용 시 셀 중앙 정렬 보정 (pos는 BLOCK_D 고정값 기준이라 스케일만큼 우하단으로 밀림)
+  const adj=BLOCK_D*(bs-1)/2;
+  el.style.left=`${pos.x-adj}px`;el.style.top=`${pos.y-adj}px`;
   return el;
 }
 

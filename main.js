@@ -155,7 +155,14 @@ function trySwap(c1,r1,c2,r2){
       const {col,row}=result.specialPos;
       const cell=board[col][row];
       // 타겟볼에 스왑 방향 전달 (범위 타격 패턴용)
-      if(cell.type==='target') cell._swapDir=getSwapDirection(c1,r1,c2,r2);
+      // 타겟볼의 실제 이동 방향(출발→도착)을 계산해야 함:
+      // - sp1: 타겟볼이 (c2,r2)→(c1,r1)로 이동 → 방향=c2→c1
+      // - sp2: 타겟볼이 (c1,r1)→(c2,r2)로 이동 → 방향=c1→c2
+      if(cell.type==='target'){
+        cell._swapDir=(col===c1&&row===r1)
+          ? getSwapDirection(c2,r2,c1,r1)
+          : getSwapDirection(c1,r1,c2,r2);
+      }
       if(cell.type==='rainbow'){
         const tc=getMostFrequentColor();
         if(tc!==null){ const cnt=await activateRainbow(col,row,tc); score+=cnt*100;updateScoreUI(); }

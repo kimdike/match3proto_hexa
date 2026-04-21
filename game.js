@@ -270,7 +270,13 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
   const allCells=[...allCellSet].map(k=>k.split(',').map(Number));
 
   // 4b) 돌 기믹 타격 — 매치 셀에 인접한 돌만 타격 (특수효과 범위 제외)
-  for(const [c,r] of curCells){
+  //     curCells(라인 매치) + clusters(타겟볼 평행사변형) 모두 순회
+  //     타겟볼이 순수 클러스터로 생성될 때 클러스터 인접 돌 미타격 버그 수정
+  const matchCellsForStoneHit=[...curCells];
+  for(const cluster of clusters){
+    for(const cell of cluster.cells) matchCellsForStoneHit.push(cell);
+  }
+  for(const [c,r] of matchCellsForStoneHit){
     for(const [nc,nr] of getNeighbors(c,r)){
       if(gimmick[nc]?.[nr]?.type==='stone'){
         const sk=`${nc},${nr}`;

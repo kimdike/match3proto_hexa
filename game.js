@@ -349,6 +349,10 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
   }
 
   // 6b) 나머지 매치 블록 제거
+  // 매치 팝 효과음: 이 스텝에서 실제로 pop 애니메이션이 걸리는 블록이 1개라도 있을 때 1회만 재생
+  if(typeof playSfx==='function'&&allCells.some(([c,r])=>!mergeSet.has(`${c},${r}`))){
+    playSfx('match_pop');
+  }
   for(const [c,r] of allCells){
     if(mergeSet.has(`${c},${r}`)) continue;
     if(blockEls[c][r]) blockEls[c][r].classList.add('matched');

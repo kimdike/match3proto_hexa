@@ -63,6 +63,7 @@ function findNeighborByAngle(col,row,dx,dy){
 // ── 클릭 발동 (특수블록 제자리 발동) ──
 function tryActivateSpecialClick(col,row){
   if(!isSpecial(col,row)) return;
+  playSfx('swap');
   enqueueAnim(async()=>{
     busy=true;isBusyNormal=true;
     clearHint();
@@ -100,7 +101,7 @@ function tryActivateSpecialClick(col,row){
 // ── 스왑 ──
 function trySwap(c1,r1,c2,r2){
   if(isBusyRainbow) return;
-
+  playSfx('swap');
   enqueueAnim(async()=>{
     busy=true;isBusyNormal=true;
 
@@ -264,6 +265,7 @@ function resetToStart(){
   clearAllBlocks();
   document.getElementById('info-bar').classList.add('hidden');
   document.getElementById('settings-bar').classList.remove('hidden');
+  // showScreen('lobby-screen')이 SCREEN_BGM 매핑으로 ingame-bgm → lobby-bgm 교체 처리
   showScreen('lobby-screen');
   updateLobbyStage();
 }
@@ -306,6 +308,7 @@ function startGame(){
   console.log('[startGame] stage',currentStage,'mapData:',!!mapData,'entrance:',entranceCols.size,'gimmicks:',gimmick.reduce((n,c)=>n+(c?c.filter(Boolean).length:0),0));
 
   // UI 갱신 후 게임 시작
+  // (인게임 BGM은 로비에서 lobby-stage-btn 클릭 시 showScreen('game-container')이 처리)
   document.getElementById('settings-bar').classList.add('hidden');
   document.getElementById('info-bar').classList.remove('hidden');
   updateScoreUI();updateMovesUI();

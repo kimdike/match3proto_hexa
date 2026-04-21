@@ -219,9 +219,11 @@ function hitStone(col,row){
   if(!g||g.type!=='stone') return;
   g.level--;
   if(g.level<=0){
+    if(typeof playSfx==='function') playSfx('stone_break');
     removeGimmickEl(col,row);
     totalStones--;
   } else {
+    if(typeof playSfx==='function') playSfx('stone_hit');
     if(gimmickEls[col][row]){
       gimmickEls[col][row].style.backgroundImage=`url(assets/gimmick/stone_${g.level}.png)`;
       gimmickEls[col][row].classList.add('stone-hit');

@@ -158,6 +158,7 @@ function updateTheme() {
 
 // ── 메인 UI 이벤트 연결 ──
 function setupUI(){
+  loadSfx(); // 효과음 프리로드
   document.querySelectorAll('.color-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
       if(playing) return;
@@ -174,7 +175,7 @@ function setupUI(){
   });
   document.getElementById('play-btn').addEventListener('click',()=>{if(!playing) startGame();});
   document.getElementById('restart-btn').addEventListener('click',()=>resetToStart());
-  document.getElementById('stop-btn').addEventListener('click',()=>{if(playing) showConfirm();});
+  document.getElementById('stop-btn').addEventListener('click',()=>{if(playing){playSfx('btn_click');showConfirm();}});
   document.getElementById('confirm-yes').addEventListener('click',()=>resetToStart());
   document.getElementById('confirm-no').addEventListener('click',()=>hideConfirm());
   document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
@@ -416,6 +417,8 @@ function showScreen(id){
     resizeGrid();
     updateHudCharacter();
   }
+  // 화면별 BGM 자동 교체 (SCREEN_BGM 매핑 기반)
+  switchBgmForScreen(id);
 }
 
 // ── 인게임 HUD 중앙 캐릭터 (로비/닉네임과 동일 이미지) ──
@@ -498,6 +501,7 @@ function setupCharacterSelect(){
   });
   confirmBtn.addEventListener('click',()=>{
     if(!selectedCharacter) return;
+    playSfx('btn_click');
     const nnImg=document.getElementById('nn-character-img');
     if(nnImg) nnImg.src=getCharacterImgPath(selectedCharacter);
     showScreen('nickname-screen');
@@ -528,6 +532,7 @@ function setupNicknameScreen(){
   function confirmNickname(){
     const name=input.value.trim();
     if(!name||!selectedCharacter) return;
+    playSfx('btn_click');
     savePlayerProfile(name,selectedCharacter);
     updateLobbyProfile();
     showScreen('lobby-screen');
@@ -554,8 +559,72 @@ function resetNicknameUI(){
   if(confirmBtn) confirmBtn.disabled=true;
 }
 
-// ── 메인 화면 BGM ──
+// ── 효과음 시스템 (Web Audio API, BGM과 독립) ──
+// fetch → decodeAudioData로 AudioBuffer를 메모리에 올려두고,
+// 재생 시 createBufferSource로 즉시 트리거 (첫 재생 딜레이 최소화 + 중첩 재생 자연 지원).
+const SFX_VOLUME=0.5;
+const SFX_FILES={
+  match_pop:   'assets/sfx/sfx_match_pop.wav',
+  stone_hit:   'assets/sfx/sfx_stone_hit.wav',
+  stone_break: 'assets/sfx/sfx_stone_break.wav',
+  btn_click:   'assets/sfx/sfx_btn_click.wav',
+  select:      'assets/sfx/sfx_select.wav',
+  swap:        'assets/sfx/sfx_swap.wav',
+};
+const sfxBuffers={}; // name → AudioBuffer
+let sfxCtx=null;
+
+function getSfxCtx(){
+  if(!sfxCtx){
+    const Ctx=window.AudioContext||window.webkitAudioContext;
+    if(Ctx) sfxCtx=new Ctx();
+  }
+  return sfxCtx;
+}
+
+async function loadSfx(){
+  const ctx=getSfxCtx();
+  if(!ctx) return;
+  await Promise.all(Object.entries(SFX_FILES).map(async([name,src])=>{
+    try{
+      const res=await fetch(src);
+      if(!res.ok) return;                // 404 등 → 해당 SFX만 무음 처리
+      const arrBuf=await res.arrayBuffer();
+      const audioBuf=await ctx.decodeAudioData(arrBuf);
+      sfxBuffers[name]=audioBuf;
+    }catch(e){ /* 디코딩 실패 포함 무음 스킵 */ }
+  }));
+}
+
+function playSfx(name){
+  const buf=sfxBuffers[name];
+  const ctx=sfxCtx;
+  if(!buf||!ctx) return; // 로드 실패/아직 로드 중이면 무음 스킵
+  // autoplay 정책: 첫 사용자 인터랙션 전까지 context가 suspended일 수 있음
+  if(ctx.state==='suspended') ctx.resume().catch(()=>{});
+  const src=ctx.createBufferSource();
+  src.buffer=buf;
+  const gain=ctx.createGain();
+  gain.gain.value=SFX_VOLUME;
+  src.connect(gain).connect(ctx.destination);
+  src.start(0);
+}
+
+// ── BGM 시스템 (화면별 자동 교체) ──
+// 화면 ID → { 오디오 엘리먼트 ID, 볼륨 }
+// 캐릭터 선택/닉네임은 온보딩 연속감을 위해 main BGM 유지
+const SCREEN_BGM={
+  'main-screen':             { id:'main-bgm',   volume:0.8  },
+  'character-select-screen': { id:'main-bgm',   volume:0.8  },
+  'nickname-screen':         { id:'main-bgm',   volume:0.8  },
+  'lobby-screen':            { id:'lobby-bgm',  volume:0.06 },
+  'skin-screen':             { id:'lobby-bgm',  volume:0.06 },
+  'game-container':          { id:'ingame-bgm', volume:0.12 },
+};
+
+let currentBgmId=null;
 let bgmResumeHandler=null;
+
 function removeBgmResumeListeners(){
   if(!bgmResumeHandler) return;
   document.removeEventListener('pointerdown',bgmResumeHandler);
@@ -564,16 +633,25 @@ function removeBgmResumeListeners(){
   bgmResumeHandler=null;
 }
 
-function startMainBgm(){
-  const bgm=document.getElementById('main-bgm');
-  if(!bgm) return;
-  bgm.volume=0.4;
-  const p=bgm.play();
+function stopBgmEl(id){
+  if(!id) return;
+  const a=document.getElementById(id);
+  if(!a) return;
+  a.pause();
+  a.currentTime=0;
+}
+
+function playBgmEl(id,volume){
+  const a=document.getElementById(id);
+  if(!a) return;
+  a.volume=(volume!=null?volume:0.4);
+  a.currentTime=0;
+  const p=a.play();
   if(p&&typeof p.catch==='function'){
     p.catch(()=>{
       // 자동재생 차단 → 첫 인터랙션 시 재생, 재생 시작 후 리스너 전체 해제
       bgmResumeHandler=()=>{
-        bgm.play().catch(()=>{});
+        a.play().catch(()=>{});
         removeBgmResumeListeners();
       };
       document.addEventListener('pointerdown',bgmResumeHandler);
@@ -583,17 +661,23 @@ function startMainBgm(){
   }
 }
 
-function stopMainBgm(){
+// 화면 ID에 해당하는 BGM으로 교체. 동일 BGM이면 유지.
+function switchBgmForScreen(screenId){
+  const cfg=SCREEN_BGM[screenId];
+  if(!cfg) return;
+  if(currentBgmId===cfg.id){
+    // 같은 BGM을 쓰는 화면 간 이동 → 재생 유지
+    return;
+  }
+  if(currentBgmId) stopBgmEl(currentBgmId);
   removeBgmResumeListeners();
-  const bgm=document.getElementById('main-bgm');
-  if(!bgm) return;
-  bgm.pause();
-  bgm.currentTime=0;
+  currentBgmId=cfg.id;
+  playBgmEl(cfg.id,cfg.volume);
 }
 
 function setupScreenNav(){
-  // 메인 BGM 자동재생 시도
-  startMainBgm();
+  // 초기 화면(메인)의 BGM 자동재생 시도
+  switchBgmForScreen('main-screen');
 
   // 메인 로고 "띠용" 클릭 효과 (시각 효과만, 네비게이션 없음)
   const logoImg=document.querySelector('.main-logo-img');
@@ -606,8 +690,9 @@ function setupScreenNav(){
   }
 
   // 메인 → 로비 or 캐릭터 선택 (프로필 유무에 따라)
+  // BGM은 showScreen 내부 switchBgmForScreen에서 자동 처리
   document.getElementById('main-start-btn').addEventListener('click',()=>{
-    stopMainBgm();
+    playSfx('btn_click');
     if(hasPlayerProfile()){
       updateLobbyProfile();
       showScreen('lobby-screen');
@@ -637,6 +722,7 @@ function setupScreenNav(){
   // 스테이지 버튼 → 게임 시작
   document.getElementById('lobby-stage-btn').addEventListener('click',()=>{
     if(currentStage>STAGES.length) return;
+    playSfx('btn_click');
     showScreen('game-container');
     if(!playing) startGame();
   });
@@ -649,8 +735,8 @@ function setupScreenNav(){
       localStorage.removeItem('hexPuzzlePlayerCharacter');
       localStorage.removeItem('hexPuzzleStage');
       currentStage=1;
+      // showScreen이 SCREEN_BGM 매핑으로 main-bgm 재시작 처리
       showScreen('main-screen');
-      startMainBgm();
     });
   }
 }
@@ -675,6 +761,7 @@ function renderSkinSlots(){
     num.textContent=i+1;
     slot.appendChild(num);
     slot.addEventListener('click',()=>{
+      playSfx('select');
       skinEditingSlot=i;
       renderSkinSlots();
       renderSkinCollection();
@@ -709,6 +796,7 @@ function renderSkinCollection(){
     item.appendChild(numLabel);
     if(unlocked){
       item.addEventListener('click',()=>{
+        playSfx('select');
         // 이미 다른 슬롯에 장착된 경우 스왑
         const otherSlot=skinData.slots.indexOf(n);
         if(otherSlot!==-1&&otherSlot!==skinEditingSlot){

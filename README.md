@@ -3,7 +3,7 @@
 ## 세션 시작 시 필수 (매번 붙여넣기)
 
 ```
-기획서_코어게임.md, 기획서_메타게임.md, todo리스트.md, 작업일지.md 읽고
+design_coregame.md, design_system.md, todolist.md, devlog.md 읽고
 현재 구현 상태 파악 후 작업 이어서 진행해줘.
 ```
 
@@ -12,11 +12,6 @@
 - 로컬 서버: `npx serve .` (CMD에서 실행, PowerShell 아님)
 - 접속: http://localhost:3000
 - 개발자 모드 비밀번호: `1013love`
-- Korean 파일 git add 시:
-  ```
-  git add "기획서_코어게임.md" "기획서_메타게임.md" "작업일지.md" "todo리스트.md"
-  git add .
-  ```
 
 ## 프로젝트 구조
 
@@ -56,7 +51,7 @@ assets/
 │     sb_stripe1~3, sb_bombball, sb_targetball, sb_rainbow
 └── sfx/
       sfx_match_pop.wav / sfx_stone_hit.wav
-      sfx_stone_break.wav / sfx_btn_click.wav / sfx_select.wav
+      sfx_stone_break.wav / sfx_btn_click.wav / sfx_select.wav / sfx_swap.wav
 ```
 
 ## 작업 원칙
@@ -91,7 +86,7 @@ git log --oneline -5
 ### 기능 구현
 
 ```
-기획서_코어게임.md, todo리스트.md 읽고
+design_coregame.md, todolist.md 읽고
 [파일명들] 읽고 [기능] 구현해줘.
 커밋은 내가 직접 할게, 하지 마.
 ```
@@ -107,7 +102,7 @@ git log --oneline -5
 ### UI/디자인
 
 ```
-기획서_코어게임.md 읽고
+design_coregame.md 읽고
 index.html, style.css 읽고 [UI 작업] 해줘.
 게임 로직 건드리지 마.
 커밋은 내가 직접 할게, 하지 마.
@@ -116,7 +111,7 @@ index.html, style.css 읽고 [UI 작업] 해줘.
 ### 문서 업데이트
 
 ```
-작업일지.md, todo리스트.md 읽고
+devlog.md, todolist.md 읽고
 오늘 작업 내용 추가해줘.
 기존 내용 수정/삭제 없이 추가만.
 커밋은 내가 직접 할게, 하지 마.
@@ -136,4 +131,3 @@ index.html, style.css 읽고 [UI 작업] 해줘.
 - 특수블록/기믹 관련 수정 시 기획서 17~18섹션 반드시 참고
 - blockScale 보정: `adj = BLOCK_D × (scale-1) / 2`
   적용 위치: `createBlockEl`, `animateGravityDOM`, `animateDiagonalDOM`, `animateFillDOM`
-- Korean 파일명은 `git add`에서 따옴표로 감싸기

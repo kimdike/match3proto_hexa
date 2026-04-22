@@ -1,0 +1,57 @@
+# 포켓몬 3매치 퍼즐
+
+## 프로젝트 개요
+- 헥사 그리드 기반 3매치 퍼즐
+- 바닐라 JS 웹게임 (Node/빌드 도구 없음)
+- 포켓몬 IP + 탐험/수집 메타게임 (점수 시스템 없음)
+
+## 작업 원칙
+1. 기획서 먼저, 구현 나중 — 스펙 변경 시 기획서부터 업데이트
+2. 한 번에 하나씩 — 완료 확인 후 다음 작업
+3. 커밋/푸시 금지 — 항상 사용자가 직접 수행
+4. 로직/UI 분리 — 게임 로직(js)과 UI(html/css) 수정은 섞지 말 것
+5. 버그 수정과 기능 개발은 별도 커밋
+
+## 모듈 구조
+로드 순서:
+config → grid → board → match → special → gravity → animation → ui → stage_maps → game → main
+
+각 파일 역할:
+- config.js: 상수, CFG 설정값
+- grid.js: 헥사 좌표 계산, 인접 셀
+- board.js: 보드 상태, 셀/블록/기믹 DOM
+- match.js: 매치 감지, 특수블록 생성 판정
+- special.js: 특수블록 발동, 교차 효과 10종
+- gravity.js: 중력, 충전, 대각선 충전
+- animation.js: swap/팝업/힌트 애니메이션
+- ui.js: HUD, 화면 전환, BGM/SFX
+- game.js: 전역 상태, 매치 처리 코어
+- main.js: 진입점, 이벤트 핸들러
+
+## 기술적 주의사항
+
+### blockScale 보정
+blockScale ≠ 1 처리 시 좌표 보정 필수:
+adj = BLOCK_D × (scale - 1) / 2
+적용 위치: createBlockEl, animateGravityDOM, animateDiagonalDOM, animateFillDOM
+
+### 고정형 기믹 셀
+- 수직 낙하 차단 + 대각선 충전으로 우회
+- 효과 범위에 포함될 때만 단계 -1
+
+### 특수블록/기믹 관련 작업
+design_coregame.md 17~18섹션 반드시 참조
+
+### 로컬 서버
+npx serve . (CMD에서 실행, PowerShell 아님)
+→ http://localhost:3000
+이유: fetch(), 오디오, 이미지 로드가 file:// 에서 차단됨
+
+## 커밋 prefix
+feat / fix / refactor / docs / chore / content
+
+## 상세 문서
+- 코어 게임 스펙: @design_coregame.md
+- 메타게임 스펙: @design_system.md
+- 현재 작업 목록: @todolist.md
+- 작업 이력: @devlog.md

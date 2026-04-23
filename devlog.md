@@ -5,6 +5,41 @@
 
 ---
 
+## 2026.04.22 (13일차)
+
+### 🗂️ 문서 파일명 영문 변환
+- 한글 파일명 → 영문 변환
+  * 기획서_코어게임.md → design_coregame.md
+  * 기획서_메타게임.md → design_system.md
+  * 작업일지.md → devlog.md
+  * todo리스트.md → todolist.md
+- 모든 참조 경로 일괄 업데이트 (README.md, todolist.md)
+- .gitignore에 *.xlsx, *.lnk 패턴 추가
+
+### 🔧 3단 워크플로우 개선
+- CLAUDE.md 신규 생성 (Claude Code 자동 로드용)
+  * 시니어 풀스택 개발자 페르소나 추가
+  * 작업 원칙, 모듈 구조, 기술 주의사항
+  * @문서 참조로 관련 파일 자동 로드
+  * 세션 시작 붙여넣기 불필요해짐
+- README.md GitHub 방문자용으로 축소
+  * 프로젝트 소개, 실행법, 문서 링크만 유지
+- archive/ 폴더 신설 + 안 쓰는 문서 정리
+
+### 📝 Claude.ai 프로젝트 설정 개선
+- 지침 칸: 시니어 게임 기획자 겸 실무형 PM 페르소나 추가
+- Knowledge: 영문 파일 4개로 교체
+
+### 💡 오늘의 교훈
+1. CLAUDE.md를 루트에 두면 Claude Code가 세션 시작 시 자동 로드
+   → 매번 긴 프롬프트 붙여넣기 불필요
+2. 문서/도구/코드 각각의 독자가 다름
+   README(GitHub 방문자) / CLAUDE.md(Claude Code) / 지침(Claude 웹)
+3. git add -A 전에 untracked 파일 항상 확인
+   → 프로젝트 무관 파일 실수로 커밋되는 것 방지
+
+---
+
 ## 2026.04.21 (12일차)
 
 ### 🐛 버그 수정

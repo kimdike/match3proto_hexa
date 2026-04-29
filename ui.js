@@ -201,6 +201,13 @@ function setupUI(){
   });
   document.getElementById('play-btn').addEventListener('click',()=>{if(!playing) startGame();});
   document.getElementById('restart-btn').addEventListener('click',()=>resetToStart());
+  // 재도전 버튼: 같은 스테이지 다시 시작 (실패 시에만 노출됨)
+  const _retryBtn=document.getElementById('retry-btn');
+  if(_retryBtn) _retryBtn.addEventListener('click',()=>{
+    playSfx('btn_click');
+    hideEndScreen();
+    startGame();
+  });
   document.getElementById('stop-btn').addEventListener('click',()=>{if(playing){playSfx('btn_click');showConfirm();}});
   document.getElementById('confirm-yes').addEventListener('click',()=>resetToStart());
   document.getElementById('confirm-no').addEventListener('click',()=>hideConfirm());

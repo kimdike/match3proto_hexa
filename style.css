@@ -798,8 +798,9 @@ h1 {
   transform: translate(-50%, -50%);
   z-index: 999;
   pointer-events: none;
-  font-weight: 800;
-  letter-spacing: 1.5px;
+  font-family: 'Black Han Sans', 'Plus Jakarta Sans', sans-serif;
+  font-weight: 900;                         /* 더 굵게 */
+  letter-spacing: 3px;
   display: none;
   width: auto;
   white-space: normal;
@@ -808,7 +809,10 @@ h1 {
   border: none;
   box-shadow: none;
   color: #fcc800;
-  text-shadow: 0 3px 0 #c98a00, 0 0 20px rgba(252, 200, 0, 0.5), 0 0 40px rgba(252, 200, 0, 0.35);
+  -webkit-text-stroke: 2px #000000;         /* 검정 외곽선 (fill 침식 방지) */
+  paint-order: stroke fill;                 /* stroke 먼저 → fill로 안쪽 채움 */
+  text-shadow: 0 4px 0 rgba(0, 0, 0, 0.5);  /* 단순 drop shadow */
+  opacity: 0.85;                             /* 투명도 15% (살짝 비치는 톤) */
 }
 
 #combo-display .combo-line {
@@ -838,43 +842,43 @@ h1 {
 }
 
 @keyframes comboAppear {
-  0%   { opacity: 0; transform: translate(-50%, -20%) scale(0.75); }
-  50%  { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
-  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  0%   { opacity: 0; transform: translate(-50%, -30%) scale(0.6) rotate(0deg) skewX(-7deg); }
+  60%  { opacity: 0.85; transform: translate(-50%, -50%) scale(1.15) rotate(var(--combo-rotate, -8deg)) skewX(-7deg); }
+  100% { opacity: 0.85; transform: translate(-50%, -50%) scale(1) rotate(var(--combo-rotate, -8deg)) skewX(-7deg); }
 }
 
 @keyframes comboWiggle {
-  0%   { transform: translate(-50%, -50%) rotate(0deg); }
-  20%  { transform: translate(-50%, -50%) rotate(-2deg); }
-  40%  { transform: translate(-50%, -50%) rotate(2deg); }
-  60%  { transform: translate(-50%, -50%) rotate(-1deg); }
-  80%  { transform: translate(-50%, -50%) rotate(1deg); }
-  100% { transform: translate(-50%, -50%) rotate(0deg); }
+  0%   { transform: translate(-50%, -50%) rotate(var(--combo-rotate, -8deg)) skewX(-7deg); }
+  20%  { transform: translate(-50%, -50%) rotate(calc(var(--combo-rotate, -8deg) - 2deg)) skewX(-7deg); }
+  40%  { transform: translate(-50%, -50%) rotate(calc(var(--combo-rotate, -8deg) + 2deg)) skewX(-7deg); }
+  60%  { transform: translate(-50%, -50%) rotate(calc(var(--combo-rotate, -8deg) - 1deg)) skewX(-7deg); }
+  80%  { transform: translate(-50%, -50%) rotate(calc(var(--combo-rotate, -8deg) + 1deg)) skewX(-7deg); }
+  100% { transform: translate(-50%, -50%) rotate(var(--combo-rotate, -8deg)) skewX(-7deg); }
 }
 
 @keyframes comboFadeOut {
-  0%   { opacity: 1; transform: translate(-50%, -50%) translateY(-8px); }
-  100% { opacity: 0; transform: translate(-50%, -50%) translateY(-40px); }
+  0%   { opacity: 0.85; transform: translate(-50%, -50%) translateY(-8px) rotate(var(--combo-rotate, -8deg)) skewX(-7deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) translateY(-40px) rotate(var(--combo-rotate, -8deg)) skewX(-7deg); }
 }
 
 @keyframes comboAppear {
-  0%   { opacity: 0; transform: translate(-50%, -30%) scale(0.75); }
-  50%  { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
-  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  0%   { opacity: 0; transform: translate(-50%, -30%) scale(0.6) rotate(0deg) skewX(-7deg); }
+  60%  { opacity: 0.85; transform: translate(-50%, -50%) scale(1.15) rotate(var(--combo-rotate, -8deg)) skewX(-7deg); }
+  100% { opacity: 0.85; transform: translate(-50%, -50%) scale(1) rotate(var(--combo-rotate, -8deg)) skewX(-7deg); }
 }
 
 @keyframes comboWiggle {
-  0%   { transform: translate(-50%, -50%) rotate(0deg); }
-  20%  { transform: translate(-50%, -50%) rotate(-2deg); }
-  40%  { transform: translate(-50%, -50%) rotate(2deg); }
-  60%  { transform: translate(-50%, -50%) rotate(-1deg); }
-  80%  { transform: translate(-50%, -50%) rotate(1deg); }
-  100% { transform: translate(-50%, -50%) rotate(0deg); }
+  0%   { transform: translate(-50%, -50%) rotate(var(--combo-rotate, -8deg)) skewX(-7deg); }
+  20%  { transform: translate(-50%, -50%) rotate(calc(var(--combo-rotate, -8deg) - 2deg)) skewX(-7deg); }
+  40%  { transform: translate(-50%, -50%) rotate(calc(var(--combo-rotate, -8deg) + 2deg)) skewX(-7deg); }
+  60%  { transform: translate(-50%, -50%) rotate(calc(var(--combo-rotate, -8deg) - 1deg)) skewX(-7deg); }
+  80%  { transform: translate(-50%, -50%) rotate(calc(var(--combo-rotate, -8deg) + 1deg)) skewX(-7deg); }
+  100% { transform: translate(-50%, -50%) rotate(var(--combo-rotate, -8deg)) skewX(-7deg); }
 }
 
 @keyframes comboFadeOut {
-  0%   { opacity: 1; transform: translate(-50%, -50%) translateY(-8px); }
-  100% { opacity: 0; transform: translate(-50%, -50%) translateY(-40px); }
+  0%   { opacity: 0.85; transform: translate(-50%, -50%) translateY(-8px) rotate(var(--combo-rotate, -8deg)) skewX(-7deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) translateY(-40px) rotate(var(--combo-rotate, -8deg)) skewX(-7deg); }
 }
 
 .score-popup.combo-bonus {

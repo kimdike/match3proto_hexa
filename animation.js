@@ -33,18 +33,19 @@ function showScorePopup(x,y,pts){
 
 // ── 콤보 메시지/스타일 (텍스트/색상 선택) ──
 function getComboMessage(combo){
-  if(combo===2) return '굿!';
-  if(combo===3) return '어-썸!';
-  if(combo===4) return '쩌는 콤보!';
-  const texts=['오지고 지리고 렛잇고!','연쇄 덕좀 보시네예!','고득점 가즈아!'];
-  return texts[Math.floor(Math.random()*texts.length)];
+  if(combo===2) return '시작이 좋은데!';
+  if(combo===3) return '감이 왔어!';
+  if(combo===4) return '진화할 흐름!';
+  return '전설급 콤보다!';
 }
 
 function getComboStyle(combo){
-  if(combo===2) return { bg:'#3498db', size:'30px' };
-  if(combo===3) return { bg:'#9b59b6', size:'36px' };
-  if(combo===4) return { bg:'#e67e22', size:'42px' };
-  return { bg:'#f1c40f', size:'48px' };
+  if(combo===2) return { bg:'#3498db', size:'36px' };
+  if(combo===3) return { bg:'#9b59b6', size:'40px' };
+  if(combo===4) return { bg:'#e67e22', size:'44px' };
+  // 5콤보 이상: 핑크 / 민트 / 시안 중 랜덤
+  const colors=['#FF6B9D','#00D4AA','#00CFFF'];
+  return { bg:colors[Math.floor(Math.random()*colors.length)], size:'48px' };
 }
 
 // ── 콤보 표시 (화면 중앙 텍스트 + 보너스 점수 팝업) ──
@@ -52,13 +53,16 @@ function showCombo(combo,bonus){
   const el=document.getElementById('combo-display');
   const msg=getComboMessage(combo);
   const style=getComboStyle(combo);
-  el.innerHTML=`<div class="combo-line combo-count">${combo} COMBO!</div><div class="combo-line combo-msg">${msg}</div>`;
+  el.innerHTML=`<div class="combo-line combo-count">${combo}&nbsp;COMBO!</div><div class="combo-line combo-msg">${msg}</div>`;
   el.style.fontSize=style.size;
   el.style.color=style.bg;
-  el.style.textShadow=`0 0 12px ${style.bg}, 0 0 20px ${style.bg}, 0 0 30px rgba(255,255,255,0.8)`;
+  el.style.textShadow=`0 4px 0 rgba(0,0,0,0.5)`;
   el.style.background='transparent';
   el.style.border='none';
   el.style.padding='0';
+  // 콤보별 기울기 강조 (높을수록 강하게 — 2→-6deg, 3→-8deg, 4→-10deg, 5+→-12deg)
+  const rotateDeg = combo<=2 ? -6 : combo<=3 ? -8 : combo<=4 ? -10 : -12;
+  el.style.setProperty('--combo-rotate', `${rotateDeg}deg`);
   el.classList.remove('hidden','show','hide');
   el.offsetHeight; // reflow
   el.classList.add('show');

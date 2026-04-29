@@ -98,11 +98,20 @@ function clearMatchLogs(){
 function updateMissionUI(){
   const el=document.getElementById('mission-display');
   if(!el) return;
-  if(totalStones>0){
-    el.classList.remove('hidden');
-    document.getElementById('mission-count').textContent=totalStones;
-  } else {
+  // 처음부터 미션 자체가 없는 스테이지(점수 모드 등)는 카드 숨김
+  if(initialStones<=0){
     el.classList.add('hidden');
+    return;
+  }
+  // 미션 있는 스테이지: 카드 항상 표시 (남은 개수 또는 클리어 ✅)
+  el.classList.remove('hidden');
+  const countEl=document.getElementById('mission-count');
+  if(totalStones>0){
+    countEl.textContent=totalStones;
+    countEl.classList.remove('mission-cleared');
+  } else {
+    countEl.textContent='✅';
+    countEl.classList.add('mission-cleared');
   }
 }
 
@@ -759,7 +768,10 @@ function setupScreenNav(){
       localStorage.removeItem('hexPuzzlePlayerName');
       localStorage.removeItem('hexPuzzlePlayerCharacter');
       localStorage.removeItem('hexPuzzleStage');
+      localStorage.removeItem('hexPuzzleGold');
       currentStage=1;
+      currentGold=0; // 메모리 캐시도 동기화
+      updateLobbyGoldUI();
       // showScreen이 SCREEN_BGM 매핑으로 main-bgm 재시작 처리
       showScreen('main-screen');
     });

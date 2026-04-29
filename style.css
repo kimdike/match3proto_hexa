@@ -164,6 +164,19 @@ h1 {
   box-shadow: 0 2px 6px rgba(200, 0, 0, 0.35), 0 0 0 2px #fff;
 }
 
+/* 미션 클리어 상태: ✅ 표시 (badge 확대 + 초록 톤) */
+.mission-count-badge.mission-cleared {
+  right: -10px;
+  bottom: -10px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 4px;
+  background: linear-gradient(135deg, #2ecc71, #27ae60);
+  font-size: 18px;
+  line-height: 30px;
+  box-shadow: 0 2px 8px rgba(0, 150, 50, 0.45), 0 0 0 2px #fff;
+}
+
 /* ── 기믹 요소 ── */
 
 .gimmick-el {

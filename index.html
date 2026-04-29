@@ -74,6 +74,10 @@
           <div class="lobby-player-name" id="lobby-player-name">PlayerName</div>
         </div>
       </div>
+      <div class="lobby-gold" aria-label="보유 골드">
+        <span class="lobby-gold-icon">🪙</span>
+        <span id="lobby-gold-num">0</span>
+      </div>
       <button id="lobby-reset-btn" class="lobby-reset-btn" type="button" aria-label="처음으로">처음으로</button>
     </div>
     <div class="lobby-character-area">
@@ -239,6 +243,13 @@
           <div class="dev-speed-row">
             <input id="speed-slider" type="range" min="0" max="5" step="1" value="1">
             <span id="speed-label">1x</span>
+          </div>
+        </div>
+        <div class="dev-section">
+          <div class="dev-section-title">골드</div>
+          <div class="dev-gold-row">
+            <span>현재: <span id="dev-gold-num">0</span></span>
+            <button id="dev-gold-add" class="debug-btn" type="button">+1000</button>
           </div>
         </div>
         <div class="dev-section">

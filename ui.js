@@ -11,6 +11,30 @@ let debugPlaceDir=null;                 // 줄볼 방향: 'up'|'se'|'ne'
 let placementGimmickType=null;          // null | {type:'stone',level:N} | {type:'clear'}
 let placementCoordVisible=false;
 
+// ── 골드 시스템 ──
+let currentGold=parseInt(localStorage.getItem('hexPuzzleGold'))||0;
+function loadGold(){
+  currentGold=parseInt(localStorage.getItem('hexPuzzleGold'))||0;
+  return currentGold;
+}
+function saveGold(){
+  localStorage.setItem('hexPuzzleGold',currentGold);
+}
+function addGold(amount){
+  currentGold+=amount;
+  saveGold();
+  updateLobbyGoldUI();
+  updateDevGoldUI();
+}
+function updateLobbyGoldUI(){
+  const el=document.getElementById('lobby-gold-num');
+  if(el) el.textContent=currentGold.toLocaleString();
+}
+function updateDevGoldUI(){
+  const el=document.getElementById('dev-gold-num');
+  if(el) el.textContent=currentGold.toLocaleString();
+}
+
 // ── 포켓몬 스프라이트 배경 ──
 function getPokemonBgStyle(pokeNum,displaySize){
   const col=(pokeNum-1)%SPRITE_COLS;
@@ -99,9 +123,12 @@ function showEndScreen(cleared){
   const det=document.getElementById('end-detail');
   if(cleared){
     icon.textContent='\uD83C\uDF89';title.textContent='\uD074\uB9AC\uC5B4!';title.className='clear';
-    det.textContent=initialStones>0
-      ?`Stage ${currentStage} \uD074\uB9AC\uC5B4! \uB3CC \uC804\uBD80 \uC81C\uAC70!`
-      :`Stage ${currentStage} \uD074\uB9AC\uC5B4! \uBAA9\uD45C ${stageTarget.toLocaleString()}\uC810 \uB2EC\uC131!`;
+    det.textContent=`Stage ${currentStage} \uD074\uB9AC\uC5B4! \uB3CC \uC804\uBD80 \uC81C\uAC70!`;
+    // \uACE8\uB4DC \uBCF4\uC0C1 = \uAE30\uBCF8 300 + \uB0A8\uC740 \uD134 \u00D7 5
+    const goldReward=300+Math.max(0,movesLeft)*5;
+    addGold(goldReward);
+    sc.textContent=`\uD83E\uDE99 +${goldReward.toLocaleString()} \uACE8\uB4DC \uD68D\uB4DD!`;
+    sc.classList.remove('hidden');
     // 다음 스테이지 해금
     if(currentStage<STAGES.length){
       currentStage++;
@@ -109,23 +136,13 @@ function showEndScreen(cleared){
     }
   }else{
     icon.textContent='\uD83D\uDE22';title.textContent='\uC2E4\uD328...';title.className='fail';
-    det.textContent=initialStones>0
-      ?`\uB0A8\uC740 \uB3CC ${totalStones}\uAC1C / Move \uC18C\uC9C4`
-      :`\uBAA9\uD45C ${stageTarget.toLocaleString()}\uC810 / \uB0B4 \uC810\uC218 ${score.toLocaleString()}\uC810`;
+    det.textContent=`\uB0A8\uC740 \uB3CC ${totalStones}\uAC1C / Move \uC18C\uC9C4`;
+    sc.textContent=''; // \uC2E4\uD328 \uC2DC \uACE8\uB4DC \uC9C0\uAE09 \uC5C6\uC74C
   }
-  sc.textContent=`${score.toLocaleString()}\uC810`;
 
   // 최고 점수 갱신 체크
   const newRec=document.getElementById('new-record');
-  if(score>highScore){
-    highScore=score;
-    localStorage.setItem('hexPuzzleHighScore',highScore);
-    newRec.textContent='\uD83C\uDF89 \uC2E0\uAE30\uB85D!';
-    newRec.classList.remove('hidden');
-    updateHighScoreUI();
-  } else {
-    newRec.classList.add('hidden');
-  }
+  newRec.classList.add('hidden'); // \uC810\uC218 \uC2DC\uC2A4\uD15C \uC81C\uAC70 \u2014 \uC2E0\uAE30\uB85D \uC0AC\uC6A9 \uC548 \uD568
 
   // 버튼 텍스트 변경
   document.getElementById('restart-btn').textContent='\uB85C\uBE44\uB85C \uB3CC\uC544\uAC00\uAE30';
@@ -221,6 +238,7 @@ function setupDevMode(){
     devPanelOpen=true;
     devPanel.classList.remove('hidden');
     devBtn.classList.add('active');
+    updateDevGoldUI(); // 패널 열 때 최신 골드 반영
   }
   function closeDevPanel(){
     devPanelOpen=false;
@@ -286,6 +304,10 @@ function setupDevMode(){
     localStorage.setItem('hexPuzzleStage',currentStage);
     resetToStart();
   });
+
+  // 골드 +1000 (테스트용)
+  const goldAddBtn=document.getElementById('dev-gold-add');
+  if(goldAddBtn) goldAddBtn.addEventListener('click',()=>addGold(1000));
 
   // 매치 로그 지우기
   document.getElementById('dev-log-clear').addEventListener('click',clearMatchLogs);
@@ -483,6 +505,9 @@ function updateLobbyProfile(){
     if(profileImg) profileImg.src=path;
     if(charImg) charImg.src=path;
   }
+  // 골드 표시 갱신 (다른 탭에서 변경됐을 수 있으므로 localStorage 재로드)
+  loadGold();
+  updateLobbyGoldUI();
 }
 
 // ── 캐릭터 선택 화면 ──

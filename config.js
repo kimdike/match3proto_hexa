@@ -16,12 +16,12 @@ const STAGES = [
   { stage:2,  target:15000, moves:28, colorTypes:5 },
   { stage:3,  target:20000, moves:26, colorTypes:6 },
   { stage:4,  target:25000, moves:25, colorTypes:6 },
-  { stage:5,  target:30000, moves:24, colorTypes:7 },
-  { stage:6,  target:35000, moves:23, colorTypes:7 },
-  { stage:7,  target:40000, moves:22, colorTypes:7 },
-  { stage:8,  target:45000, moves:21, colorTypes:7 },
-  { stage:9,  target:48000, moves:20, colorTypes:7 },
-  { stage:10, target:50000, moves:20, colorTypes:7 },
+  { stage:5,  target:30000, moves:24, colorTypes:6 },
+  { stage:6,  target:35000, moves:23, colorTypes:6 },
+  { stage:7,  target:40000, moves:22, colorTypes:6 },
+  { stage:8,  target:45000, moves:21, colorTypes:6 },
+  { stage:9,  target:48000, moves:20, colorTypes:6 },
+  { stage:10, target:50000, moves:20, colorTypes:6 },
 ];
 
 // ── 색상 팔레트 ──
@@ -71,8 +71,8 @@ const CFG_META = [
 // ── 스킨/스프라이트 시트 ──
 const SPRITE_SHEET='pokemon_sprites_1.png';
 const SPRITE_COLS=15, SPRITE_SIZE=215, SHEET_W=3228, SHEET_H=2375;
-const DEFAULT_UNLOCKED=[1,4,7,10,15,20,25];
-const DEFAULT_SLOTS=[1,4,7,10,15,20,25];
+const DEFAULT_UNLOCKED=[1,4,7,10,15,25];
+const DEFAULT_SLOTS=[1,4,7,10,15,25];
 
 // ── 입력/힌트/로그 ──
 const DRAG_THRESHOLD=20;

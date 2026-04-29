@@ -12,6 +12,11 @@ function loadSkinData(){
   if(!unlocked){ unlocked=[...DEFAULT_UNLOCKED]; localStorage.setItem('hexPuzzleUnlocked',JSON.stringify(unlocked)); }
   let slots=JSON.parse(localStorage.getItem('hexPuzzleSlots')||'null');
   if(!slots){ slots=[...DEFAULT_SLOTS]; localStorage.setItem('hexPuzzleSlots',JSON.stringify(slots)); }
+  // 7→6 슬롯 마이그레이션: 기존 7슬롯 데이터는 마지막 1개 제거 (unlocked는 보존)
+  if(slots.length>DEFAULT_SLOTS.length){
+    slots=slots.slice(0,DEFAULT_SLOTS.length);
+    localStorage.setItem('hexPuzzleSlots',JSON.stringify(slots));
+  }
   return {unlocked,slots};
 }
 function saveSkinData(unlocked,slots){

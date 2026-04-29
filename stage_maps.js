@@ -823,7 +823,7 @@ var STAGE_MAPS_DATA = {
     },
     {
       "stage": 6,
-      "colorTypes": 7,
+      "colorTypes": 6,
       "moves": 30,
       "cells": [
         {
@@ -1057,7 +1057,7 @@ var STAGE_MAPS_DATA = {
     },
     {
       "stage": 8,
-      "colorTypes": 7,
+      "colorTypes": 6,
       "moves": 30,
       "cells": [
         {

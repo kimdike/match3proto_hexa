@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Trainer Sheet Picker</title>
+<style>
+  body { margin:0; background:#1a1a1a; color:#eee; font-family:monospace; padding:16px; }
+  h1 { font-size:16px; margin:0 0 12px; }
+  .info { padding:10px 14px; background:#2a2a2a; border-radius:6px; margin-bottom:12px; font-size:13px; line-height:1.6; }
+  .info b { color:#ffc72c; }
+  .canvas-wrap { position:relative; display:inline-block; image-rendering:pixelated; }
+  canvas { display:block; cursor:crosshair; }
+  .legend { margin-top:12px; font-size:12px; color:#aaa; line-height:1.6; }
+  .legend code { color:#ffc72c; background:#000; padding:2px 6px; border-radius:3px; }
+  .step { display:inline-block; width:22px; height:22px; line-height:22px; text-align:center; background:#ffc72c; color:#000; border-radius:50%; font-weight:700; margin-right:8px; }
+</style>
+</head>
+<body>
+  <h1>Trainer Sheet Picker — 분홍 모자 캐릭터(힐다) 영역 좌표 찾기</h1>
+  <div class="info">
+    <div><span class="step">1</span> 시트에서 <b>분홍 모자 여자 캐릭터</b>를 찾으세요 (시트 좌하단의 큰 4×4 그리드)</div>
+    <div><span class="step">2</span> 그 그리드의 <b>맨 좌상단 첫 번째 캐릭터(아래쪽 보는 정면 포즈) 머리 위 가장자리</b>에 마우스를 올리면 빨간 박스가 그 도트 한 마리에 정확히 맞춰지는지 확인하세요</div>
+    <div><span class="step">3</span> 박스가 캐릭터에 딱 맞으면 <b>클릭</b>하세요. 클릭 위치가 캐릭터 영역의 시작점(base)이 됩니다</div>
+    <hr style="border:none; border-top:1px solid #444; margin:10px 0;">
+    <b>마우스 위치:</b> <span id="hover-pos" style="color:#ffc72c">-, -</span> &nbsp;|&nbsp;
+    <b>클릭 결과:</b> <span id="click-pos" style="color:#79ff79">아직 없음</span>
+  </div>
+  <div class="canvas-wrap">
+    <canvas id="cv"></canvas>
+  </div>
+  <div class="legend">
+    빨간 박스 = 한 프레임(32×32) / 파란 박스 = 캐릭터 전체 워크 영역(96×128, 3프레임×4방향)<br>
+    클릭한 좌표를 <code>lobby.js</code>의 <code>TRAINER_SHEET.base.woman</code>에 적용합니다.
+  </div>
+
+<script>
+const SCALE = 2;
+const FRAME = 32;
+const COLS = 3, ROWS = 4;
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+let imgEl = null;
+let hoverX = -1, hoverY = -1;
+let clickX = -1, clickY = -1;
+
+function snap(v){ return Math.floor(v / FRAME) * FRAME; }
+
+function redraw(){
+  if (!imgEl) return;
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.drawImage(imgEl, 0, 0, cv.width, cv.height);
+  // 32×32 그리드
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= imgEl.width; x += FRAME) {
+    ctx.beginPath(); ctx.moveTo(x*SCALE+0.5, 0); ctx.lineTo(x*SCALE+0.5, cv.height); ctx.stroke();
+  }
+  for (let y = 0; y <= imgEl.height; y += FRAME) {
+    ctx.beginPath(); ctx.moveTo(0, y*SCALE+0.5); ctx.lineTo(cv.width, y*SCALE+0.5); ctx.stroke();
+  }
+  // y 좌표 라벨
+  ctx.fillStyle = 'rgba(255, 199, 44, 0.85)';
+  ctx.font = '11px monospace';
+  for (let y = 0; y <= imgEl.height; y += FRAME*4) {
+    ctx.fillText('y='+y, 4, y*SCALE+12);
+  }
+  // 호버 빨간 박스 (snap된 32×32)
+  if (hoverX >= 0) {
+    const sx = snap(hoverX), sy = snap(hoverY);
+    ctx.strokeStyle = '#ff5050';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(sx*SCALE-0.5, sy*SCALE-0.5, FRAME*SCALE+1, FRAME*SCALE+1);
+  }
+  // 클릭 영역 파란 박스 (캐릭터 전체 96×128)
+  if (clickX >= 0) {
+    ctx.strokeStyle = '#5099ff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(clickX*SCALE-0.5, clickY*SCALE-0.5, COLS*FRAME*SCALE+1, ROWS*FRAME*SCALE+1);
+    ctx.fillStyle = 'rgba(80, 153, 255, 0.15)';
+    ctx.fillRect(clickX*SCALE, clickY*SCALE, COLS*FRAME*SCALE, ROWS*FRAME*SCALE);
+  }
+}
+
+const img = new Image();
+img.onload = () => {
+  imgEl = img;
+  cv.width = img.width * SCALE;
+  cv.height = img.height * SCALE;
+  redraw();
+};
+img.src = 'assets/dot/trainer/character_sprite_01.png';
+
+cv.addEventListener('mousemove', e => {
+  const rect = cv.getBoundingClientRect();
+  hoverX = Math.floor((e.clientX - rect.left) / SCALE);
+  hoverY = Math.floor((e.clientY - rect.top) / SCALE);
+  document.getElementById('hover-pos').textContent = `${snap(hoverX)}, ${snap(hoverY)}`;
+  redraw();
+});
+
+cv.addEventListener('mouseleave', () => { hoverX = -1; redraw(); });
+
+cv.addEventListener('click', e => {
+  const rect = cv.getBoundingClientRect();
+  const x = Math.floor((e.clientX - rect.left) / SCALE);
+  const y = Math.floor((e.clientY - rect.top) / SCALE);
+  clickX = snap(x); clickY = snap(y);
+  document.getElementById('click-pos').textContent =
+    `base: { x: ${clickX}, y: ${clickY} }   ←  이 값을 lobby.js에 적용하세요`;
+  redraw();
+});
+</script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-{
+﻿var MONSTER_TABLE_DATA = {
   "version": "v0.1",
   "last_updated": "2026-05-05",
   "schema_notes": {
@@ -169,3 +169,4 @@
     { "id": 151, "name_ko": "뮤",          "name_en": "Mew",        "types": ["psychic"],          "regions": ["psychic"],          "rarity": "legendary", "height_m": 0.4, "weight_kg": 4.0,   "evolution": null, "is_starter": false, "tutorial_stage": null }
   ]
 }
+;

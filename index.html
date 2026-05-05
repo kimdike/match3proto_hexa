@@ -63,26 +63,53 @@
     <button id="nn-confirm-btn" class="nn-confirm-btn" type="button" disabled>START</button>
   </div>
 
+  <!-- ── 오박사 인트로 화면 (최초 1회) ── -->
+  <div id="intro-screen" class="hidden">
+    <div class="intro-stage">
+      <div class="intro-prof">
+        <div class="intro-prof-avatar" aria-hidden="true">👨‍🔬</div>
+        <div class="intro-prof-name">오박사</div>
+      </div>
+      <div class="intro-bubble" id="intro-message">
+        반갑다! 이상해씨 / 파이리 / 꼬부기 같은 친구들과 함께 새로운 퍼즐 모험을 떠나보자!
+      </div>
+      <div class="intro-pokemons" id="intro-pokemons"></div>
+    </div>
+    <button id="intro-next-btn" class="intro-next-btn" type="button" disabled>여행 시작</button>
+  </div>
+
   <!-- ── 로비 화면 ── -->
   <div id="lobby-screen" class="hidden">
     <div class="lobby-top">
-      <div class="lobby-profile">
-        <div class="lobby-profile-icon">
-          <img id="lobby-profile-img" src="" alt="">
+      <div class="lobby-top-row lobby-top-row-main">
+        <div class="lobby-profile">
+          <div class="lobby-profile-icon">
+            <img id="lobby-profile-img" src="" alt="">
+          </div>
+          <div class="lobby-profile-info">
+            <div class="lobby-league-label">KANTO LEAGUE</div>
+            <div class="lobby-player-name" id="lobby-player-name">PlayerName</div>
+          </div>
         </div>
-        <div class="lobby-profile-info">
-          <div class="lobby-league-label">KANTO LEAGUE</div>
-          <div class="lobby-player-name" id="lobby-player-name">PlayerName</div>
+        <button id="lobby-reset-btn" class="lobby-reset-btn" type="button" aria-label="처음으로">처음으로</button>
+      </div>
+      <div class="lobby-top-row lobby-top-row-meta">
+        <div class="lobby-meta lobby-meta-gold" aria-label="보유 골드">
+          <span class="lobby-meta-icon">🪙</span>
+          <span id="lobby-gold-num">0</span>
+        </div>
+        <div class="lobby-meta lobby-meta-diamond" aria-label="보유 다이아">
+          <span class="lobby-meta-icon">💎</span>
+          <span id="lobby-diamond-num">0</span>
+        </div>
+        <div class="lobby-meta lobby-meta-streak" aria-label="조우 천장">
+          <span class="lobby-meta-icon">⭐</span>
+          <span id="lobby-streak-num">0</span><span class="lobby-meta-sep">/5</span>
         </div>
       </div>
-      <div class="lobby-gold" aria-label="보유 골드">
-        <span class="lobby-gold-icon">🪙</span>
-        <span id="lobby-gold-num">0</span>
-      </div>
-      <button id="lobby-reset-btn" class="lobby-reset-btn" type="button" aria-label="처음으로">처음으로</button>
     </div>
     <div class="lobby-character-area">
-      <img id="lobby-character-img" class="lobby-character-img" src="" alt="">
+      <div id="lobby-meadow" class="lobby-meadow"></div>
     </div>
     <button id="lobby-stage-btn" class="lobby-adventure-btn" type="button">
       <span class="lobby-adventure-info">
@@ -328,6 +355,8 @@
   <script src="animation.js"></script>
   <script src="ui.js"></script>
   <script src="stage_maps.js"></script>
+  <script src="monster_table.js"></script>
+  <script src="lobby.js"></script>
   <script src="game.js"></script>
   <script src="main.js"></script>
 </body>

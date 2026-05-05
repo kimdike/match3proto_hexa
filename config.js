@@ -90,3 +90,25 @@ const OPPOSITE_DIR={up:'down',down:'up',ne:'sw',sw:'ne',nw:'se',se:'nw'};
 
 // ── 개발자 모드 ──
 const DEV_PASSWORD='1013love';
+
+// ── 타입 색상 (18타입 — 로비 발밑 오라/도감 등 시각 표시 공통) ──
+const TYPE_COLORS={
+  grass:    '#79c95c',
+  fire:     '#ff7a3a',
+  water:    '#4aa3ff',
+  electric: '#ffd34d',
+  normal:   '#cdc8b0',
+  flying:   '#a3c8ff',
+  poison:   '#a960c2',
+  bug:      '#9bc34a',
+  fighting: '#c84a3a',
+  ground:   '#d4a64a',
+  rock:     '#a89055',
+  psychic:  '#ff5fa0',
+  ice:      '#7ce0e0',
+  ghost:    '#7363c2',
+  steel:    '#a0a8b3',
+  dragon:   '#5060c2',
+  fairy:    '#ffadd5',
+  dark:     '#5a4a3c',
+};

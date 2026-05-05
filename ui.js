@@ -408,7 +408,7 @@ function buildInspector(){
 // ── 반응형 스케일 ──
 // 390×844 모바일 프레임 + 내부 그리드 각각 scale 계산
 const FRAME_W=390, FRAME_H=844;
-const FRAME_SCREEN_IDS=['main-screen','character-select-screen','nickname-screen','lobby-screen','game-container'];
+const FRAME_SCREEN_IDS=['main-screen','character-select-screen','nickname-screen','intro-screen','lobby-screen','game-container'];
 
 function resizeGrid(){
   const gameContainer=document.getElementById('game-container');
@@ -446,7 +446,7 @@ function resizeGrid(){
 
 // ── 화면 전환 ──
 function showScreen(id){
-  ['main-screen','character-select-screen','nickname-screen','lobby-screen','skin-screen','game-container'].forEach(s=>{
+  ['main-screen','character-select-screen','nickname-screen','intro-screen','lobby-screen','skin-screen','game-container'].forEach(s=>{
     const el=document.getElementById(s);
     if(el) el.classList.add('hidden');
   });
@@ -454,6 +454,13 @@ function showScreen(id){
   if(id==='game-container'){
     resizeGrid();
     updateHudCharacter();
+  }
+  // 로비 풀밭 워크 진입/이탈
+  if(id==='lobby-screen'){
+    // DOM 레이아웃 안정화 후 시작 (clientWidth/Height 0 회피)
+    requestAnimationFrame(()=>startLobbyMeadow());
+  } else {
+    stopLobbyMeadow();
   }
   // 화면별 BGM 자동 교체 (SCREEN_BGM 매핑 기반)
   switchBgmForScreen(id);
@@ -509,22 +516,47 @@ function updateLobbyStage(){
   }
 }
 
-// ── 로비 프로필 적용 (상단 뱃지 + 중앙 일러스트) ──
+// ── 로비 프로필 적용 (상단 뱃지) ──
 function updateLobbyProfile(){
   const p=loadPlayerProfile();
   const nameEl=document.getElementById('lobby-player-name');
   const profileImg=document.getElementById('lobby-profile-img');
-  const charImg=document.getElementById('lobby-character-img');
   if(nameEl) nameEl.textContent=p.name||'Player';
   if(p.character){
     const path=getCharacterImgPath(p.character);
     if(profileImg) profileImg.src=path;
-    if(charImg) charImg.src=path;
   }
-  // 골드 표시 갱신 (다른 탭에서 변경됐을 수 있으므로 localStorage 재로드)
+  // 메타 배지(골드/다이아/천장) 갱신
   loadGold();
   updateLobbyGoldUI();
+  updateLobbyDiamondUI();
+  updateLobbyStreakUI();
 }
+
+// ── 다이아 (UI 노출만, 실제 동작은 다음 세션) ──
+function loadDiamond(){
+  const v=Number(localStorage.getItem('hexPuzzleDiamond')||0);
+  return Number.isFinite(v)?v:0;
+}
+function saveDiamond(n){ localStorage.setItem('hexPuzzleDiamond',String(n|0)); }
+function updateLobbyDiamondUI(){
+  const el=document.getElementById('lobby-diamond-num');
+  if(el) el.textContent=loadDiamond();
+}
+
+// ── 조우 천장 게이지 (UI 노출만, 실제 동작은 다음 세션) ──
+function loadEncounterStreak(){
+  const v=Number(localStorage.getItem('hexPuzzleEncounterStreak')||0);
+  return Number.isFinite(v)?v:0;
+}
+function saveEncounterStreak(n){ localStorage.setItem('hexPuzzleEncounterStreak',String(Math.max(0,Math.min(5,n|0)))); }
+function updateLobbyStreakUI(){
+  const el=document.getElementById('lobby-streak-num');
+  if(el) el.textContent=loadEncounterStreak();
+}
+
+// 로비 풀밭/트레이너/오라/인트로 모듈은 lobby.js로 분리됨.
+// 진입/이탈 훅은 showScreen에서 startLobbyMeadow/stopLobbyMeadow를 호출.
 
 // ── 캐릭터 선택 화면 ──
 let selectedCharacter=null;
@@ -576,8 +608,14 @@ function setupNicknameScreen(){
     playSfx('btn_click');
     savePlayerProfile(name,selectedCharacter);
     updateLobbyProfile();
-    showScreen('lobby-screen');
-    updateLobbyStage();
+    // 인트로 미완료면 오박사 인트로, 완료면 바로 로비
+    if(localStorage.getItem('hexPuzzleIntroDone')!=='1'&&typeof runIntroSequence==='function'){
+      showScreen('intro-screen');
+      runIntroSequence();
+    } else {
+      showScreen('lobby-screen');
+      updateLobbyStage();
+    }
   }
 
   input.addEventListener('input',updateCounter);
@@ -772,13 +810,22 @@ function setupScreenNav(){
   const resetBtn=document.getElementById('lobby-reset-btn');
   if(resetBtn){
     resetBtn.addEventListener('click',()=>{
+      // 프로필/스테이지/골드
       localStorage.removeItem('hexPuzzlePlayerName');
       localStorage.removeItem('hexPuzzlePlayerCharacter');
       localStorage.removeItem('hexPuzzleStage');
       localStorage.removeItem('hexPuzzleGold');
+      // 메타게임: 인트로/도감/슬롯/다이아/천장
+      localStorage.removeItem('hexPuzzleIntroDone');
+      localStorage.removeItem('hexPuzzleDexCaught');
+      localStorage.removeItem('hexPuzzleSlots');
+      localStorage.removeItem('hexPuzzleDiamond');
+      localStorage.removeItem('hexPuzzleEncounterStreak');
       currentStage=1;
       currentGold=0; // 메모리 캐시도 동기화
       updateLobbyGoldUI();
+      updateLobbyDiamondUI();
+      updateLobbyStreakUI();
       // showScreen이 SCREEN_BGM 매핑으로 main-bgm 재시작 처리
       showScreen('main-screen');
     });

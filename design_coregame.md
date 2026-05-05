@@ -393,11 +393,28 @@
 - 배경: 레퍼런스 이미지 톤앤매너 (밝은 크림/옐로우 계열)
 
 ## 데이터 저장 (localStorage)
+
+### 프로필
 - hexPuzzlePlayerName: 닉네임
 - hexPuzzlePlayerCharacter: "man" 또는 "woman"
-- 앱 재진입 시 저장값 있으면 캐릭터 선택/닉네임 입력 스킵 → 바로 로비
-- "처음으로" 버튼 삭제 키: hexPuzzlePlayerName, hexPuzzlePlayerCharacter, hexPuzzleStage
-- 보존 키: hexPuzzleHighScore, hexPuzzleDarkMode
+- 앱 재진입 시 저장값 있으면 캐릭터 선택/닉네임 입력 스킵 → 인트로 또는 로비
+
+### 진행 / 자원
+- hexPuzzleStage: 현재 스테이지
+- hexPuzzleGold: 골드
+- hexPuzzleSlots: 덱 6슬롯 (dexId 배열)
+- hexPuzzleHighScore: 최고 점수
+- hexPuzzleDarkMode: 라이트/다크 테마
+
+### 메타게임 (v0.5 신설)
+- hexPuzzleIntroDone: 오박사 인트로 완료 플래그 ('1' 또는 미설정)
+- hexPuzzleDexCaught: 도감 포획 dexId 배열 (예: [1, 4, 7, 10, 16, 25])
+- hexPuzzleDiamond: 다이아 (UI 노출 — 동작 로직은 추후)
+- hexPuzzleEncounterStreak: 조우 천장 게이지 (0~5, UI 노출 — 동작 로직은 추후)
+
+### "처음으로" 버튼
+- 삭제 키: hexPuzzlePlayerName / hexPuzzlePlayerCharacter / hexPuzzleStage / hexPuzzleGold / hexPuzzleSlots / hexPuzzleIntroDone / hexPuzzleDexCaught / hexPuzzleDiamond / hexPuzzleEncounterStreak
+- 보존 키: hexPuzzleHighScore / hexPuzzleDarkMode
 
 ---
 

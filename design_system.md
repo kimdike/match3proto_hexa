@@ -736,7 +736,8 @@ MonsterDex {
 | `types` | array<string> (1~2) | 정식 타입 (gen6 재타이핑 적용) |
 | `regions` | array<string> (1~2) | 게임 등장 지역 풀 |
 | `rarity` | enum | normal / rare / epic / legendary |
-| `height_m` | float | 키 (m) — XXS/XXL 베이스 |
+| `height_m` | float | 키 (m) — XXS/XXL 베이스 (도감/포획 정보의 진실 데이터) |
+| `visual_h` | float \| undefined | **옵셔널**. 도트 시각 크기 보정용 키 (m). 도트가 키보다 크게/작게 그려진 종에만 부여 (예: 독침붕 visual_h=1.6). UI 표시 매핑은 visual_h ?? height_m 사용 |
 | `weight_kg` | float | 무게 (kg) — XXS/XXL 베이스 |
 | `evolution` | object \| null | `{ evolves_to, candy_required, branching?, branches? }` |
 | `is_starter` | boolean | 시작 6종 여부 |

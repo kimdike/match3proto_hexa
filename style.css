@@ -1966,22 +1966,168 @@ h1 {
   box-shadow: 0 4px 0 rgba(212, 153, 0, 0.4);
 }
 
+/* ── 오박사 인트로 화면 ── */
+#intro-screen {
+  position: relative;
+  width: 390px;
+  height: 844px;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #fff4d6 0%, #ffe7a3 100%);
+  font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
+  color: #5e4a1d;
+  box-shadow: var(--frame-shadow);
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  max-width: none;
+}
+
+#intro-screen.hidden { display: none; }
+
+.intro-stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 80px 24px 0;
+  gap: 24px;
+}
+
+.intro-prof {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  animation: intro-fade-in 0.6s ease-out;
+}
+
+.intro-prof-avatar {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, #ffffff 0%, #ffe08a 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 64px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.12), 0 0 0 4px #ffc72c inset;
+}
+
+.intro-prof-name {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #5e4a1d;
+}
+
+.intro-bubble {
+  background: rgba(255, 255, 255, 0.94);
+  padding: 18px 22px;
+  border-radius: 22px;
+  font-size: 15px;
+  line-height: 1.55;
+  font-weight: 500;
+  text-align: center;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  max-width: 320px;
+  animation: intro-fade-in 0.5s 0.4s ease-out backwards;
+}
+
+.intro-pokemons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+  padding: 8px 12px;
+  max-width: 340px;
+}
+
+.intro-pokemon {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  opacity: 0;
+  transform: translateY(14px) scale(0.5);
+  animation: intro-pop 0.45s ease-out forwards;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.18));
+}
+
+@keyframes intro-fade-in {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes intro-pop {
+  0%   { opacity: 0; transform: translateY(14px) scale(0.5); }
+  60%  { opacity: 1; transform: translateY(-4px) scale(1.15); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.intro-next-btn {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: 40px;
+  height: 60px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffd34d 0%, #ffc72c 100%);
+  color: #5e4a1d;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  cursor: pointer;
+  box-shadow: 0 6px 0 #d49900, 0 10px 18px rgba(212, 153, 0, 0.32);
+  transition: transform 0.1s, box-shadow 0.1s, opacity 0.25s;
+}
+
+.intro-next-btn:not(:disabled):active {
+  transform: translateY(3px);
+  box-shadow: 0 3px 0 #d49900, 0 5px 10px rgba(212, 153, 0, 0.3);
+}
+
+.intro-next-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: 0 4px 0 rgba(212, 153, 0, 0.4);
+}
+
 /* ── 로비 화면 (크림/옐로우 개편) ── */
 
 .lobby-top {
-  padding: 20px 20px 0;
+  padding: 16px 20px 0;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 10px;
   flex-shrink: 0;
 }
 
-.lobby-gold {
+.lobby-top-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
+  gap: 8px;
+}
+
+.lobby-top-row-main {
+  justify-content: space-between;
+}
+
+.lobby-top-row-meta {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.lobby-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.78);
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
@@ -1989,11 +2135,18 @@ h1 {
   font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
+  line-height: 1;
 }
 
-.lobby-gold-icon {
-  font-size: 16px;
+.lobby-meta-icon {
+  font-size: 15px;
   line-height: 1;
+}
+
+.lobby-meta-sep {
+  color: #9c8651;
+  font-weight: 500;
+  margin-left: 1px;
 }
 
 .lobby-reset-btn {
@@ -2069,36 +2222,80 @@ h1 {
 
 .lobby-character-area {
   flex: 1;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
   min-height: 0;
   padding: 0;
   overflow: hidden;
   position: relative;
+  background: url('assets/lobby_bg/stage_0.png') center / cover no-repeat;
 }
 
-.lobby-character-img {
-  width: 100%;
-  height: 100%;
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  object-position: center bottom;
-  filter: drop-shadow(0 14px 18px rgba(0, 0, 0, 0.18));
+.lobby-meadow {
+  position: absolute;
+  inset: 0;
+}
+
+.lobby-pokemon {
+  position: absolute;
+  height: 56px;
+  width: auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
   pointer-events: none;
   user-select: none;
   -webkit-user-drag: none;
+  transform: translate(-50%, -100%);
+  transform-origin: 50% 100%;
+  filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.25));
+  will-change: transform, left, top;
+  z-index: 1;
+}
+
+/* 트레이너 도트 (5세대 BW overworld 시트, 32×32 프레임을 2.4x 확대 + 위 3px 클립) */
+.lobby-trainer {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  background-image: url('assets/dot/trainer/character_sprite_01.png');
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  pointer-events: none;
+  user-select: none;
+  transform: translate(-50%, -100%) scale(2.0);
+  transform-origin: 50% 100%;
+  filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.25));
+  will-change: transform, left, top;
+  z-index: 2;
+  clip-path: inset(3px 0 0 0);
+}
+
+/* 같은 타입 3+ 모임 시 발밑 색 오라 (solid 색 + 강한 blur) */
+.lobby-aura {
+  position: absolute;
+  width: 70px;
+  height: 22px;
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  filter: blur(8px);
+  opacity: 0.9;
+  animation: lobby-aura-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes lobby-aura-pulse {
+  0%, 100% { opacity: 0.75; transform: translate(-50%, -50%) scale(0.92); }
+  50%      { opacity: 1.0;  transform: translate(-50%, -50%) scale(1.12); }
 }
 
 .lobby-adventure-btn {
   position: absolute;
-  left: 20px;
-  right: 20px;
-  bottom: 200px;
+  left: 50%;
+  right: auto;
+  bottom: calc(80px + env(safe-area-inset-bottom, 0px) + 14px);
+  width: 240px;
   z-index: 10;
-  height: 74px;
-  padding: 0 22px 0 28px;
+  height: 64px;
+  padding: 0 18px 0 22px;
   border: none;
   border-radius: 999px;
   background: linear-gradient(180deg, #ffd34d 0%, #ffc72c 100%);
@@ -2110,10 +2307,11 @@ h1 {
   justify-content: space-between;
   box-shadow: 0 7px 0 #d49900, 0 12px 22px rgba(212, 153, 0, 0.35);
   transition: transform 0.1s, box-shadow 0.1s;
+  transform: translateX(-50%);
 }
 
 .lobby-adventure-btn:active {
-  transform: translateY(3px);
+  transform: translateX(-50%) translateY(3px);
   box-shadow: 0 4px 0 #d49900, 0 6px 12px rgba(212, 153, 0, 0.3);
 }
 

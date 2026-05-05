@@ -5,6 +5,77 @@
 
 ---
 
+## 2026.05.06 (16일차)
+
+### 🎯 로비 재설계 한 묶음 구현
+
+design_system.md v0.5 기반 로비 재설계를 한 세션에 묶어 구현. 트레이너만 자산 이슈로 보류.
+
+#### 풀밭 자유 워크 (POC → 6마리 동시)
+- `lobby.js` 신설: ui.js의 풀밭 코드 이전 + 트레이너/단계전환/오라/인트로 통합
+- 6마리 덱 슬롯(`hexPuzzleSlots`) 기반 .gif 도트 동시 워크
+- 경계 점진 회귀 스티어링(직각 반사 폐기) + 22% 휴식 + 마리별 속도 22~36px/s
+- z-index 자동 정렬(y 좌표 기준 앞뒤 깊이감)
+- 좌우 방향: `vx>0?-1:1` (.gif 본디 왼쪽 향함)
+
+#### 시각 키 보정 시스템 (visual_h 필드 신설)
+- monster_table.json에 `visual_h` 옵셔널 필드 추가 (도트가 키보다 크게/작게 그려진 종 보정용)
+- 도감의 진실 데이터(`height_m`)와 표시 보정(`visual_h`)을 분리
+- 독침붕(15)에 `visual_h: 1.6` 부여 (S → L 카테고리 진입)
+- ui.js 사이즈 매핑 6단계: XS(38) / S(48) / M(56) / L(76) / XL(96) / XXL(116)
+
+#### 풀밭 단계 자동 교체
+- 보유 마릿수 기반 0~9 / 10~19 / 20~29 / 30+ → stage_0~3 배경 자동
+- `applyMeadowStageBackground()` — startLobbyMeadow 시 `.lobby-character-area` background 갱신
+
+#### 프로필 카드 통합 (UI 노출만)
+- `.lobby-top` 1단 → 2단 (상단 프로필+처음으로 / 하단 메타 묶음)
+- 골드 / 다이아 / 천장 가로 배지 — 다이아/천장은 UI만, 동작 로직은 다음 세션
+- localStorage 키: `hexPuzzleDiamond` / `hexPuzzleEncounterStreak`
+
+#### 같은 타입 발밑 오라
+- 덱 6슬롯 types 카운트 → 카운트 ≥3 타입에 속하는 마리 발밑에 색 글로우
+- TYPE_COLORS 18타입 색상표(config.js, 도감 등 공유)
+- solid 색 + blur(8px) + opacity 0.9 (radial-gradient 옅음 → solid로 변경)
+- z-index 보정: 도트 (i*2+1), aura (i*2) → aura가 항상 자기 도트 바로 뒤
+
+#### 오박사 인트로 시퀀스
+- intro-screen 신규 화면 (오박사 placeholder + 멘트 + 6종 등장 + 여행 시작 버튼)
+- 닉네임 직후 `hexPuzzleIntroDone` 미설정이면 인트로, 설정이면 로비 직행
+- 6종 등장 후 ~2.5초 뒤 버튼 활성화 → 클릭 시 도감/슬롯/플래그 일괄 저장
+- 스타터 6종은 monster_table.json `is_starter:true` 필터 (동적), fallback으로 정적 ID
+
+#### ADVENTURE START 버튼 위치/크기
+- absolute, 폭 240px 가운데 정렬 (`left:50% / transform:translateX(-50%)`)
+- bottom: `calc(80px + env(safe-area-inset-bottom) + 14px)` — 4탭 바로 위
+
+#### 트레이너 도트 — 보류
+- BW RIP 시트(`character_sprite_01.png`)가 영역마다 frame layout이 달라(영역1=132px / 영역2=128px / 영역3=192px) 정확한 슬라이싱 어려움
+- 시트 자체에 풀 녹색 배경 매팅 필요(런타임 캔버스 매팅 시도했으나 의상 가장자리 픽셀 영향 가능)
+- TRAINER_SHEET / getTrainerRow / getTrainerCol / 4방향 워크 사이클 / 길찾기 코드 모두 보존 — `const trainer=null`로만 비활성
+- 다음 패스: 매팅된 깔끔한 자산 확보(또는 외주) 후 재활성화
+
+### 🛠 콘솔 디버그 치트
+- `devAddCaught(N)` — 도감에 N마리 추가 후 풀밭 자동 재시작
+- `devSetSlots([...])` — 덱 6슬롯 강제 변경 (오라 검증용)
+- `devClearCaught()` — 도감 초기화
+- Chrome paste 차단 시 `allow pasting` 입력 후 사용 또는 직접 타이핑(자동완성)
+
+### 📝 문서 갱신
+- design_coregame.md 데이터 저장 섹션: 메타게임 키 4개 추가, "처음으로" 삭제 키 목록 갱신
+- design_system.md 스키마: `visual_h` 옵셔널 필드 명시
+- todolist.md: 풀밭/오라/인트로/프로필카드 체크, 트레이너 보류 표기
+
+### 💡 오늘의 교훈
+
+1. **자산 정확도 vs 코드 시간의 균형**: BW RIP 시트는 빠른 프로토에 좋지만 영역마다 layout이 달라 코드로 일관 처리 어려움. 깔끔한 매팅된 단일 도트 자산이 결국 더 빠른 길.
+2. **데이터 정확성과 표시 보정의 분리**: `height_m`(진실)과 `visual_h`(표시) 분리는 도감/포획 시스템과 시각 표시 모두를 깨끗하게 유지. 한 룰로 모든 종을 처리하지 않고 예외만 명시.
+3. **mix-blend-mode + radial-gradient + blur + opacity 합성은 위험**: 4중 효과가 겹치면 거의 안 보이는 결과. solid 색 + 강한 blur + 명확한 opacity 한 단계가 더 확실.
+4. **z-index inline override는 정적 CSS를 무시**: JS가 매 프레임 z-index 부여할 때 형제 요소(aura)와 stack 충돌. 도트와 aura 모두 동적으로 짝지어 부여하는 게 안전.
+5. **사용자 메모와 실제 자산 차이는 자주 발생**: "32×32 frame, 3프레임×4방향" 메모는 일부 영역만 맞고 다른 영역은 다른 layout. 메모 의존 X, 자산 자체 측정.
+
+---
+
 ## 2026.05.05 (15일차)
 
 ### 🎯 메타게임 기획 v0.4 / v0.5 정리

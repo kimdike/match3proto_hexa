@@ -7,9 +7,20 @@ let stageTarget = STAGES[0].target;
 // calcLineScore / calcComboBonus는 match.js로 이동
 
 // ── 스킨 시스템 ──
+// unlocked = DEFAULT_UNLOCKED ∪ 도감 captured/evolved ∪ legacy hexPuzzleUnlocked
+// (도감에 등록된 포켓몬은 자동으로 스킨 해금)
 function loadSkinData(){
   let unlocked=JSON.parse(localStorage.getItem('hexPuzzleUnlocked')||'null');
-  if(!unlocked){ unlocked=[...DEFAULT_UNLOCKED]; localStorage.setItem('hexPuzzleUnlocked',JSON.stringify(unlocked)); }
+  if(!unlocked){ unlocked=[...DEFAULT_UNLOCKED]; }
+  // 도감 captured/evolved 합집합 (dex.js 사용 가능 시)
+  if(typeof getCapturedIds==='function'){
+    const set=new Set(unlocked);
+    for(const id of getCapturedIds()) set.add(id);
+    for(const id of DEFAULT_UNLOCKED) set.add(id); // 인트로 6종 항상 보장
+    unlocked=Array.from(set).sort((a,b)=>a-b);
+  }
+  localStorage.setItem('hexPuzzleUnlocked',JSON.stringify(unlocked));
+
   let slots=JSON.parse(localStorage.getItem('hexPuzzleSlots')||'null');
   if(!slots){ slots=[...DEFAULT_SLOTS]; localStorage.setItem('hexPuzzleSlots',JSON.stringify(slots)); }
   // 7→6 슬롯 마이그레이션: 기존 7슬롯 데이터는 마지막 1개 제거 (unlocked는 보존)

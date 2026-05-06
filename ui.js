@@ -130,6 +130,9 @@ function showEndScreen(cleared){
   const title=document.getElementById('end-title');
   const sc=document.getElementById('end-score');
   const det=document.getElementById('end-detail');
+  // 천장 게이지 위젯 — 기본 숨김 (클리어 분기에서 노출)
+  const pityWidget=document.getElementById('end-pity-gauge');
+  if(pityWidget) pityWidget.classList.add('hidden');
   if(cleared){
     icon.textContent='\uD83C\uDF89';title.textContent='\uD074\uB9AC\uC5B4!';title.className='clear';
     det.textContent=`Stage ${currentStage} \uD074\uB9AC\uC5B4! \uB3CC \uC804\uBD80 \uC81C\uAC70!`;
@@ -142,6 +145,11 @@ function showEndScreen(cleared){
     if(currentStage<STAGES.length){
       currentStage++;
       localStorage.setItem('hexPuzzleStage',currentStage);
+    }
+    // 천장 게이지 판정 + 위젯 갱신 (조우 분기는 stub)
+    if(typeof rollEncounter==='function'){
+      const result=rollEncounter('main');
+      renderEndPityGauge(result);
     }
   }else{
     icon.textContent='\uD83D\uDE22';title.textContent='\uC2E4\uD328...';title.className='fail';
@@ -158,6 +166,46 @@ function showEndScreen(cleared){
   o.classList.remove('hidden');
 }
 function hideEndScreen(){document.getElementById('end-overlay').classList.add('hidden');}
+
+// 클리어 화면 천장 게이지 위젯 갱신
+//   result = { encountered, justFilled, before, after }
+//   - 전 단계 게이지(before)부터 시작 → after로 한 칸 채우는 애니메이션
+//   - encountered: 5/5 → 0 리셋, "조우 발동!" 힌트
+//   - justFilled:  N/5 → 5/5 도달, "다음 클리어 = 무조건 조우!" 힌트
+function renderEndPityGauge(result){
+  const widget=document.getElementById('end-pity-gauge');
+  const numEl=document.getElementById('end-pity-num');
+  const hintEl=document.getElementById('end-pity-hint');
+  if(!widget||!numEl) return;
+  widget.classList.remove('hidden','full','encountered');
+  applyPityTicks(result.before);
+  numEl.textContent=result.before;
+  if(hintEl) hintEl.textContent='';
+  // 0.6s 후 갱신 — 클리어 메시지가 먼저 보이고 게이지가 차오르는 텀
+  setTimeout(()=>{
+    if(result.encountered){
+      widget.classList.add('encountered');
+      if(hintEl) hintEl.textContent='🎯 조우 발동! (다음 세션에서 구현)';
+      applyPityTicks(result.after);
+      numEl.textContent=result.after;
+    } else {
+      applyPityTicks(result.after);
+      numEl.textContent=result.after;
+      if(result.justFilled){
+        widget.classList.add('full');
+        if(hintEl) hintEl.textContent='✨ 천장 도달! 다음 클리어 = 무조건 조우';
+      }
+    }
+    // 로비 배지도 동기화 (다음 로비 진입 시 반영용)
+    if(typeof updateLobbyStreakUI==='function') updateLobbyStreakUI();
+  },600);
+}
+function applyPityTicks(value){
+  document.querySelectorAll('#end-pity-gauge .end-pity-tick').forEach(el=>{
+    const t=parseInt(el.dataset.tick,10);
+    el.classList.toggle('on',t<=value);
+  });
+}
 function showConfirm(){document.getElementById('confirm-overlay').classList.remove('hidden');}
 function hideConfirm(){document.getElementById('confirm-overlay').classList.add('hidden');}
 
@@ -272,6 +320,22 @@ function setupDevMode(){
     }
   });
 
+  // 로비 dev 버튼 — 인증만 처리 (인게임 dev 패널은 인게임에서만 열림)
+  const lobbyDevBtn=document.getElementById('lobby-dev-btn');
+  if(lobbyDevBtn) lobbyDevBtn.addEventListener('click',()=>{
+    if(devUnlocked){
+      // 이미 인증된 상태 — 토글: 비활성화 (도감 즉시잡기 등 dev 기능 끄기)
+      devUnlocked=false;
+      const placeTab=document.getElementById('placement-tab');
+      if(placeTab) placeTab.classList.add('hidden');
+      lobbyDevBtn.classList.remove('active');
+    } else {
+      pwOverlay.classList.remove('hidden');
+      pwInput.value='';pwError.classList.add('hidden');
+      pwInput.focus();
+    }
+  });
+
   // 백드롭(카드 바깥) 클릭으로 닫기
   devPanel.addEventListener('click',e=>{
     if(e.target===devPanel) closeDevPanel();
@@ -282,10 +346,16 @@ function setupDevMode(){
     if(pwInput.value.toLowerCase()===DEV_PASSWORD){
       devUnlocked=true;
       pwOverlay.classList.add('hidden');
-      openDevPanel();
       // 배치 도구 탭 노출
       const placeTab=document.getElementById('placement-tab');
       if(placeTab) placeTab.classList.remove('hidden');
+      // 로비 dev 버튼 활성 표시
+      const lobbyBtn=document.getElementById('lobby-dev-btn');
+      if(lobbyBtn) lobbyBtn.classList.add('active');
+      // 인게임 화면일 때만 패널 자동 오픈 (로비/도감에선 인증만)
+      const gc=document.getElementById('game-container');
+      const inGame=gc&&!gc.classList.contains('hidden');
+      if(inGame) openDevPanel();
     }else{
       pwError.classList.remove('hidden');
       pwInput.value='';pwInput.focus();
@@ -446,7 +516,7 @@ function resizeGrid(){
 
 // ── 화면 전환 ──
 function showScreen(id){
-  ['main-screen','character-select-screen','nickname-screen','intro-screen','lobby-screen','skin-screen','game-container'].forEach(s=>{
+  ['main-screen','character-select-screen','nickname-screen','intro-screen','lobby-screen','skin-screen','dex-screen','game-container'].forEach(s=>{
     const el=document.getElementById(s);
     if(el) el.classList.add('hidden');
   });
@@ -531,6 +601,7 @@ function updateLobbyProfile(){
   updateLobbyGoldUI();
   updateLobbyDiamondUI();
   updateLobbyStreakUI();
+  updateLobbySkinBadge();
 }
 
 // ── 다이아 (UI 노출만, 실제 동작은 다음 세션) ──
@@ -544,15 +615,23 @@ function updateLobbyDiamondUI(){
   if(el) el.textContent=loadDiamond();
 }
 
-// ── 조우 천장 게이지 (UI 노출만, 실제 동작은 다음 세션) ──
-function loadEncounterStreak(){
-  const v=Number(localStorage.getItem('hexPuzzleEncounterStreak')||0);
-  return Number.isFinite(v)?v:0;
+// ── 로비 🎨 스킨 버튼 레드닷 (신규 해금 미확인 알림) ──
+function updateLobbySkinBadge(){
+  const btn=document.querySelector('.lobby-menu-btn[data-target="skin"]');
+  if(!btn) return;
+  const has=(typeof getSkinNewCount==='function')&&getSkinNewCount()>0;
+  btn.classList.toggle('has-new',has);
 }
-function saveEncounterStreak(n){ localStorage.setItem('hexPuzzleEncounterStreak',String(Math.max(0,Math.min(5,n|0)))); }
+
+// ── 조우 천장 게이지 (pity.js 연동) ──
 function updateLobbyStreakUI(){
   const el=document.getElementById('lobby-streak-num');
-  if(el) el.textContent=loadEncounterStreak();
+  const card=document.querySelector('.lobby-meta-streak');
+  if(typeof getPity!=='function') return;
+  const v=getPity('main');
+  if(el) el.textContent=v;
+  // 5/5 도달 시 카드에 full 클래스 → 펄스 이펙트로 "다음 클리어 = 무조건 조우" 시각 신호
+  if(card) card.classList.toggle('is-full',v>=PITY_THRESHOLD);
 }
 
 // 로비 풀밭/트레이너/오라/인트로 모듈은 lobby.js로 분리됨.
@@ -786,9 +865,12 @@ function setupScreenNav(){
   document.querySelectorAll('.lobby-menu-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
       const target=btn.dataset.target;
+      playSfx('btn_click');
       if(target==='skin'){
         showScreen('skin-screen');
         renderSkinScreen();
+      } else if(target==='collection'){
+        showDexScreen();
       } else {
         document.getElementById('coming-soon-overlay').classList.remove('hidden');
       }
@@ -806,26 +888,50 @@ function setupScreenNav(){
     if(!playing) startGame();
   });
 
-  // 처음으로 → 프로필 삭제 + 메인 화면 (BGM 재시작)
+  // 처음으로 → 계정 초기화 (dev용) + 메인 화면 (BGM 재시작)
   const resetBtn=document.getElementById('lobby-reset-btn');
   if(resetBtn){
     resetBtn.addEventListener('click',()=>{
-      // 프로필/스테이지/골드
-      localStorage.removeItem('hexPuzzlePlayerName');
-      localStorage.removeItem('hexPuzzlePlayerCharacter');
-      localStorage.removeItem('hexPuzzleStage');
-      localStorage.removeItem('hexPuzzleGold');
-      // 메타게임: 인트로/도감/슬롯/다이아/천장
-      localStorage.removeItem('hexPuzzleIntroDone');
-      localStorage.removeItem('hexPuzzleDexCaught');
-      localStorage.removeItem('hexPuzzleSlots');
-      localStorage.removeItem('hexPuzzleDiamond');
-      localStorage.removeItem('hexPuzzleEncounterStreak');
+      // 계정 초기화 — 게임이 사용하는 모든 사용자 데이터 키 청소
+      // (보존: hexPuzzleHighScore, hexPuzzleDarkMode 등 환경 설정)
+      const keysToWipe=[
+        // 프로필/진행도
+        'hexPuzzlePlayerName',
+        'hexPuzzlePlayerCharacter',
+        'hexPuzzleStage',
+        'hexPuzzleIntroDone',
+        // 재화
+        'hexPuzzleGold',
+        'hexPuzzleDiamond',
+        'hexPuzzleCandy',           // v0.5.1 공통 사탕
+        // 도감/스킨
+        'hexPuzzleDex',             // v0.5 풀스펙 도감
+        'hexPuzzleDexCaught',       // 레거시 (마이그레이션 안전망)
+        'hexPuzzleUnlocked',        // 스킨 해금 리스트 (도감 따라 자동 재생성)
+        'hexPuzzleSlots',
+        'hexPuzzleSkinNew',         // 신규 해금 레드닷 큐
+        // 천장 게이지
+        'hexPuzzlePityMain',        // v0.5
+        'hexPuzzlePityRepeat',      // v0.5
+        'hexPuzzleEncounterStreak', // 레거시
+      ];
+      for(const k of keysToWipe) localStorage.removeItem(k);
+
+      // 메모리 캐시 동기화
       currentStage=1;
-      currentGold=0; // 메모리 캐시도 동기화
+      currentGold=0;
+      devUnlocked=false; // dev 인증도 풀기 (계정 초기화 일관성)
+
+      // UI 상태 갱신
       updateLobbyGoldUI();
       updateLobbyDiamondUI();
       updateLobbyStreakUI();
+      updateLobbySkinBadge();
+      const lobbyDevBtn=document.getElementById('lobby-dev-btn');
+      if(lobbyDevBtn) lobbyDevBtn.classList.remove('active');
+      const placeTab=document.getElementById('placement-tab');
+      if(placeTab) placeTab.classList.add('hidden');
+
       // showScreen이 SCREEN_BGM 매핑으로 main-bgm 재시작 처리
       showScreen('main-screen');
     });
@@ -846,7 +952,7 @@ function renderSkinSlots(){
   skinData.slots.forEach((pokeNum,i)=>{
     const slot=document.createElement('div');
     slot.className='skin-slot'+(skinEditingSlot===i?' selected':'');
-    applyPokemonBg(slot,pokeNum,56);
+    applyPokemonBg(slot,pokeNum,50,true);
     const num=document.createElement('div');
     num.className='skin-slot-num';
     num.textContent=i+1;
@@ -861,6 +967,9 @@ function renderSkinSlots(){
     });
     container.appendChild(slot);
   });
+  // 카운터 갱신 (해금 / 151)
+  const counter=document.getElementById('skin-counter');
+  if(counter) counter.textContent=`${skinData.unlocked.length} / 151`;
 }
 
 function renderSkinCollection(){
@@ -871,16 +980,27 @@ function renderSkinCollection(){
     const item=document.createElement('div');
     const unlocked=skinData.unlocked.includes(n);
     const equipped=equippedSet.has(n);
-    item.className='skin-item'+(unlocked?'':' locked')+(equipped?' equipped':'');
-    if(unlocked){
-      applyPokemonBg(item,n,48);
-    } else {
-      applyPokemonBg(item,n,48);
+    const isNew=(typeof hasSkinNew==='function')&&hasSkinNew(n);
+    item.className='skin-item'+(unlocked?'':' locked')+(equipped?' equipped':'')+(isNew?' is-new':'');
+
+    // sprite \u2014 \uC778\uAC8C\uC784 \uBE14\uB85D\uACFC \uB3D9\uC77C\uD55C \uC2DC\uD2B8 \uC774\uBBF8\uC9C0 (\uC2A4\uD0A8\uCC3D\uC740 \uBE14\uB85D \uC678\uD615 \uBBF8\uB9AC\uBCF4\uAE30)
+    const sprite=document.createElement('div');
+    sprite.className='skin-item-sprite';
+    applyPokemonBg(sprite,n,46,true);
+    item.appendChild(sprite);
+
+    if(!unlocked){
       const lock=document.createElement('div');
       lock.className='skin-item-lock';
       lock.textContent='\uD83D\uDD12';
       item.appendChild(lock);
     }
+    if(isNew){
+      const dot=document.createElement('div');
+      dot.className='skin-item-newdot';
+      item.appendChild(dot);
+    }
+
     const numLabel=document.createElement('div');
     numLabel.className='skin-item-num';
     numLabel.textContent=`#${n}`;
@@ -888,6 +1008,8 @@ function renderSkinCollection(){
     if(unlocked){
       item.addEventListener('click',()=>{
         playSfx('select');
+        // 신규 해금 레드닷 해제 (확인 처리)
+        if(typeof clearSkinNew==='function') clearSkinNew(n);
         // 이미 다른 슬롯에 장착된 경우 스왑
         const otherSlot=skinData.slots.indexOf(n);
         if(otherSlot!==-1&&otherSlot!==skinEditingSlot){
@@ -897,6 +1019,7 @@ function renderSkinCollection(){
         saveSkinData(skinData.unlocked,skinData.slots);
         renderSkinSlots();
         renderSkinCollection();
+        if(typeof updateLobbySkinBadge==='function') updateLobbySkinBadge();
       });
     }
     container.appendChild(item);

@@ -124,13 +124,57 @@
       <button class="lobby-menu-btn" data-target="collection" type="button"><span class="lobby-menu-icon">📖</span><span>도감</span></button>
       <button class="lobby-menu-btn" data-target="locked" type="button"><span class="lobby-menu-icon">🔒</span><span>준비중</span></button>
     </div>
+    <button id="lobby-dev-btn" class="lobby-dev-btn" type="button" aria-label="개발자 모드">DEV</button>
+  </div>
+
+  <!-- ── 도감 화면 ── -->
+  <div id="dex-screen" class="hidden">
+    <div class="dex-header">
+      <button id="dex-back-btn" class="dex-nav-btn" type="button" aria-label="뒤로">←</button>
+      <h2 class="dex-title">도감</h2>
+      <div id="dex-counter" class="dex-counter">0 / 151</div>
+    </div>
+    <div id="dex-grid" class="dex-grid"></div>
+  </div>
+
+  <!-- ── 도감 상세 모달 ── -->
+  <div id="dex-detail-overlay" class="hidden">
+    <div id="dex-detail-panel">
+      <button id="dex-detail-close" type="button" aria-label="닫기">×</button>
+      <div class="dex-detail-head">
+        <div id="dex-detail-num" class="dex-detail-num">#000</div>
+        <div id="dex-detail-name" class="dex-detail-name">???</div>
+        <div id="dex-detail-types" class="dex-detail-types"></div>
+      </div>
+      <div id="dex-detail-sprite" class="dex-detail-sprite"></div>
+      <div id="dex-detail-info" class="dex-detail-info"></div>
+      <button id="dex-detail-debug-catch" class="dex-detail-debug hidden" type="button">⚡ 즉시 잡기 (DEV)</button>
+    </div>
+  </div>
+
+  <!-- ── 개발자 모드 비밀번호 팝업 (전역 — 로비/인게임 어디서든 띄움) ── -->
+  <div id="dev-pw-overlay" class="hidden">
+    <div id="dev-pw-panel">
+      <div id="dev-pw-title">개발자 모드</div>
+      <input type="password" id="dev-pw-input" placeholder="비밀번호 입력" autocomplete="off">
+      <div id="dev-pw-error" class="hidden">비밀번호가 틀렸습니다</div>
+      <div id="dev-pw-buttons">
+        <button id="dev-pw-ok" class="confirm-btn yes">확인</button>
+        <button id="dev-pw-cancel" class="confirm-btn no">취소</button>
+      </div>
+    </div>
   </div>
 
   <!-- ── 스킨 변경 화면 ── -->
   <div id="skin-screen" class="hidden">
     <div class="skin-header">
-      <button id="skin-back-btn" class="skin-nav-btn">←</button>
-      <h2 class="skin-title">스킨 변경</h2>
+      <button id="skin-back-btn" class="skin-nav-btn" type="button" aria-label="뒤로">←</button>
+      <h2 class="skin-title">스킨</h2>
+      <div id="skin-counter" class="skin-counter">0 / 151</div>
+    </div>
+    <div class="skin-hint">
+      <span class="skin-hint-icon">🌿</span>
+      <span class="skin-hint-text">슬롯에 장착한 포켓몬은 로비 풀밭에 함께 등장해요</span>
     </div>
     <div class="skin-slots-area">
       <div class="skin-slots-label">장착 슬롯</div>
@@ -302,19 +346,6 @@
       </div>
     </div>
 
-    <!-- 개발자 모드 비밀번호 팝업 -->
-    <div id="dev-pw-overlay" class="hidden">
-      <div id="dev-pw-panel">
-        <div id="dev-pw-title">개발자 모드</div>
-        <input type="password" id="dev-pw-input" placeholder="비밀번호 입력" autocomplete="off">
-        <div id="dev-pw-error" class="hidden">비밀번호가 틀렸습니다</div>
-        <div id="dev-pw-buttons">
-          <button id="dev-pw-ok" class="confirm-btn yes">확인</button>
-          <button id="dev-pw-cancel" class="confirm-btn no">취소</button>
-        </div>
-      </div>
-    </div>
-
     <!-- 인스펙터 초기화 확인 팝업 -->
     <div id="insp-confirm-overlay" class="hidden">
       <div id="insp-confirm-panel">
@@ -336,6 +367,19 @@
         <div id="end-score"></div>
         <div id="end-detail"></div>
         <div id="new-record" class="hidden"></div>
+        <!-- 천장 게이지 위젯 (클리어 시에만 표시) -->
+        <div id="end-pity-gauge" class="end-pity hidden">
+          <div class="end-pity-label">⭐ 조우 천장</div>
+          <div class="end-pity-bar">
+            <span class="end-pity-tick" data-tick="1"></span>
+            <span class="end-pity-tick" data-tick="2"></span>
+            <span class="end-pity-tick" data-tick="3"></span>
+            <span class="end-pity-tick" data-tick="4"></span>
+            <span class="end-pity-tick" data-tick="5"></span>
+          </div>
+          <div class="end-pity-text"><span id="end-pity-num">0</span> / 5</div>
+          <div class="end-pity-hint" id="end-pity-hint"></div>
+        </div>
         <div id="end-fail-retry">다시 도전해보자!</div>
         <button id="retry-btn">재도전하기</button>
         <button id="restart-btn">다시 하기</button>
@@ -356,6 +400,8 @@
   <script src="ui.js"></script>
   <script src="stage_maps.js"></script>
   <script src="monster_table.js"></script>
+  <script src="dex.js"></script>
+  <script src="pity.js"></script>
   <script src="lobby.js"></script>
   <script src="game.js"></script>
   <script src="main.js"></script>

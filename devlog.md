@@ -76,6 +76,90 @@ design_system.md v0.5 기반 로비 재설계를 한 세션에 묶어 구현. �
 
 ---
 
+### 🎯 세션 2: 도감 + 천장 게이지 + 스킨 정비 (오후)
+
+design_system.md v0.5 도감 풀스펙 + 천장 게이지를 한 세션에 묶어 구현. 사탕 시스템 종별→공통으로 스펙 변경.
+
+#### 도감 데이터 모델 (dex.js 신설)
+- `MonsterDex {state, captureCount, failStack, biggest, smallest, firstCaught}` 풀스펙 (사탕은 글로벌로 분리)
+- 4단계 state: `undiscovered / discovered / captured / evolved`
+- `captureNow(id)`: state 전환 + count+1 + 글로벌 사탕+2 + biggest/smallest 갱신 + firstCaught
+- `markDiscovered(id) / incFailStack(id)` 부분 액션 분리
+- 레거시 `hexPuzzleDexCaught` (배열) → `hexPuzzleDex` (객체) 자동 1회 마이그레이션
+- 인트로 6종 `#15(독침붕) → #16(구구)` 보정 (config.js DEFAULT_UNLOCKED/SLOTS)
+
+#### 도감 화면 (151 그리드 + 상세 모달)
+- 5열 grid + grid-auto-rows 70px (aspect-ratio가 컨텐츠에 밀리는 문제 해결)
+- 상태별 시각 4단계: 검은 실루엣 / 회색 / 컬러 / 골드 보더
+- 도트 GIF(`assets/dot/pokemon/{id}.gif`)를 실루엣 베이스로 사용 — 블록 시트 흑백보다 형태 가독성 우수
+- 상세 모달: 정보 단계화 (미발견=실루엣 / 발견=이름+타입 / 포획=+사탕/키/무게/잡은수/최초)
+- 개발자 인증 시 ⚡ 즉시 잡기 버튼 (콘솔 치트 대체)
+
+#### 사탕 시스템: 종별 → 공통 통화 (스펙 변경)
+- design_system.md v0.5 changelog + 4-7 본문 갱신
+- `hexPuzzleCandy` 단일 키, 모든 포획 시 +2 누적, 어느 종 진화든 같은 풀에서 차감
+- 마이그레이션: 기존 `entry.candy` 합산해서 글로벌로 이전
+
+#### 도감 captured → 스킨 자동 해금
+- `loadSkinData()`가 `DEFAULT_UNLOCKED ∪ getCapturedIds() ∪ legacy unlocked` 합집합 반환
+- 즉시 잡기 / 포획 직후 스킨창 진입하면 자동 컬러 표시
+
+#### 스킨창 도감 톤 개편
+- 390 프레임 통일, 크림/옐로우 배경, 헤더 (← + 타이틀 + N/151 카운터)
+- 슬롯 6개 + 컬렉션 5열 + grid-auto-rows 68px
+- 안내문: "🌿 슬롯에 장착한 포켓몬은 로비 풀밭에 함께 등장해요"
+- 컬렉션 sprite: 블록 시트 이미지(인게임 블록 미리보기), 잠금 시 brightness(0) 실루엣
+
+#### 신규 해금 레드닷 시스템
+- `hexPuzzleSkinNew` 큐: captureNow 시 첫 captured 전환이면 push
+- 스킨 컬렉션 셀 우상단 + 로비 🎨 스킨 버튼 우상단 펄스
+- 컬렉션 클릭 시 clear, 로비 진입 시 재계산
+
+#### 포켓몬 콜라이더 (lobby.js)
+- 픽셀 높이 35% 반경, 매 tick pairwise separation
+- 거리 < r1+r2면 절반씩 정반대로 push, 경계 클램프 재적용
+
+#### 스테이지 버튼 z-index 60
+- 풀밭 도트 동적 z-index(1~24) 위로 항상 노출
+- ADVENTURE START 버튼이 포켓몬에 가려지지 않음
+
+#### 로비 DEV 버튼 + 전역 인증 흐름
+- 로비 우하단 작은 DEV (`#lobby-dev-btn`, 28×22, opacity 0.45 → hover/active 1)
+- `dev-pw-overlay`를 `#game-container` 밖으로 이동 → 로비/인게임 어디서든 호출 가능
+- `tryPassword` 화면별 분기: 인게임이면 패널 자동 오픈, 로비/도감이면 인증만
+- DEV 인증 시 도감 즉시잡기 + 배치 도구 탭 + 인게임 패널 모두 활성화
+
+#### 천장 게이지 (pity.js 신설)
+- 메인/반복 독립 카운터: `hexPuzzlePityMain` / `hexPuzzlePityRepeat`
+- `getPity / incPity / resetPity / isPityFull / rollEncounter(mode)` API
+- `rollEncounter` stub: 이전 5/5면 강제 조우 + 0 리셋, 아니면 +1 (justFilled 시 신호)
+- 레거시 `hexPuzzleEncounterStreak` → 메인 카운터 자동 마이그레이션
+- 실제 조우 화면/포획 UI는 후속 세션 (스펙은 v0.5 5절에 정의됨)
+
+#### 클리어 화면 천장 위젯
+- 5tick 가로바 + 숫자 + 힌트 (`#end-pity-gauge`)
+- 0.6s 지연 후 갱신: before → after 채우기 애니메이션
+- `justFilled`: ✨ "천장 도달! 다음 클리어 = 무조건 조우" + tick 펄스
+- `encountered`: 🎯 "조우 발동! (다음 세션에서 구현)" + 5→0 리셋
+- 로비 ⭐ 천장 카드도 5/5 도달 시 노란 그라디언트 + pulse 애니메이션
+
+#### "처음으로" 버튼 = 계정 초기화 정비
+- dev용 계정 초기화 개념. 14개 키 일괄 청소 (신키 + 레거시 안전망 모두)
+- 청소: profile/stage/intro/gold/diamond/candy/dex/dexCaught/unlocked/slots/skinNew/pityMain/pityRepeat/encounterStreak
+- 보존: highScore, darkMode (환경 설정)
+- 메모리 캐시 동기화: currentStage=1, currentGold=0, devUnlocked=false
+- UI 갱신: gold/diamond/streak/skinBadge + DEV 버튼 active 해제 + 배치 탭 hidden
+
+### 💡 세션 2 교훈
+
+1. **CSS aspect-ratio는 자식 컨텐츠 크기에 밀리면 무력화**: 도트 GIF 본래 96px이 셀을 늘려서 행 단위 침범 발생. `grid-auto-rows` row 높이 강제 + 셀 `min-height:0` + `overflow:hidden`이 안정적. 컨텐츠가 부모를 결정하지 않고 부모가 컨텐츠를 결정하도록 흐름 뒤집기.
+2. **이미 보유한 자산을 먼저 활용**: 도감 실루엣을 별도 자산으로 구하기 전에, 어제 받은 5세대 BW 도트(151 GIF)를 흑백 처리하니 즉시 명확한 실루엣 확보. 자산 추가 비용 0.
+3. **localStorage 키 라이프사이클**: 신키 도입 시 ① 마이그레이션 코드 ② 옛 키 보존(롤백 안전망) ③ "초기화" 버튼은 신키+옛키 모두 청소 — 세 가지가 일관되어야 사용자 혼란 없음.
+4. **`position: absolute` overlay의 부모 종속성**: `#dev-pw-overlay`가 `#game-container.hidden` 안에 있어 로비에서 못 띄움. body 직속으로 이동하니 `inset:0`만으로 viewport 덮어 정상 동작.
+5. **스펙 변경은 기획서 먼저**: 사탕 종별→공통 변경 시 design_system.md v0.5 changelog + 본문 4-7을 먼저 갱신한 뒤 코드 수정 — 코드와 문서가 어긋나지 않음.
+
+---
+
 ## 2026.05.05 (15일차)
 
 ### 🎯 메타게임 기획 v0.4 / v0.5 정리

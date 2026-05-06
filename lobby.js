@@ -133,7 +133,9 @@ function readDeckSlots(){
 }
 
 // ── 도감 / 풀밭 단계 ──
+// dex.js 신스펙 우선, 미로드 환경에서 legacy 배열 폴백
 function readCaughtList(){
+  if(typeof getCapturedIds==='function') return getCapturedIds();
   try{
     const raw=JSON.parse(localStorage.getItem('hexPuzzleDexCaught')||'null');
     if(Array.isArray(raw)) return raw;
@@ -243,9 +245,13 @@ function startLobbyMeadow(){
     const angle=(i/slots.length)*Math.PI*2;
     const cx=w*0.5, cy=h*0.7;
     const r=Math.min(w,h)*0.22;
+    // 콜라이더 반경: 픽셀 높이의 35% (시각 절반보다 살짝 작게 — 너무 빡빡하면 분산이 어색)
+    const collideR=getPokemonPixelHeight(dexId)*0.35;
     return {
       el,
       auraEl,
+      dexId,
+      collideR,
       x:cx+Math.cos(angle)*r,
       y:cy+Math.sin(angle)*r*0.6,
       vx:0, vy:0,
@@ -387,6 +393,36 @@ function startLobbyMeadow(){
       }
     }
 
+    // 콜라이더: 마리끼리 겹치면 서로 밀어내기 (pairwise separation)
+    // 각자 collideR 반경 기준, 거리가 r1+r2보다 가까우면 절반씩 정반대로 push.
+    // 한 프레임당 1패스로 충분 (다음 프레임에서 잔여 겹침 추가 분리).
+    for(let i=0;i<mons.length;i++){
+      const a=mons[i];
+      if(a.isTrainer) continue;
+      for(let j=i+1;j<mons.length;j++){
+        const c=mons[j];
+        if(c.isTrainer) continue;
+        const minD=(a.collideR||24)+(c.collideR||24);
+        const dx=c.x-a.x, dy=c.y-a.y;
+        const d=Math.hypot(dx,dy);
+        if(d>0.001&&d<minD){
+          const overlap=(minD-d)*0.5;
+          const ux=dx/d, uy=dy/d;
+          a.x-=ux*overlap; a.y-=uy*overlap;
+          c.x+=ux*overlap; c.y+=uy*overlap;
+          // 클램프 재적용 (push로 경계 밖으로 밀려날 수 있음)
+          if(a.x<leftX) a.x=leftX; if(a.x>rightX) a.x=rightX;
+          if(a.y<topY)  a.y=topY;  if(a.y>botY)  a.y=botY;
+          if(c.x<leftX) c.x=leftX; if(c.x>rightX) c.x=rightX;
+          if(c.y<topY)  c.y=topY;  if(c.y>botY)  c.y=botY;
+          a.el.style.left=a.x+'px'; a.el.style.top=a.y+'px';
+          c.el.style.left=c.x+'px'; c.el.style.top=c.y+'px';
+          if(a.auraEl){ a.auraEl.style.left=a.x+'px'; a.auraEl.style.top=(a.y-2)+'px'; }
+          if(c.auraEl){ c.auraEl.style.left=c.x+'px'; c.auraEl.style.top=(c.y-2)+'px'; }
+        }
+      }
+    }
+
     // z-order: 아래쪽(=y큰) 친구가 앞에 보이도록.
     // 각 마리에 (i*2+1) 부여하고, aura는 (i*2)로 항상 자기 도트 바로 뒤에 배치.
     mons.slice().sort((a,b)=>a.y-b.y).forEach((p,i)=>{
@@ -445,8 +481,13 @@ function runIntroSequence(){
   setTimeout(()=>{ nextBtn.disabled=false; }, totalMs);
 
   nextBtn.onclick=()=>{
-    // 도감/슬롯/플래그 일괄 저장
-    localStorage.setItem('hexPuzzleDexCaught',JSON.stringify(starters));
+    // 도감 풀스펙으로 6종 포획 등록 (state=captured + biggest/smallest 기준치 시드)
+    if(typeof captureNow==='function'){
+      for(const id of starters) captureNow(id);
+    } else {
+      // 폴백: dex.js 미로드 환경
+      localStorage.setItem('hexPuzzleDexCaught',JSON.stringify(starters));
+    }
     localStorage.setItem('hexPuzzleSlots',JSON.stringify(starters));
     localStorage.setItem('hexPuzzleIntroDone','1');
     if(typeof showScreen==='function') showScreen('lobby-screen');

@@ -71,8 +71,10 @@ const CFG_META = [
 // ── 스킨/스프라이트 시트 ──
 const SPRITE_SHEET='pokemon_sprites_1.png';
 const SPRITE_COLS=15, SPRITE_SIZE=215, SHEET_W=3228, SHEET_H=2375;
-const DEFAULT_UNLOCKED=[1,4,7,10,15,25];
-const DEFAULT_SLOTS=[1,4,7,10,15,25];
+// v0.5 인트로 6종: 이상해씨 / 파이리 / 꼬부기 / 캐터피 / 구구 / 피카츄
+const DEFAULT_UNLOCKED=[1,4,7,10,16,25];
+const DEFAULT_SLOTS=[1,4,7,10,16,25];
+const DEX_TOTAL=151;
 
 // ── 입력/힌트/로그 ──
 const DRAG_THRESHOLD=20;
@@ -90,6 +92,12 @@ const OPPOSITE_DIR={up:'down',down:'up',ne:'sw',sw:'ne',nw:'se',se:'nw'};
 
 // ── 개발자 모드 ──
 const DEV_PASSWORD='1013love';
+
+// ── 천장 시스템 (v0.5) ──
+// 5번 연속 무조우 시 다음 클리어 100% 조우 보장. 메인/반복 독립 카운터.
+const PITY_THRESHOLD=5;
+const PITY_KEY_MAIN='hexPuzzlePityMain';
+const PITY_KEY_REPEAT='hexPuzzlePityRepeat';
 
 // ── 타입 색상 (18타입 — 로비 발밑 오라/도감 등 시각 표시 공통) ──
 const TYPE_COLORS={

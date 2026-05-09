@@ -194,6 +194,25 @@
     </div>
   </div>
 
+  <!-- ── 야생 조우 화면 (v0.5 Stage A+B) ── -->
+  <div id="encounter-screen" class="hidden">
+    <div class="enc-vortex" aria-hidden="true"></div>
+    <div class="enc-content">
+      <div class="enc-region" id="enc-region"></div>
+      <div class="enc-msg" id="enc-msg">야생 ???이(가) 나타났다!</div>
+      <div class="enc-sprite" id="enc-sprite"></div>
+      <div class="enc-meta">
+        <span class="enc-num" id="enc-num">#000</span>
+        <span class="enc-types" id="enc-types"></span>
+      </div>
+      <div class="enc-buttons">
+        <button id="enc-catch-btn" class="enc-btn enc-btn-catch" type="button">포획 시도</button>
+        <button id="enc-flee-btn" class="enc-btn enc-btn-flee" type="button">도망가기</button>
+      </div>
+      <div class="enc-stage-hint">포획 시스템은 다음 세션에서 구현됩니다</div>
+    </div>
+  </div>
+
   <div id="game-container" class="hidden">
     <!-- 설정 바 (Play 전, 레거시 — 로비에서 바로 startGame으로 넘어가므로 거의 노출 안 됨) -->
     <div id="settings-bar" class="hidden">
@@ -240,6 +259,9 @@
 
     <!-- STOP 버튼 (하단 중앙 고정) -->
     <button id="stop-btn">STOP</button>
+
+    <!-- DEV 즉시 클리어 버튼 (개발자 모드 인증 후 노출, 단축키 C) -->
+    <button id="dev-clear-btn" class="hidden" type="button" title="C 키로도 클리어 가능">⚡ 클리어! (C)</button>
 
     <!-- 배치 도구 슬라이드 패널 (개발자 모드 인증 후 노출) -->
     <div id="placement-panel">
@@ -402,6 +424,7 @@
   <script src="monster_table.js"></script>
   <script src="dex.js"></script>
   <script src="pity.js"></script>
+  <script src="encounter.js"></script>
   <script src="lobby.js"></script>
   <script src="game.js"></script>
   <script src="main.js"></script>

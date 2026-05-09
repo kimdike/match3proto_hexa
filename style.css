@@ -2739,6 +2739,170 @@ h1 {
   50%     { transform: scale(1.12); box-shadow: 0 0 14px rgba(255, 200, 0, 0.95); }
 }
 
+/* ── DEV 즉시 클리어 버튼 (개발자 모드 인증 시 노출) ── */
+#dev-clear-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 30;
+  padding: 6px 10px;
+  background: linear-gradient(135deg, #ff5252, #c62828);
+  color: #fff;
+  border: 1.5px solid #fff;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  box-shadow: 0 3px 8px rgba(198, 40, 40, 0.5);
+  transition: transform 0.1s, box-shadow 0.2s;
+}
+#dev-clear-btn.hidden { display: none; }
+#dev-clear-btn:hover { box-shadow: 0 5px 14px rgba(255, 82, 82, 0.7); }
+#dev-clear-btn:active { transform: translateY(2px); }
+
+/* ── 야생 조우 화면 (v0.5 Stage A+B) ── */
+#encounter-screen {
+  position: relative;
+  width: 390px;
+  height: 844px;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: radial-gradient(ellipse at center, #2a1a3a 0%, #150818 70%, #050208 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--frame-shadow);
+  margin: 0;
+  padding: 0;
+  max-width: none;
+  min-height: 0;
+}
+#encounter-screen.hidden { display: none; }
+/* 등장 시 페이드인만 (transform은 frameScale이 차지하므로 충돌 회피) */
+#encounter-screen:not(.hidden) > .enc-vortex,
+#encounter-screen:not(.hidden) > .enc-content {
+  animation: encFadeIn 0.5s ease-out;
+}
+@keyframes encFadeIn {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+.enc-vortex {
+  position: absolute;
+  inset: -50%;
+  background:
+    conic-gradient(from 0deg, transparent 0%, rgba(255,180,80,0.18) 25%, transparent 50%, rgba(120,80,200,0.18) 75%, transparent 100%);
+  animation: encVortexSpin 4s linear infinite;
+  pointer-events: none;
+  filter: blur(10px);
+  opacity: 0.85;
+}
+@keyframes encVortexSpin {
+  to { transform: rotate(360deg); }
+}
+.enc-content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  padding: 0 28px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.enc-region {
+  font-size: 12px;
+  letter-spacing: 4px;
+  color: #ffd97a;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  text-shadow: 0 0 8px rgba(255, 180, 0, 0.4);
+}
+.enc-msg {
+  font-family: 'Black Han Sans', sans-serif;
+  font-size: 24px;
+  color: #fff;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.8), 0 0 12px rgba(255, 200, 100, 0.4);
+  margin-bottom: 8px;
+}
+.enc-sprite {
+  width: 160px;
+  height: 160px;
+  filter: drop-shadow(0 6px 16px rgba(0,0,0,0.6));
+  animation: encSpriteBob 1.4s ease-in-out infinite;
+}
+@keyframes encSpriteBob {
+  0%, 100% { transform: translateY(0);     }
+  50%      { transform: translateY(-6px);  }
+}
+.enc-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+.enc-num {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffd97a;
+  letter-spacing: 1px;
+}
+.enc-types {
+  display: inline-flex;
+  gap: 6px;
+}
+.enc-type-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+  letter-spacing: 0.5px;
+}
+.enc-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+  width: 100%;
+}
+.enc-btn {
+  flex: 1;
+  padding: 14px 12px;
+  border: none;
+  border-radius: 14px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.2s ease;
+}
+.enc-btn:active { transform: translateY(2px); }
+.enc-btn-catch {
+  background: linear-gradient(135deg, #ffc24a, #f59e0b);
+  color: #3a2400;
+  box-shadow: 0 5px 0 #c47800, 0 8px 16px rgba(0,0,0,0.4);
+}
+.enc-btn-catch:hover { box-shadow: 0 5px 0 #c47800, 0 8px 22px rgba(255, 180, 80, 0.5); }
+.enc-btn-flee {
+  background: linear-gradient(135deg, #6b6b6b, #4a4a4a);
+  color: #fff;
+  box-shadow: 0 5px 0 #2c2c2c, 0 8px 16px rgba(0,0,0,0.4);
+}
+.enc-btn-flee:hover { box-shadow: 0 5px 0 #2c2c2c, 0 8px 22px rgba(120, 120, 120, 0.5); }
+.enc-stage-hint {
+  margin-top: 14px;
+  font-size: 11px;
+  color: rgba(255, 217, 122, 0.6);
+  font-style: italic;
+}
+
 /* 신규 해금 레드닷 — 로비 🎨 스킨 버튼 */
 .lobby-menu-btn { position: relative; }
 .lobby-menu-btn.has-new::after {

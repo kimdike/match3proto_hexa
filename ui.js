@@ -141,15 +141,21 @@ function showEndScreen(cleared){
     addGold(goldReward);
     sc.textContent=`\uD83E\uDE99 +${goldReward.toLocaleString()} \uACE8\uB4DC \uD68D\uB4DD!`;
     sc.classList.remove('hidden');
+    // 방금 클리어한 스테이지 (해금 후 증가하기 전 값 보존)
+    const clearedStage=currentStage;
     // 다음 스테이지 해금
     if(currentStage<TOTAL_STAGES){
       currentStage++;
       localStorage.setItem('hexPuzzleStage',currentStage);
     }
-    // 천장 게이지 판정 + 위젯 갱신 (조우 분기는 stub)
+    // 천장 게이지 판정 + 위젯 갱신 + 조우 결정 (Stage A)
     if(typeof rollEncounter==='function'){
       const result=rollEncounter('main');
       renderEndPityGauge(result);
+      // 조우 시스템: 천장 결과 + 자체 25% 확률로 조우 결정 (combo는 향후 게임 중 최대 추적 후 전달)
+      if(typeof decideEncounter==='function'){
+        decideEncounter(clearedStage, result, 0, 'main');
+      }
     }
   }else{
     icon.textContent='\uD83D\uDE22';title.textContent='\uC2E4\uD328...';title.className='fail';
@@ -248,7 +254,16 @@ function setupUI(){
     });
   });
   document.getElementById('play-btn').addEventListener('click',()=>{if(!playing) startGame();});
-  document.getElementById('restart-btn').addEventListener('click',()=>resetToStart());
+  document.getElementById('restart-btn').addEventListener('click',()=>{
+    // 조우 결정됐으면 조우 화면 띄움 (도망/포획 후 로비로)
+    if(typeof getPendingEncounter==='function' && getPendingEncounter()){
+      showEncounterScreen();
+      return;
+    }
+    resetToStart();
+  });
+  // 조우 화면 버튼 바인딩
+  if(typeof setupEncounterScreen==='function') setupEncounterScreen();
   // 재도전 버튼: 같은 스테이지 다시 시작 (실패 시에만 노출됨)
   const _retryBtn=document.getElementById('retry-btn');
   if(_retryBtn) _retryBtn.addEventListener('click',()=>{
@@ -260,7 +275,16 @@ function setupUI(){
   document.getElementById('confirm-yes').addEventListener('click',()=>resetToStart());
   document.getElementById('confirm-no').addEventListener('click',()=>hideConfirm());
   document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+  // DEV 즉시 클리어 버튼 (인게임 우상단, devUnlocked 시 노출)
+  const devClearBtn=document.getElementById('dev-clear-btn');
+  if(devClearBtn) devClearBtn.addEventListener('click',()=>devForceClear());
   document.addEventListener('keydown', (e) => {
+    // DEV 즉시 클리어 단축키 (C) — devUnlocked + 인게임에서만
+    if(e.code==='KeyC' && devUnlocked && playing){
+      e.preventDefault();
+      devForceClear();
+      return;
+    }
     const mouseCell = getCellFromMouse();
     if (e.code !== 'Space') return;
     e.preventDefault();
@@ -270,6 +294,15 @@ function setupUI(){
     hoveredCell = mouseCell;
     removeBlockAt(mouseCell.col, mouseCell.row).catch(err => console.error('removeBlockAt error', err));
   });
+}
+
+// DEV 즉시 클리어 — 돌 미션/점수 양쪽 충족시켜 cleared=true 분기 트리거
+function devForceClear(){
+  if(!devUnlocked || !playing) return;
+  totalStones=0;          // 돌 미션 클리어 조건
+  score=stageTarget;      // 점수 클리어 조건 (돌 없는 스테이지 fallback)
+  if(typeof playSfx==='function') playSfx('btn_click');
+  if(typeof checkGameEnd==='function') checkGameEnd();
 }
 
 // ── 개발자 모드: 특수블록 배치 ──
@@ -328,6 +361,8 @@ function setupDevMode(){
       devUnlocked=false;
       const placeTab=document.getElementById('placement-tab');
       if(placeTab) placeTab.classList.add('hidden');
+      const devClearBtn=document.getElementById('dev-clear-btn');
+      if(devClearBtn) devClearBtn.classList.add('hidden');
       lobbyDevBtn.classList.remove('active');
     } else {
       pwOverlay.classList.remove('hidden');
@@ -349,6 +384,9 @@ function setupDevMode(){
       // 배치 도구 탭 노출
       const placeTab=document.getElementById('placement-tab');
       if(placeTab) placeTab.classList.remove('hidden');
+      // DEV 즉시 클리어 버튼 노출 (인게임에서만 보이지만 hidden 클래스만 토글)
+      const devClearBtn=document.getElementById('dev-clear-btn');
+      if(devClearBtn) devClearBtn.classList.remove('hidden');
       // 로비 dev 버튼 활성 표시
       const lobbyBtn=document.getElementById('lobby-dev-btn');
       if(lobbyBtn) lobbyBtn.classList.add('active');
@@ -482,7 +520,7 @@ function buildInspector(){
 // ── 반응형 스케일 ──
 // 390×844 모바일 프레임 + 내부 그리드 각각 scale 계산
 const FRAME_W=390, FRAME_H=844;
-const FRAME_SCREEN_IDS=['main-screen','character-select-screen','nickname-screen','intro-screen','lobby-screen','game-container'];
+const FRAME_SCREEN_IDS=['main-screen','character-select-screen','nickname-screen','intro-screen','lobby-screen','encounter-screen','game-container'];
 
 function resizeGrid(){
   const gameContainer=document.getElementById('game-container');
@@ -520,7 +558,7 @@ function resizeGrid(){
 
 // ── 화면 전환 ──
 function showScreen(id){
-  ['main-screen','character-select-screen','nickname-screen','intro-screen','lobby-screen','skin-screen','dex-screen','game-container'].forEach(s=>{
+  ['main-screen','character-select-screen','nickname-screen','intro-screen','lobby-screen','skin-screen','dex-screen','encounter-screen','game-container'].forEach(s=>{
     const el=document.getElementById(s);
     if(el) el.classList.add('hidden');
   });
@@ -941,6 +979,8 @@ function setupScreenNav(){
       if(lobbyDevBtn) lobbyDevBtn.classList.remove('active');
       const placeTab=document.getElementById('placement-tab');
       if(placeTab) placeTab.classList.add('hidden');
+      const devClearBtn=document.getElementById('dev-clear-btn');
+      if(devClearBtn) devClearBtn.classList.add('hidden');
 
       // showScreen이 SCREEN_BGM 매핑으로 main-bgm 재시작 처리
       showScreen('main-screen');

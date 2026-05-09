@@ -49,6 +49,50 @@ function _findTutorialMonster(stage){
 
 // pendingEncounter 전역 (모듈 내부)
 let _pending = null;
+// 던지기 연출 중 플래그 (중복 클릭 방지)
+let _throwing = false;
+
+// 볼 셀렉터 — 좌우 스와이프로 4종 순환
+const BALL_CYCLE = ['basic','super','hyper','master'];
+let _selectedBallIdx = 0;
+function getSelectedBall(){ return BALL_CYCLE[_selectedBallIdx]; }
+
+// 포획 확률 → 감성 표현 (난이도 dots + 라벨)
+//   tier: low / mid / high / guaranteed (CSS data-tier 매핑)
+//   failStack 누적될수록 dots/tier 자연스럽게 상승 (실패가 의미 있도록)
+function getCatchDifficulty(ballType, monster, failStack){
+  if(ballType==='master') return { dots:'★★★', label:'확정 포획', tier:'guaranteed' };
+  if(typeof computeCatchRate!=='function') return { dots:'●○○', label:'어려움', tier:'low' };
+  const rate = computeCatchRate(ballType, monster, (failStack|0), 0);
+  if(rate >= 1.0) return { dots:'★★★', label:'확정 포획', tier:'guaranteed' };
+  if(rate >= 0.7) return { dots:'●●●', label:'높음',     tier:'high' };
+  if(rate >= 0.4) return { dots:'●●○', label:'보통',     tier:'mid' };
+  return                  { dots:'●○○', label:'어려움', tier:'low' };
+}
+
+// ── 자동 도망 영구 토글 ──
+const AUTO_FLEE_KEY      = 'hexPuzzleAutoFlee';
+const AUTO_FLEE_SEEN_KEY = 'hexPuzzleAutoFleeSeen'; // 첫 ON 이후 로비 토글 노출 트리거
+function getAutoFlee(){
+  return localStorage.getItem(AUTO_FLEE_KEY) === '1';
+}
+function hasSeenAutoFlee(){
+  return localStorage.getItem(AUTO_FLEE_SEEN_KEY) === '1';
+}
+function setAutoFlee(on){
+  if(on){
+    localStorage.setItem(AUTO_FLEE_KEY, '1');
+    // 첫 ON 시점 — 로비 토글 노출 시작
+    if(!hasSeenAutoFlee()) localStorage.setItem(AUTO_FLEE_SEEN_KEY, '1');
+  } else {
+    localStorage.removeItem(AUTO_FLEE_KEY);
+  }
+  // 조우 화면 체크박스 동기화
+  const chk = document.getElementById('enc-auto-flee-check');
+  if(chk) chk.checked = on;
+  // 로비 토글 동기화
+  if(typeof updateLobbyAutoFleeUI==='function') updateLobbyAutoFleeUI();
+}
 
 // 클리어 후 호출. 조우 발생 여부 결정 + 풀에서 1마리 뽑아 _pending에 저장.
 //   stage:     현재 클리어한 스테이지 번호
@@ -143,20 +187,46 @@ function showEncounterScreen(){
     console.warn('[encounter] showEncounterScreen 호출됐지만 _pending 없음');
     return;
   }
+
+  // 자동도망 ON이면 즉시 도망 (조우 화면 안 띄움)
+  if(getAutoFlee()){
+    console.log('[encounter] 자동도망 ON — 화면 띄우지 않고 즉시 도망');
+    fleeEncounter();
+    return;
+  }
+
   const screen = document.getElementById('encounter-screen');
   if(!screen) return;
 
-  // 컨텐츠 채우기
+  // 결과 패널 숨기고 메인 패널 표시 (재시도/재진입 시 초기화)
+  const resultPanel = document.getElementById('enc-result');
+  const mainPanel   = document.getElementById('enc-content-main');
+  if(resultPanel) resultPanel.classList.add('hidden');
+  if(mainPanel)   mainPanel.classList.remove('hidden');
+
+  // 자동도망 v체크 — 영구 저장값 반영 (이 시점엔 OFF여서 화면 띄워졌다는 의미)
+  const autoChk = document.getElementById('enc-auto-flee-check');
+  if(autoChk) autoChk.checked = getAutoFlee();
+
   const m = _pending.monster;
-  const msgEl = document.getElementById('enc-msg');
-  if(msgEl) msgEl.textContent = `야생 ${m.name_ko}이(가) 나타났다!`;
+
+  // 타입별 배경 분위기 (첫 번째 타입 기준)
+  const primaryType = (Array.isArray(m.types) && m.types[0]) ? m.types[0] : 'normal';
+  screen.dataset.regionType = primaryType;
+
+  // 큰 이름 — "야생 OO!"
+  const nameEl = document.getElementById('enc-name');
+  if(nameEl) nameEl.textContent = `야생 ${m.name_ko}!`;
 
   const spriteEl = document.getElementById('enc-sprite');
   if(spriteEl){
+    // 이전 조우의 sucking/escaping 잔재 청소 (성공 후 재진입 시 sprite가 안 보이는 문제 방지)
+    spriteEl.classList.remove('sucking', 'escaping');
     spriteEl.style.backgroundImage = `url("assets/dot/pokemon/${m.id}.gif")`;
     spriteEl.style.backgroundSize = 'contain';
     spriteEl.style.backgroundPosition = 'center';
     spriteEl.style.backgroundRepeat = 'no-repeat';
+    void spriteEl.offsetWidth; // reflow로 base bob 재시작
   }
 
   const typesEl = document.getElementById('enc-types');
@@ -184,12 +254,86 @@ function showEncounterScreen(){
     regionEl.textContent = _pending.region.name_ko + suffix;
   }
 
+  // 볼 셀렉터 — 첫 번째 볼(기본볼)부터 시작, 카운트 + 난이도 동기화
+  _selectedBallIdx = 0;
+  refreshSelectedBall();
+
   // 화면 전환 (클리어 화면 닫고 조우 화면 띄움)
   if(typeof hideEndScreen==='function') hideEndScreen();
   if(typeof showScreen==='function') showScreen('encounter-screen');
 
-  // 임시 띠로리 (Stage A+B는 sfx_select 재사용, 후속에서 sfx_wild_encounter로 교체)
+  // 임시 띠로리 (sfx_select 재사용, 후속에서 sfx_wild_encounter로 교체)
   if(typeof playSfx==='function') playSfx('select');
+}
+
+// 볼 잔여 카운트 갱신 (개발자 패널 + 조우 화면 셀렉터 양쪽 동기화)
+function refreshBallButtons(){
+  if(typeof getAllBalls!=='function') return;
+  const balls = getAllBalls();
+  const order = (typeof BALL_ORDER!=='undefined') ? BALL_ORDER : ['basic','super','hyper','master'];
+  for(const t of order){
+    // 모든 [data-ball-count] (개발자 패널 등) 갱신
+    document.querySelectorAll(`[data-ball-count="${t}"]`).forEach(el=>{
+      el.textContent = balls[t]|0;
+    });
+  }
+  // 조우 화면 셀렉터도 같이 갱신
+  refreshSelectedBall();
+}
+
+// 볼 셀렉터 좌우 순환
+function cycleBall(dir){
+  _selectedBallIdx = (_selectedBallIdx + dir + BALL_CYCLE.length) % BALL_CYCLE.length;
+  refreshSelectedBall();
+  if(typeof playSfx==='function') playSfx('btn_click');
+}
+
+// 셀렉터 큰 볼 + 이름 + 수량 + 난이도 + 던지기 버튼 활성/비활성 갱신
+function refreshSelectedBall(){
+  const t = getSelectedBall();
+  const balls = (typeof getAllBalls==='function') ? getAllBalls() : {basic:0,super:0,hyper:0,master:0};
+
+  // 큰 볼 비주얼 (클래스 교체)
+  const big = document.getElementById('enc-ball-big');
+  if(big){
+    big.className = 'enc-ball-big enc-ball-icon enc-ball-' + t;
+  }
+  // 이름
+  const nameEl = document.getElementById('enc-ball-name-line');
+  if(nameEl){
+    const names = (typeof BALL_NAMES!=='undefined') ? BALL_NAMES : {basic:'기본볼',super:'슈퍼볼',hyper:'하이퍼볼',master:'마스터볼'};
+    nameEl.textContent = names[t] || t;
+  }
+  // 수량
+  const cntNum = document.querySelector('.enc-ball-count-num[data-ball-count]');
+  if(cntNum){
+    cntNum.dataset.ballCount = t;          // 셀렉터 카운트도 현재 볼로 동기화
+    cntNum.textContent = balls[t]|0;
+  }
+
+  // 난이도 (감성 표현 — 현재 도감 entry의 failStack 반영해서 누적 보정 시각화)
+  if(_pending){
+    let fs = 0;
+    if(typeof getDexEntry==='function'){
+      fs = getDexEntry(_pending.monster.id)?.failStack | 0;
+    }
+    const diff = getCatchDifficulty(t, _pending.monster, fs);
+    const wrap   = document.getElementById('enc-ball-difficulty');
+    const dotsEl = document.getElementById('enc-diff-dots');
+    const lblEl  = document.getElementById('enc-diff-label');
+    if(wrap)   wrap.dataset.tier = diff.tier;
+    if(dotsEl) dotsEl.textContent = diff.dots;
+    if(lblEl)  lblEl.textContent  = diff.label;
+  }
+
+  // 던지기 버튼 활성/비활성 + data-ball
+  const throwBtn = document.getElementById('enc-throw-btn');
+  if(throwBtn){
+    const empty = (balls[t]|0) <= 0;
+    throwBtn.disabled = empty || _throwing;
+    throwBtn.classList.toggle('disabled', empty);
+    throwBtn.dataset.ball = t;
+  }
 }
 
 // 도망가기 — 도감에 "발견" 등록 후 로비로
@@ -206,28 +350,270 @@ function fleeEncounter(){
   if(typeof resetToStart==='function') resetToStart();
 }
 
-// 포획 (Stage C에서 구현 — 현재 stub)
-function tryCatchEncounter(){
-  console.log('[encounter] 포획은 다음 세션 (Stage C)에서 구현');
+// 작은 헬퍼: ms 대기
+const _delay = ms => new Promise(r => setTimeout(r, ms));
+
+// 메인 패널 입력 잠금/해제 (던지는 중 중복 클릭 방지)
+function setEncActionsDisabled(disabled){
+  // 던지기 버튼
+  const throwBtn = document.getElementById('enc-throw-btn');
+  if(throwBtn){
+    if(disabled) throwBtn.disabled = true;
+    else {
+      const t = getSelectedBall();
+      const remain = (typeof getBalls==='function') ? getBalls(t) : 0;
+      throwBtn.disabled = remain <= 0;
+      throwBtn.classList.toggle('disabled', remain <= 0);
+    }
+  }
+  // 좌우 화살표
+  document.getElementById('enc-ball-prev')?.toggleAttribute?.('disabled', !!disabled);
+  document.getElementById('enc-ball-next')?.toggleAttribute?.('disabled', !!disabled);
+  // 도망 X
+  const fleeX = document.getElementById('enc-flee-x');
+  if(fleeX) fleeX.disabled = !!disabled;
+  // 자동 도망 v체크
+  const chk = document.getElementById('enc-auto-flee-check');
+  if(chk) chk.disabled = !!disabled;
+}
+
+// 던지기 애니메이션 파이프라인
+//   1) 볼 객체 생성 → 던지기 비행 (포물선 + 회전 720)
+//   2) 몬스터 흡수 (빨간 flash → scale 0)
+//   3) 흔들림 3회 (점점 약해짐)
+//   4) 결과: 잡힘(별빛) / 실패(볼 깨짐 + 몬스터 재등장)
+async function playThrowAnimation(ballType, success){
+  const screen = document.getElementById('encounter-screen');
+  const sprite = document.getElementById('enc-sprite');
+  if(!screen) return;
+
+  // 던지는 볼 객체 (메인 패널과 같은 enc-content-main 안에 추가 — 화면 좌표계 공유)
+  const main = document.getElementById('enc-content-main') || screen;
+  const ball = document.createElement('div');
+  ball.className = `enc-thrown-ball enc-ball-icon enc-ball-${ballType}`;
+  main.appendChild(ball);
+
+  // 1) 던지기 비행
+  await _delay(30); // DOM 안정화 (animation 트리거 보장)
+  ball.classList.add('throwing');
+  await _delay(600);
+
+  // 2) 몬스터 흡수 (빨간 flash + scale 0)
+  if(sprite) sprite.classList.add('sucking');
+  await _delay(500);
+
+  // 3) 흔들림 3회 (점점 약해짐: 12 → 8 → 4)
+  ball.classList.remove('throwing');
+  ball.classList.add('wobbling');
+  await _delay(1200);
+
+  // 4) 결과 연출
+  ball.classList.remove('wobbling');
+  if(success){
+    ball.classList.add('caught');
+    await _delay(500);
+  } else {
+    ball.classList.add('broken');
+    if(sprite){
+      sprite.classList.remove('sucking');
+      sprite.classList.add('escaping');
+    }
+    await _delay(500);
+  }
+
+  // 정리: 볼 제거 + 스프라이트 상태 처리
+  ball.remove();
+  if(sprite){
+    if(success){
+      // 성공 — 스프라이트는 볼 안에 들어간 상태(scale 0) 유지. popup이 결과 표시.
+      // 다음 조우 진입 시 showEncounterScreen에서 reset됨.
+    } else {
+      // 실패 — 몬스터가 다시 등장한 상태로 복귀, bob 애니 재개
+      sprite.classList.remove('sucking', 'escaping');
+      void sprite.offsetWidth;
+    }
+  }
+}
+
+// 포획 시도 — 볼 1개 소비 → 던지기 연출 → 결과 패널
+async function tryCatchEncounter(ballType){
+  if(!_pending) return;
+  if(_throwing) return;
+  if(typeof getBalls!=='function' || typeof consumeBall!=='function' || typeof tryCatch!=='function'){
+    console.warn('[encounter] balls.js 미로드');
+    return;
+  }
+  if(getBalls(ballType) <= 0){
+    console.log(`[encounter] ${ballType} 부족`);
+    return;
+  }
+
+  _throwing = true;
+
+  const m = _pending.monster;
+  let failStack = 0;
+  if(typeof getDexEntry==='function'){
+    const e = getDexEntry(m.id);
+    failStack = e?.failStack | 0;
+  }
+  const combo = 0; // TODO: 실제 게임 콤보 추적값 전달
+
+  consumeBall(ballType);
+  refreshBallButtons();
+  setEncActionsDisabled(true);
+  if(typeof playSfx==='function') playSfx('swap');
+
+  const success = tryCatch(ballType, m, failStack, combo);
+
+  // 던지기 → 흡수 → 흔들림 → 결과 (애니메이션 약 2.8s)
+  await playThrowAnimation(ballType, success);
+
+  if(success){
+    if(typeof captureNow==='function') captureNow(m.id);
+    console.log(`[encounter] 포획 성공 — #${m.id} ${m.name_ko} (${ballType})`);
+    showEncounterResult({ success: true, monster: m, ballType });
+  } else {
+    if(typeof incFailStack==='function') incFailStack(m.id);
+    console.log(`[encounter] 포획 실패 — #${m.id} ${m.name_ko} (${ballType}, failStack→${failStack+1})`);
+    showEncounterResult({ success: false, monster: m, ballType });
+  }
+
+  setEncActionsDisabled(false);
+  _throwing = false;
+}
+
+// 결과 오버레이 팝업 표시 (메인 패널 그대로 두고 모달로 띄움)
+function showEncounterResult(result){
+  const overlay  = document.getElementById('enc-result');
+  const iconEl   = document.getElementById('enc-result-icon');
+  const titleEl  = document.getElementById('enc-result-title');
+  const detailEl = document.getElementById('enc-result-detail');
+  if(!overlay) return;
+
+  overlay.classList.remove('success','failure');
+  overlay.classList.add(result.success ? 'success' : 'failure');
+
+  if(iconEl)  iconEl.textContent  = result.success ? '✨' : '💨';
+  if(titleEl) titleEl.textContent = result.success ? '잡았다!' : '앗! 도망쳤다!';
+  if(detailEl){
+    if(result.success){
+      detailEl.innerHTML = `#${String(result.monster.id).padStart(3,'0')} ${result.monster.name_ko}<br>도감 등록 + 사탕 +2`;
+    } else {
+      detailEl.innerHTML = `다음 시도 +5% 보정<br>실패 스택이 누적됐어`;
+    }
+  }
+
+  // 메인 패널은 그대로 두고 오버레이만 띄움 (같은 공간 안에서 결과 발생)
+  overlay.classList.remove('hidden');
+}
+
+// 자동도망 체크 — 영구 저장 + 켜진 시점이면 즉시 도망
+function onAutoFleeCheck(e){
+  const on = !!e.target.checked;
+  setAutoFlee(on);
+  // 체크된 순간 진행 중인 조우는 즉시 도망 (다음 조우부터 자동도망 + 이번도)
+  if(on) fleeEncounter();
+}
+
+// 로비 자동도망 토글 버튼 UI 갱신 (현재 localStorage 상태 반영)
+// 노출 조건: 한 번이라도 ON으로 켠 적이 있거나(seen) 현재 ON 상태일 때만 — 신규 유저에겐 숨김
+function updateLobbyAutoFleeUI(){
+  const btn = document.getElementById('lobby-auto-flee-btn');
+  if(!btn) return;
+  const on = getAutoFlee();
+  const seen = hasSeenAutoFlee();
+  // 신규 유저(아직 한 번도 ON 안 켰음 + 현재도 OFF) → 숨김
+  if(!seen && !on){
+    btn.style.display = 'none';
+    return;
+  }
+  btn.style.display = '';
+  btn.textContent = `🎯 자동도망 ${on ? 'ON' : 'OFF'}`;
+  btn.classList.toggle('on', on);
+}
+
+// 로비 토글 버튼 클릭 핸들러
+function onLobbyAutoFleeClick(){
+  const next = !getAutoFlee();
+  setAutoFlee(next);
   if(typeof playSfx==='function') playSfx('btn_click');
-  alert('포획 시스템은 다음 세션에서 구현됩니다.\n일단 도망가기로 도감에 발견 등록만 됩니다.');
 }
 
 // 화면 이벤트 바인딩 (한 번만)
 function setupEncounterScreen(){
-  const flee = document.getElementById('enc-flee-btn');
-  if(flee) flee.addEventListener('click', fleeEncounter);
-  const cat = document.getElementById('enc-catch-btn');
-  if(cat) cat.addEventListener('click', tryCatchEncounter);
+  // 좌상단 X — 도망
+  const fleeX = document.getElementById('enc-flee-x');
+  if(fleeX) fleeX.addEventListener('click', fleeEncounter);
+
+  // 볼 셀렉터 좌우 화살표
+  const prev = document.getElementById('enc-ball-prev');
+  const next = document.getElementById('enc-ball-next');
+  if(prev) prev.addEventListener('click', ()=>cycleBall(-1));
+  if(next) next.addEventListener('click', ()=>cycleBall(+1));
+
+  // 메인 CTA — 볼 던지기 (현재 선택된 볼 사용)
+  const throwBtn = document.getElementById('enc-throw-btn');
+  if(throwBtn) throwBtn.addEventListener('click', ()=>{
+    if(throwBtn.disabled) return;
+    tryCatchEncounter(getSelectedBall());
+  });
+
+  // 자동도망 v체크 — 변경 즉시 도망 + 영구 저장
+  const autoChk = document.getElementById('enc-auto-flee-check');
+  if(autoChk) autoChk.addEventListener('change', onAutoFleeCheck);
+
+  // 결과 오버레이 버튼들 (메인 패널은 항상 살아있음)
+  const retry = document.getElementById('enc-result-retry');
+  if(retry) retry.addEventListener('click', ()=>{
+    // 오버레이만 닫고 메인 패널로 돌아감 — 실패 스택 누적된 상태로 재시도
+    const overlay = document.getElementById('enc-result');
+    if(overlay) overlay.classList.add('hidden');
+    refreshBallButtons(); // 선택된 볼 잔여 + 난이도 dots 갱신 (failStack 반영)
+    if(typeof playSfx==='function') playSfx('btn_click');
+  });
+  const resultFlee = document.getElementById('enc-result-flee');
+  if(resultFlee) resultFlee.addEventListener('click', fleeEncounter);
+  const resultOk = document.getElementById('enc-result-ok');
+  if(resultOk) resultOk.addEventListener('click', ()=>{
+    // 계속하기 — 로비로 복귀
+    if(typeof playSfx==='function') playSfx('btn_click');
+    const overlay = document.getElementById('enc-result');
+    if(overlay) overlay.classList.add('hidden');
+    clearPendingEncounter();
+    if(typeof resetToStart==='function') resetToStart();
+  });
+  const resultDex = document.getElementById('enc-result-dex');
+  if(resultDex) resultDex.addEventListener('click', ()=>{
+    // 도감 보기 — 도감 화면으로 이동
+    if(typeof playSfx==='function') playSfx('btn_click');
+    const overlay = document.getElementById('enc-result');
+    if(overlay) overlay.classList.add('hidden');
+    clearPendingEncounter();
+    // 게임 상태 정리 (resetToStart 흐름과 유사하지만 화면만 도감으로)
+    if(typeof clearAllBlocks==='function') clearAllBlocks();
+    if(typeof showDexScreen==='function') showDexScreen();
+    else if(typeof showScreen==='function') showScreen('dex-screen');
+  });
+
+  // 로비 자동도망 토글 버튼
+  const lobbyAutoFlee = document.getElementById('lobby-auto-flee-btn');
+  if(lobbyAutoFlee) lobbyAutoFlee.addEventListener('click', onLobbyAutoFleeClick);
+  // 초기 UI 동기화
+  updateLobbyAutoFleeUI();
 }
 
 // 콘솔 디버그
 if(typeof window!=='undefined'){
   window.encounter = {
-    decide: decideEncounter,
-    pending: getPendingEncounter,
-    clear: clearPendingEncounter,
-    show: showEncounterScreen,
-    flee: fleeEncounter,
+    decide:      decideEncounter,
+    pending:     getPendingEncounter,
+    clear:       clearPendingEncounter,
+    show:        showEncounterScreen,
+    flee:        fleeEncounter,
+    tryCatch:    tryCatchEncounter,
+    showResult:  showEncounterResult,
+    refreshUI:   refreshBallButtons,
+    getAutoFlee, setAutoFlee,
+    cycleBall, getSelectedBall, getCatchDifficulty,
   };
 }

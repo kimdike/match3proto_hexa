@@ -110,6 +110,7 @@
     </div>
     <div class="lobby-character-area">
       <div id="lobby-meadow" class="lobby-meadow"></div>
+      <button id="lobby-auto-flee-btn" class="lobby-auto-flee-toggle" type="button" aria-label="자동 도망 토글">🎯 자동도망 OFF</button>
     </div>
     <button id="lobby-stage-btn" class="lobby-adventure-btn" type="button">
       <span class="lobby-adventure-info">
@@ -148,6 +149,7 @@
       </div>
       <div id="dex-detail-sprite" class="dex-detail-sprite"></div>
       <div id="dex-detail-info" class="dex-detail-info"></div>
+      <button id="dex-detail-equip" class="dex-detail-equip hidden" type="button">🎨 스킨으로 장착하기</button>
       <button id="dex-detail-debug-catch" class="dex-detail-debug hidden" type="button">⚡ 즉시 잡기 (DEV)</button>
     </div>
   </div>
@@ -194,22 +196,82 @@
     </div>
   </div>
 
-  <!-- ── 야생 조우 화면 (v0.5 Stage A+B) ── -->
+  <!-- ── 야생 조우 화면 (v0.5 Stage A~D) ── -->
   <div id="encounter-screen" class="hidden">
     <div class="enc-vortex" aria-hidden="true"></div>
-    <div class="enc-content">
+    <div class="enc-swirl" aria-hidden="true"></div>
+    <div class="enc-flash" aria-hidden="true"></div>
+
+    <!-- 타입별 분위기 레이어 -->
+    <div class="enc-bg-layer" id="enc-bg-layer" aria-hidden="true"></div>
+    <div class="enc-particles" id="enc-particles" aria-hidden="true"></div>
+
+    <!-- 메인 패널 — 포켓몬 GO 스타일 단일 흐름 -->
+    <div class="enc-content" id="enc-content-main">
+      <!-- 좌상단 X (도망 — 보조 액션) -->
+      <button id="enc-flee-x" class="enc-flee-x" type="button" aria-label="도망가기">×</button>
+
+      <!-- 상단 — 지역 + 큰 이름 -->
       <div class="enc-region" id="enc-region"></div>
-      <div class="enc-msg" id="enc-msg">야생 ???이(가) 나타났다!</div>
+      <div class="enc-name" id="enc-name">야생 ???!</div>
+
+      <!-- 포켓몬 도트 (메인) -->
       <div class="enc-sprite" id="enc-sprite"></div>
+
+      <!-- 메타: #번호 · 타입 -->
       <div class="enc-meta">
         <span class="enc-num" id="enc-num">#000</span>
         <span class="enc-types" id="enc-types"></span>
       </div>
-      <div class="enc-buttons">
-        <button id="enc-catch-btn" class="enc-btn enc-btn-catch" type="button">포획 시도</button>
-        <button id="enc-flee-btn" class="enc-btn enc-btn-flee" type="button">도망가기</button>
+
+      <!-- 볼 셀렉터 (좌우 화살표 + 큰 볼 + 이름/수량/난이도) -->
+      <div class="enc-ball-selector">
+        <button class="enc-ball-arrow" id="enc-ball-prev" type="button" aria-label="이전 볼">‹</button>
+        <div class="enc-ball-display">
+          <div class="enc-ball-big enc-ball-icon enc-ball-basic" id="enc-ball-big"></div>
+          <div class="enc-ball-name-line" id="enc-ball-name-line">기본볼</div>
+          <div class="enc-ball-count-line">
+            <span class="enc-ball-count-x">×</span>
+            <span class="enc-ball-count-num" data-ball-count="basic">0</span>
+          </div>
+          <div class="enc-ball-difficulty" id="enc-ball-difficulty" data-tier="low">
+            <span class="enc-diff-dots" id="enc-diff-dots">●○○</span>
+            <span class="enc-diff-label" id="enc-diff-label">어려움</span>
+          </div>
+        </div>
+        <button class="enc-ball-arrow" id="enc-ball-next" type="button" aria-label="다음 볼">›</button>
       </div>
-      <div class="enc-stage-hint">포획 시스템은 다음 세션에서 구현됩니다</div>
+
+      <!-- 메인 CTA: 볼 던지기 -->
+      <button id="enc-throw-btn" class="enc-throw-btn" type="button" data-ball="basic">
+        <span class="enc-throw-icon">⚡</span>
+        <span class="enc-throw-label">볼 던지기</span>
+      </button>
+
+      <!-- 자동 도망 (하단 작게) -->
+      <label class="enc-auto-flee">
+        <input type="checkbox" id="enc-auto-flee-check">
+        <span>다음부터 자동 도망 (도감만 등록)</span>
+      </label>
+    </div>
+
+    <!-- 결과 오버레이 (메인 패널 위에 모달 팝업으로 등장) -->
+    <div class="enc-result-overlay hidden" id="enc-result">
+      <div class="enc-result-burst" aria-hidden="true">
+        <span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span>
+      </div>
+      <div class="enc-result-popup">
+        <div class="enc-result-icon" id="enc-result-icon"></div>
+        <div class="enc-result-title" id="enc-result-title"></div>
+        <div class="enc-result-detail" id="enc-result-detail"></div>
+        <div class="enc-result-actions">
+          <button id="enc-result-retry" class="enc-popup-btn enc-popup-btn-secondary" type="button">다시 던지기</button>
+          <button id="enc-result-flee"  class="enc-popup-btn enc-popup-btn-secondary" type="button">도망가기</button>
+          <button id="enc-result-ok"    class="enc-popup-btn enc-popup-btn-primary"   type="button">계속하기</button>
+          <button id="enc-result-dex"   class="enc-popup-btn enc-popup-btn-secondary" type="button">도감 보기</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -347,6 +409,35 @@
           </div>
         </div>
         <div class="dev-section">
+          <div class="dev-section-title">몬스터볼 인벤토리 (±5)</div>
+          <div class="dev-ball-stepper-list">
+            <div class="dev-ball-stepper-row">
+              <span class="dev-ball-stepper-label">기본</span>
+              <button class="dev-ball-step" data-ball="basic" data-delta="-5" type="button">−</button>
+              <span class="dev-ball-stepper-num" data-ball-count="basic">0</span>
+              <button class="dev-ball-step" data-ball="basic" data-delta="5" type="button">+</button>
+            </div>
+            <div class="dev-ball-stepper-row">
+              <span class="dev-ball-stepper-label">슈퍼</span>
+              <button class="dev-ball-step" data-ball="super" data-delta="-5" type="button">−</button>
+              <span class="dev-ball-stepper-num" data-ball-count="super">0</span>
+              <button class="dev-ball-step" data-ball="super" data-delta="5" type="button">+</button>
+            </div>
+            <div class="dev-ball-stepper-row">
+              <span class="dev-ball-stepper-label">하이퍼</span>
+              <button class="dev-ball-step" data-ball="hyper" data-delta="-5" type="button">−</button>
+              <span class="dev-ball-stepper-num" data-ball-count="hyper">0</span>
+              <button class="dev-ball-step" data-ball="hyper" data-delta="5" type="button">+</button>
+            </div>
+            <div class="dev-ball-stepper-row">
+              <span class="dev-ball-stepper-label">마스터</span>
+              <button class="dev-ball-step" data-ball="master" data-delta="-5" type="button">−</button>
+              <span class="dev-ball-stepper-num" data-ball-count="master">0</span>
+              <button class="dev-ball-step" data-ball="master" data-delta="5" type="button">+</button>
+            </div>
+          </div>
+        </div>
+        <div class="dev-section">
           <div class="dev-section-title">스테이지 이동</div>
           <div class="dev-stage-row">
             <input id="dev-stage-input" type="number" class="insp-input" min="1" max="10" value="1" style="width:50px;">
@@ -424,6 +515,7 @@
   <script src="monster_table.js"></script>
   <script src="dex.js"></script>
   <script src="pity.js"></script>
+  <script src="balls.js"></script>
   <script src="encounter.js"></script>
   <script src="lobby.js"></script>
   <script src="game.js"></script>

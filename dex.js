@@ -317,6 +317,26 @@ function openDexDetail(id){
     }
   }
 
+  // 스킨으로 장착하기 — 포획/진화 상태에서만 노출
+  const equipBtn=document.getElementById('dex-detail-equip');
+  if(equipBtn){
+    const canEquip=(entry.state===DEX_STATE.CAPTURED||entry.state===DEX_STATE.EVOLVED);
+    if(canEquip){
+      equipBtn.classList.remove('hidden');
+      equipBtn.onclick=()=>{
+        if(typeof playSfx==='function') playSfx('select');
+        // 도감 상세 + 도감 화면 닫고 스킨 화면으로 이동
+        closeDexDetail();
+        if(typeof showScreen==='function') showScreen('skin-screen');
+        if(typeof renderSkinScreen==='function') renderSkinScreen();
+        // 신규 해금 레드닷이면 클리어
+        if(typeof clearSkinNew==='function') clearSkinNew(id);
+      };
+    } else {
+      equipBtn.classList.add('hidden');
+    }
+  }
+
   // 디버그 즉시 잡기 (개발자 모드 인증 시에만)
   const debugBtn=document.getElementById('dex-detail-debug-catch');
   if(debugBtn){

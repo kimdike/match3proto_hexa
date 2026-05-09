@@ -336,6 +336,7 @@ function setupDevMode(){
     devPanel.classList.remove('hidden');
     devBtn.classList.add('active');
     updateDevGoldUI(); // 패널 열 때 최신 골드 반영
+    if(typeof refreshBallButtons==='function') refreshBallButtons(); // 몬스터볼 카운트 반영
   }
   function closeDevPanel(){
     devPanelOpen=false;
@@ -432,6 +433,20 @@ function setupDevMode(){
   // 골드 +1000 (테스트용)
   const goldAddBtn=document.getElementById('dev-gold-add');
   if(goldAddBtn) goldAddBtn.addEventListener('click',()=>addGold(1000));
+
+  // 몬스터볼 인벤토리 ±5 — 이벤트 위임 (DOM 변경에도 안전)
+  const stepperList=document.querySelector('.dev-ball-stepper-list');
+  if(stepperList){
+    stepperList.addEventListener('click',e=>{
+      const btn=e.target.closest('.dev-ball-step');
+      if(!btn) return;
+      const t=btn.dataset.ball;
+      const delta=parseInt(btn.dataset.delta,10);
+      if(!t || isNaN(delta) || typeof addBall!=='function') return;
+      addBall(t, delta);
+      if(typeof refreshBallButtons==='function') refreshBallButtons();
+    });
+  }
 
   // 매치 로그 지우기
   document.getElementById('dev-log-clear').addEventListener('click',clearMatchLogs);
@@ -962,6 +977,10 @@ function setupScreenNav(){
         'hexPuzzlePityMain',        // v0.5
         'hexPuzzlePityRepeat',      // v0.5
         'hexPuzzleEncounterStreak', // 레거시
+        // 조우/포획 (Stage C)
+        'hexPuzzleBalls',           // 몬스터볼 인벤토리 (4종)
+        'hexPuzzleAutoFlee',        // 자동도망 ON/OFF
+        'hexPuzzleAutoFleeSeen',    // 자동도망 첫 ON 트리거 (로비 토글 노출 플래그)
       ];
       for(const k of keysToWipe) localStorage.removeItem(k);
 

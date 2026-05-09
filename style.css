@@ -1390,6 +1390,45 @@ h1 {
   margin-top: 4px;
 }
 
+.dev-ball-stepper-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dev-ball-stepper-row {
+  display: grid;
+  grid-template-columns: 60px 28px 1fr 28px;
+  align-items: center;
+  gap: 6px;
+}
+.dev-ball-stepper-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-color);
+}
+.dev-ball-stepper-num {
+  font-size: 14px;
+  font-weight: 800;
+  color: #d49900;
+  text-align: center;
+}
+.dev-ball-step {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--button-border);
+  border-radius: 6px;
+  background: var(--button-bg);
+  color: var(--text-color);
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s, transform 0.08s;
+}
+.dev-ball-step:hover  { background: var(--accent-color); color: #fff; border-color: var(--accent-color); }
+.dev-ball-step:active { transform: scale(0.92); }
+
 .dev-stage-msg.hidden { display: none; }
 
 /* ── 매치 로그 ── */
@@ -2762,14 +2801,15 @@ h1 {
 #dev-clear-btn:hover { box-shadow: 0 5px 14px rgba(255, 82, 82, 0.7); }
 #dev-clear-btn:active { transform: translateY(2px); }
 
-/* ── 야생 조우 화면 (v0.5 Stage A+B) ── */
+/* ── 야생 조우 화면 (포켓몬 GO 스타일 리디자인) ── */
 #encounter-screen {
   position: relative;
   width: 390px;
   height: 844px;
   flex-shrink: 0;
   overflow: hidden;
-  background: radial-gradient(ellipse at center, #2a1a3a 0%, #150818 70%, #050208 100%);
+  /* 기본(타입 미지정) — 부드러운 캐주얼 톤 */
+  background: radial-gradient(ellipse at top, #d8e9f0 0%, #889ca8 60%, #444c54 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2780,127 +2820,737 @@ h1 {
   min-height: 0;
 }
 #encounter-screen.hidden { display: none; }
-/* 등장 시 페이드인만 (transform은 frameScale이 차지하므로 충돌 회피) */
-#encounter-screen:not(.hidden) > .enc-vortex,
-#encounter-screen:not(.hidden) > .enc-content {
-  animation: encFadeIn 0.5s ease-out;
+
+/* 타입별 분위기 배경 (첫 번째 타입 기준) — 18타입 */
+#encounter-screen[data-region-type="grass"]    { background: radial-gradient(ellipse at top, #cef0a8 0%, #6db955 55%, #2c5a2c 100%); }
+#encounter-screen[data-region-type="fire"]     { background: radial-gradient(ellipse at top, #ffe2a3 0%, #ff8845 55%, #92260a 100%); }
+#encounter-screen[data-region-type="water"]    { background: radial-gradient(ellipse at top, #c2e5ff 0%, #4a9bd8 55%, #163a6e 100%); }
+#encounter-screen[data-region-type="electric"] { background: radial-gradient(ellipse at top, #fff7c2 0%, #ffd34d 55%, #997800 100%); }
+#encounter-screen[data-region-type="normal"]   { background: radial-gradient(ellipse at top, #f0e9d8 0%, #b8af9a 55%, #5e5a4d 100%); }
+#encounter-screen[data-region-type="flying"]   { background: radial-gradient(ellipse at top, #d8e7ff 0%, #8aaaff 55%, #2e3f78 100%); }
+#encounter-screen[data-region-type="poison"]   { background: radial-gradient(ellipse at top, #e2c0ec 0%, #a960c2 55%, #4a2058 100%); }
+#encounter-screen[data-region-type="bug"]      { background: radial-gradient(ellipse at top, #d8e8a3 0%, #8eb645 55%, #3e5a14 100%); }
+#encounter-screen[data-region-type="fighting"] { background: radial-gradient(ellipse at top, #ffd0c4 0%, #c84a3a 55%, #5a1810 100%); }
+#encounter-screen[data-region-type="ground"]   { background: radial-gradient(ellipse at top, #f0d4a8 0%, #d4a64a 55%, #6e4a14 100%); }
+#encounter-screen[data-region-type="rock"]     { background: radial-gradient(ellipse at top, #d8c8a4 0%, #a89055 55%, #4e3e1a 100%); }
+#encounter-screen[data-region-type="psychic"]  { background: radial-gradient(ellipse at top, #ffd0e2 0%, #ff5fa0 55%, #6e1042 100%); }
+#encounter-screen[data-region-type="ice"]      { background: radial-gradient(ellipse at top, #d4f4f4 0%, #7ce0e0 55%, #1e6e6e 100%); }
+#encounter-screen[data-region-type="ghost"]    { background: radial-gradient(ellipse at top, #cac0e0 0%, #7363c2 55%, #28204a 100%); }
+#encounter-screen[data-region-type="steel"]    { background: radial-gradient(ellipse at top, #d8e0e8 0%, #a0a8b3 55%, #404850 100%); }
+#encounter-screen[data-region-type="dragon"]   { background: radial-gradient(ellipse at top, #c2c8ec 0%, #5060c2 55%, #1e2858 100%); }
+#encounter-screen[data-region-type="fairy"]    { background: radial-gradient(ellipse at top, #ffe0ed 0%, #ffadd5 55%, #8e3a6c 100%); }
+#encounter-screen[data-region-type="dark"]     { background: radial-gradient(ellipse at top, #b8a890 0%, #5a4a3c 55%, #1a1410 100%); }
+
+/* 배경 광택 + 하단 vignette */
+.enc-bg-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse at top, rgba(255,255,255,0.18) 0%, transparent 50%),
+    radial-gradient(ellipse at bottom, transparent 60%, rgba(0,0,0,0.45) 100%);
 }
-@keyframes encFadeIn {
-  0%   { opacity: 0; }
-  100% { opacity: 1; }
+/* 떠오르는 파티클 (자연스러운 부드러운 dot) */
+.enc-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
 }
+.enc-particles::before,
+.enc-particles::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle 3px at 12% 90%, rgba(255,255,255,0.55) 50%, transparent 51%),
+    radial-gradient(circle 2px at 28% 90%, rgba(255,255,255,0.35) 50%, transparent 51%),
+    radial-gradient(circle 4px at 48% 90%, rgba(255,255,255,0.50) 50%, transparent 51%),
+    radial-gradient(circle 2px at 67% 90%, rgba(255,255,255,0.40) 50%, transparent 51%),
+    radial-gradient(circle 3px at 82% 90%, rgba(255,255,255,0.55) 50%, transparent 51%),
+    radial-gradient(circle 2px at 92% 90%, rgba(255,255,255,0.35) 50%, transparent 51%);
+  animation: encParticleRise 6s linear infinite;
+}
+.enc-particles::after {
+  animation-delay: -3s;
+  filter: blur(1px);
+  opacity: 0.7;
+}
+@keyframes encParticleRise {
+  0%   { transform: translateY(0)     scale(1);   opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateY(-100%) scale(1.2); opacity: 0; }
+}
+
+/* 진입 transition — 검은 유기적 블롭이 회전하며 화면 덮음 → 사라짐 */
+/* (.enc-vortex 컨테이너 + 의사요소 2개로 구현, 기존 swirl/flash 대체) */
 .enc-vortex {
   position: absolute;
-  inset: -50%;
-  background:
-    conic-gradient(from 0deg, transparent 0%, rgba(255,180,80,0.18) 25%, transparent 50%, rgba(120,80,200,0.18) 75%, transparent 100%);
-  animation: encVortexSpin 4s linear infinite;
+  inset: -30%;
   pointer-events: none;
-  filter: blur(10px);
-  opacity: 0.85;
+  z-index: 6;
 }
-@keyframes encVortexSpin {
-  to { transform: rotate(360deg); }
+.enc-vortex::before,
+.enc-vortex::after {
+  content: '';
+  position: absolute;
+  width: 180%;
+  height: 180%;
+  left: -40%;
+  top: -40%;
+  background: radial-gradient(circle at 50% 50%, #000 0%, #000 38%, transparent 68%);
+  border-radius: 60% 40% 70% 30% / 50% 60% 40% 50%;
+  filter: blur(30px);
+  transform-origin: center;
+  opacity: 0;
 }
+#encounter-screen:not(.hidden) > .enc-vortex::before {
+  animation: encEntryBlobA 0.95s cubic-bezier(0.5, 0.0, 0.4, 1) forwards;
+}
+#encounter-screen:not(.hidden) > .enc-vortex::after {
+  animation: encEntryBlobB 0.95s cubic-bezier(0.5, 0.0, 0.4, 1) forwards;
+}
+@keyframes encEntryBlobA {
+  0%   { transform: scale(0.15) rotate(0deg);   opacity: 0;   border-radius: 60% 40% 70% 30% / 50% 60% 40% 50%; }
+  30%  { transform: scale(1.2)  rotate(360deg); opacity: 1; }
+  55%  { transform: scale(1.4)  rotate(540deg); opacity: 1;   border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%; }
+  100% { transform: scale(0)    rotate(900deg); opacity: 0;   border-radius: 70% 30% 60% 40% / 40% 60% 50% 60%; }
+}
+@keyframes encEntryBlobB {
+  0%   { transform: scale(0.15) rotate(180deg);  opacity: 0;  border-radius: 40% 60% 30% 70% / 60% 40% 60% 40%; }
+  30%  { transform: scale(1.3)  rotate(-180deg); opacity: 1; }
+  55%  { transform: scale(1.5)  rotate(-360deg); opacity: 1;  border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%; }
+  100% { transform: scale(0)    rotate(-720deg); opacity: 0;  border-radius: 30% 70% 40% 60% / 60% 40% 50% 60%; }
+}
+
+/* 컨텐츠는 transition 후반에 페이드인 */
+#encounter-screen:not(.hidden) > .enc-content {
+  animation: encContentFadeIn 0.45s 0.55s ease-out backwards;
+}
+@keyframes encContentFadeIn {
+  0%   { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0);   }
+}
+
+/* 더 이상 사용하지 않는 swirl/flash 잔재 (혹시 외부 참조 위해 보존된 클래스명) */
+.enc-swirl, .enc-flash { display: none; }
 .enc-content {
   position: relative;
-  z-index: 2;
+  z-index: 5;
   width: 100%;
-  padding: 0 28px;
+  height: 100%;
+  padding: 36px 28px 24px;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
-.enc-region {
-  font-size: 12px;
-  letter-spacing: 4px;
-  color: #ffd97a;
-  text-transform: uppercase;
-  margin-bottom: 4px;
-  text-shadow: 0 0 8px rgba(255, 180, 0, 0.4);
-}
-.enc-msg {
-  font-family: 'Black Han Sans', sans-serif;
+
+/* 좌상단 X — 도망 (보조 액션) */
+.enc-flee-x {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(255,255,255,0.92);
   font-size: 24px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.15s, transform 0.1s;
+}
+.enc-flee-x:hover  { background: rgba(0,0,0,0.55); }
+.enc-flee-x:active { transform: scale(0.92); }
+
+.enc-region {
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: rgba(255,255,255,0.85);
+  text-transform: uppercase;
+  font-weight: 700;
+  margin-top: 8px;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+
+/* 큰 이름 — 메인 시선 */
+.enc-name {
+  font-family: 'Black Han Sans', sans-serif;
+  font-size: 36px;
   color: #fff;
   letter-spacing: 1px;
-  text-shadow: 0 2px 8px rgba(0,0,0,0.8), 0 0 12px rgba(255, 200, 100, 0.4);
-  margin-bottom: 8px;
+  line-height: 1.1;
+  text-shadow:
+    0 2px 8px rgba(0,0,0,0.55),
+    0 0 18px rgba(255, 240, 200, 0.45);
+  margin: 4px 0 6px;
 }
+
+/* 스프라이트 + spotlight (배경에서 분리, 픽셀아트 존재감 강화) */
 .enc-sprite {
-  width: 160px;
-  height: 160px;
-  filter: drop-shadow(0 6px 16px rgba(0,0,0,0.6));
+  position: relative;
+  width: 180px;
+  height: 180px;
+  filter:
+    drop-shadow(0 10px 22px rgba(0, 0, 0, 0.55))
+    drop-shadow(0 0 14px rgba(255, 255, 255, 0.25));
   animation: encSpriteBob 1.4s ease-in-out infinite;
+  z-index: 3;
+}
+/* 스프라이트 아래 spotlight (radial light) */
+.enc-content::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 26%;
+  width: 280px;
+  height: 280px;
+  margin: -140px 0 0 -140px;
+  background: radial-gradient(circle, rgba(255,255,255,0.30) 0%, rgba(255,255,255,0.10) 35%, transparent 65%);
+  pointer-events: none;
+  z-index: 2;
+  filter: blur(8px);
 }
 @keyframes encSpriteBob {
-  0%, 100% { transform: translateY(0);     }
-  50%      { transform: translateY(-6px);  }
+  0%, 100% { transform: translateY(0);    }
+  50%      { transform: translateY(-7px); }
 }
+
 .enc-meta {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 4px;
+  gap: 8px;
+  margin-top: -4px;
+  margin-bottom: 4px;
 }
 .enc-num {
-  font-size: 14px;
-  font-weight: 700;
-  color: #ffd97a;
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(255,255,255,0.85);
   letter-spacing: 1px;
 }
 .enc-types {
   display: inline-flex;
-  gap: 6px;
+  gap: 4px;
 }
 .enc-type-tag {
   display: inline-block;
-  padding: 3px 10px;
-  border-radius: 10px;
-  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 10px;
   font-weight: 700;
   color: #fff;
   text-shadow: 0 1px 2px rgba(0,0,0,0.4);
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
 }
-.enc-buttons {
+/* 볼 셀렉터 — 좌우 화살표 + 큰 볼 + 정보 (포켓몬 GO 스타일) */
+.enc-ball-selector {
   display: flex;
-  gap: 12px;
-  margin-top: 20px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: auto;
+  margin-bottom: 6px;
   width: 100%;
 }
-.enc-btn {
-  flex: 1;
-  padding: 14px 12px;
+.enc-ball-arrow {
+  width: 36px;
+  height: 36px;
   border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  flex-shrink: 0;
+}
+.enc-ball-arrow:hover  { background: rgba(255,255,255,0.32); }
+.enc-ball-arrow:active { transform: scale(0.92); }
+.enc-ball-display {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px;
+}
+
+/* 볼 아이콘 — 공통 (셀렉터 큰 볼 + 던지는 볼 공유) */
+.enc-ball-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid #1a1a1a;
+  position: relative;
+  box-shadow: inset -3px -3px 6px rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.5);
+}
+.enc-ball-icon::before {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  bottom: 0;
+  height: 50%;
+  background: #f8f8f8;
+  border-radius: 0 0 50% 50% / 0 0 100% 100%;
+}
+.enc-ball-icon::after {
+  content: '';
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 8px; height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: #f8f8f8;
+  border: 1.5px solid #1a1a1a;
+  z-index: 1;
+}
+.enc-ball-basic  { background: #e74c3c; }
+.enc-ball-super  { background: #3498db; }
+.enc-ball-hyper  { background: #f1c40f; }
+.enc-ball-master {
+  background: radial-gradient(circle at 50% 30%, #b14fc7 0%, #6a3380 70%);
+}
+.enc-ball-master::before {
+  background: linear-gradient(180deg, #f4a4ff 0%, #f8f8f8 60%);
+}
+
+/* 셀렉터 큰 볼 (선택된 볼만 메인 노출 + glow) */
+.enc-ball-big {
+  width: 56px !important;
+  height: 56px !important;
+  margin-bottom: 4px;
+  filter: drop-shadow(0 6px 14px rgba(0,0,0,0.5));
+  animation: encBallGlow 2s ease-in-out infinite;
+}
+.enc-ball-big::after {
+  width: 12px !important;
+  height: 12px !important;
+  margin: -6px 0 0 -6px !important;
+}
+@keyframes encBallGlow {
+  0%, 100% { box-shadow: inset -3px -3px 6px rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.5), 0 0 8px  rgba(255,255,255,0.20); }
+  50%      { box-shadow: inset -3px -3px 6px rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.5), 0 0 18px rgba(255,255,255,0.55); }
+}
+
+.enc-ball-name-line {
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  letter-spacing: 0.3px;
+}
+.enc-ball-count-line {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.9);
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
+}
+.enc-ball-count-x   { opacity: 0.6; margin-right: 1px; }
+.enc-ball-count-num { font-size: 16px; }
+
+/* 난이도 (감성 표현 — 숫자 대신 dots + 한국어 라벨) */
+.enc-ball-difficulty {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 14px;
+  background: rgba(0,0,0,0.35);
+  font-size: 13px;
+  font-weight: 800;
+  margin-top: 4px;
+}
+.enc-ball-difficulty[data-tier="low"]        .enc-diff-label { color: #ff8a8a; }
+.enc-ball-difficulty[data-tier="mid"]        .enc-diff-label { color: #ffd97a; }
+.enc-ball-difficulty[data-tier="high"]       .enc-diff-label { color: #a3f590; }
+.enc-ball-difficulty[data-tier="guaranteed"] .enc-diff-label { color: #ffe85e; }
+.enc-diff-dots  { color: rgba(255,255,255,0.95); letter-spacing: 1.5px; font-size: 12px; }
+.enc-ball-difficulty[data-tier="guaranteed"] .enc-diff-dots { color: #ffe85e; }
+
+/* 메인 CTA — 볼 던지기 (선택된 볼 사용, 게임 버튼 polish) */
+.enc-throw-btn {
+  width: 100%;
+  max-width: 290px;
+  padding: 18px 24px;
+  border: none;
+  border-radius: 999px;
+  font-family: 'Black Han Sans', sans-serif;
+  font-size: 22px;
+  letter-spacing: 1.8px;
+  color: #3a2400;
+  background: linear-gradient(180deg, #ffe066 0%, #ffae3a 100%);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+  box-shadow:
+    0 7px 0 #c47800,
+    0 14px 28px rgba(0,0,0,0.4),
+    inset 0 2px 0 rgba(255,255,255,0.65),
+    inset 0 -2px 0 rgba(196,120,0,0.3);
+  animation: encThrowBtnPulse 1.6s ease-in-out infinite;
+  transition: transform 0.1s, filter 0.15s;
+}
+.enc-throw-btn:hover  { filter: brightness(1.08); }
+.enc-throw-btn:active {
+  transform: translateY(4px);
+  box-shadow:
+    0 3px 0 #c47800,
+    0 5px 10px rgba(0,0,0,0.3),
+    inset 0 2px 0 rgba(255,255,255,0.65),
+    inset 0 -2px 0 rgba(196,120,0,0.3);
+}
+.enc-throw-btn:disabled,
+.enc-throw-btn.disabled {
+  opacity: 0.45;
+  filter: grayscale(0.5);
+  cursor: not-allowed;
+  animation: none;
+}
+.enc-throw-icon {
+  font-size: 24px;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
+}
+@keyframes encThrowBtnPulse {
+  0%, 100% {
+    box-shadow:
+      0 7px 0 #c47800,
+      0 14px 28px rgba(0,0,0,0.4),
+      inset 0 2px 0 rgba(255,255,255,0.65),
+      inset 0 -2px 0 rgba(196,120,0,0.3),
+      0 0 0 rgba(255, 200, 80, 0);
+  }
+  50% {
+    box-shadow:
+      0 7px 0 #c47800,
+      0 14px 28px rgba(0,0,0,0.4),
+      inset 0 2px 0 rgba(255,255,255,0.65),
+      inset 0 -2px 0 rgba(196,120,0,0.3),
+      0 0 26px rgba(255, 200, 80, 0.6);
+  }
+}
+
+/* 자동 도망 v체크 (하단 작게) */
+.enc-auto-flee {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.65);
+  cursor: pointer;
+  user-select: none;
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+.enc-auto-flee input[type="checkbox"] {
+  width: 12px;
+  height: 12px;
+  accent-color: #ffae3a;
+  cursor: pointer;
+}
+
+/* ── 결과 오버레이 (모달 팝업 — 메인 패널 위에 떠있음) ── */
+.enc-result-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: encOverlayFadeIn 0.25s ease-out forwards;
+}
+.enc-result-overlay.hidden { display: none; }
+@keyframes encOverlayFadeIn {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.enc-result-popup {
+  position: relative;
+  background: linear-gradient(180deg, #fffaf0 0%, #fff5e0 100%);
+  border-radius: 28px;
+  padding: 28px 22px 22px;
+  width: 84%;
+  max-width: 320px;
+  text-align: center;
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.45),
+    0 4px 12px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  animation: encPopupIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+@keyframes encPopupIn {
+  0%   { transform: scale(0.85) translateY(10px); opacity: 0; }
+  100% { transform: scale(1)    translateY(0);    opacity: 1; }
+}
+
+.enc-result-icon {
+  font-size: 76px;
+  line-height: 1;
+  margin-bottom: 6px;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.18));
+  animation: encResultIconBounce 0.6s 0.1s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+@keyframes encResultIconBounce {
+  0%   { transform: scale(0.4); opacity: 0; }
+  60%  { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(1);   opacity: 1; }
+}
+.enc-result-title {
+  font-family: 'Black Han Sans', sans-serif;
+  font-size: 38px;
+  letter-spacing: 1px;
+  line-height: 1.1;
+  margin-bottom: 10px;
+}
+.enc-result-overlay.success .enc-result-title {
+  color: #d97300;
+  text-shadow: 0 2px 4px rgba(255, 200, 80, 0.3);
+}
+.enc-result-overlay.failure .enc-result-title {
+  color: #c44848;
+}
+.enc-result-detail {
+  font-size: 15px;
+  color: #5a4a30;
+  line-height: 1.55;
+  margin-bottom: 18px;
+  font-weight: 600;
+}
+
+.enc-result-actions {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.enc-popup-btn {
+  flex: 1;
+  min-width: 90px;
+  padding: 13px 14px;
+  border: none;
+  border-radius: 18px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.2s, filter 0.15s;
+}
+.enc-popup-btn:active { transform: translateY(2px); }
+.enc-popup-btn-primary {
+  background: linear-gradient(180deg, #ffe066 0%, #ffae3a 100%);
+  color: #3a2400;
+  box-shadow:
+    0 5px 0 #c47800,
+    0 7px 14px rgba(196, 120, 0, 0.3),
+    inset 0 2px 0 rgba(255, 255, 255, 0.55);
+}
+.enc-popup-btn-primary:hover  { filter: brightness(1.06); }
+.enc-popup-btn-primary:active { box-shadow: 0 2px 0 #c47800, 0 3px 6px rgba(196, 120, 0, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.55); }
+.enc-popup-btn-secondary {
+  background: linear-gradient(180deg, #fff8e0 0%, #ffe3a3 100%);
+  color: #6e4a14;
+  box-shadow:
+    0 4px 0 #d99c4a,
+    0 6px 12px rgba(217, 156, 74, 0.25),
+    inset 0 2px 0 rgba(255, 255, 255, 0.55);
+}
+.enc-popup-btn-secondary:hover  { filter: brightness(1.05); }
+.enc-popup-btn-secondary:active { box-shadow: 0 2px 0 #d99c4a, 0 3px 6px rgba(217, 156, 74, 0.25), inset 0 2px 0 rgba(255, 255, 255, 0.55); }
+
+/* 성공/실패별 버튼 가시성 */
+.enc-result-overlay.success #enc-result-retry,
+.enc-result-overlay.success #enc-result-flee  { display: none; }
+.enc-result-overlay.failure #enc-result-ok,
+.enc-result-overlay.failure #enc-result-dex   { display: none; }
+
+/* 별 burst — 성공 시 팝업 주변으로 별 흩날림 */
+.enc-result-burst {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: none;
+}
+.enc-result-overlay.success .enc-result-burst { display: block; }
+.enc-result-burst span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  background: radial-gradient(circle, #fff8a3 0%, #ffd34d 45%, transparent 70%);
+  border-radius: 50%;
+  opacity: 0;
+  animation: encBurstStar 1.1s ease-out forwards;
+}
+.enc-result-burst span:nth-child(1) { --bx:  140px; --by: -110px; animation-delay: 0.10s; }
+.enc-result-burst span:nth-child(2) { --bx: -130px; --by:  -95px; animation-delay: 0.16s; }
+.enc-result-burst span:nth-child(3) { --bx:  155px; --by:   95px; animation-delay: 0.20s; }
+.enc-result-burst span:nth-child(4) { --bx: -150px; --by:  110px; animation-delay: 0.26s; }
+.enc-result-burst span:nth-child(5) { --bx:    0px; --by: -160px; animation-delay: 0.05s; }
+.enc-result-burst span:nth-child(6) { --bx:    0px; --by:  140px; animation-delay: 0.30s; }
+.enc-result-burst span:nth-child(7) { --bx:  185px; --by:   10px; animation-delay: 0.18s; }
+.enc-result-burst span:nth-child(8) { --bx: -175px; --by:    0px; animation-delay: 0.22s; }
+@keyframes encBurstStar {
+  0%   { transform: translate(0, 0) scale(0);   opacity: 0; }
+  20%  { transform: translate(0, 0) scale(0.5); opacity: 1; }
+  100% { transform: translate(var(--bx), var(--by)) scale(1.4); opacity: 0; }
+}
+
+/* ── 볼 던지기 연출 (Stage C 폴리싱) ── */
+.enc-thrown-ball {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  z-index: 10;
+  pointer-events: none;
+  transform-origin: center;
+  /* 초기: 보이지 않게, throwing 클래스 추가 시 애니 시작 */
+  left: 50%;
+  bottom: 12%;
+  transform: translateX(-50%) scale(0);
+}
+/* throwing: 포물선 비행 (CTA 위치 → 스프라이트 위 peak → 스프라이트 중심) */
+.enc-thrown-ball.throwing {
+  animation: encThrow 0.6s cubic-bezier(0.4, 0.0, 0.5, 1.0) forwards;
+}
+@keyframes encThrow {
+  0%   { left: 50%; bottom: 10%; transform: translateX(-50%) scale(0.6) rotate(0deg);    }
+  50%  { left: 50%; bottom: 90%; transform: translateX(-50%) scale(1.15) rotate(360deg); }
+  100% { left: 50%; bottom: 70%; transform: translateX(-50%) scale(1.0)  rotate(720deg); }
+}
+/* wobbling: 3회 흔들림, 진폭 점점 감소 (12 → 8 → 4) */
+.enc-thrown-ball.wobbling {
+  left: 50%;
+  bottom: 70%;
+  animation: encWobble 1.2s ease-in-out forwards;
+}
+@keyframes encWobble {
+  0%   { transform: translateX(-50%) rotate(0deg);   }
+  /* 1차 흔들림 ±12 (0~24%) */
+  6%   { transform: translateX(-50%) rotate(-12deg); }
+  12%  { transform: translateX(-50%) rotate(0deg);   }
+  18%  { transform: translateX(-50%) rotate(12deg);  }
+  24%  { transform: translateX(-50%) rotate(0deg);   }
+  /* 정지 35% */
+  35%  { transform: translateX(-50%) rotate(0deg);   }
+  /* 2차 흔들림 ±8 (35~59%) */
+  41%  { transform: translateX(-50%) rotate(-8deg);  }
+  47%  { transform: translateX(-50%) rotate(0deg);   }
+  53%  { transform: translateX(-50%) rotate(8deg);   }
+  59%  { transform: translateX(-50%) rotate(0deg);   }
+  /* 정지 70% */
+  70%  { transform: translateX(-50%) rotate(0deg);   }
+  /* 3차 흔들림 ±4 (70~94%) */
+  76%  { transform: translateX(-50%) rotate(-4deg);  }
+  82%  { transform: translateX(-50%) rotate(0deg);   }
+  88%  { transform: translateX(-50%) rotate(4deg);   }
+  100% { transform: translateX(-50%) rotate(0deg);   }
+}
+/* caught: 별빛 펄스 */
+.enc-thrown-ball.caught {
+  left: 50%;
+  bottom: 70%;
+  transform: translateX(-50%) rotate(0deg);
+  animation: encBallCaught 0.5s ease-out forwards;
+}
+@keyframes encBallCaught {
+  0%   { box-shadow: 0 0 0 rgba(255, 255, 0, 0); }
+  50%  { box-shadow: 0 0 30px 12px rgba(255, 217, 122, 0.95); }
+  100% { box-shadow: 0 0 14px rgba(255, 217, 122, 0.5); }
+}
+/* broken: 볼 깨지면서 사라짐 */
+.enc-thrown-ball.broken {
+  left: 50%;
+  bottom: 70%;
+  animation: encBallBreak 0.4s ease-in forwards;
+}
+@keyframes encBallBreak {
+  0%   { transform: translateX(-50%) scale(1);   opacity: 1; filter: brightness(1);   }
+  40%  { transform: translateX(-50%) scale(1.5); opacity: 1; filter: brightness(2.5); }
+  100% { transform: translateX(-50%) scale(0);   opacity: 0; filter: brightness(2.5); }
+}
+
+/* 몬스터 흡수: 빨간 빛 flash 후 scale 0 (포켓몬스타일) */
+.enc-sprite.sucking {
+  animation: encMonsterSuck 0.5s ease-in forwards;
+}
+@keyframes encMonsterSuck {
+  0%   { transform: scale(1);    opacity: 1;    filter: none; }
+  25%  { transform: scale(1.1);  opacity: 1;    filter: brightness(2.5) sepia(1) saturate(8) hue-rotate(-30deg); }
+  60%  { transform: scale(0.6);  opacity: 0.85; filter: brightness(3)   sepia(1) saturate(10) hue-rotate(-30deg); }
+  100% { transform: scale(0);    opacity: 0;    filter: brightness(3)   sepia(1) saturate(10) hue-rotate(-30deg); }
+}
+/* 몬스터 재등장 (포획 실패 시): 빨간빛 → 정상 컬러 */
+.enc-sprite.escaping {
+  animation: encMonsterEscape 0.4s ease-out forwards;
+}
+@keyframes encMonsterEscape {
+  0%   { transform: scale(0);    opacity: 0;    filter: brightness(3)   sepia(1) saturate(10) hue-rotate(-30deg); }
+  50%  { transform: scale(1.15); opacity: 1;    filter: brightness(1.5); }
+  100% { transform: scale(1);    opacity: 1;    filter: none; }
+}
+
+/* ── 로비 자동도망 토글 (풀밭 영역 우측 상단) ── */
+.lobby-auto-flee-toggle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 6px 10px;
   border-radius: 14px;
   font-family: inherit;
-  font-size: 15px;
+  font-size: 10px;
   font-weight: 800;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
   cursor: pointer;
-  transition: transform 0.1s ease, box-shadow 0.2s ease;
+  border: 1.5px solid rgba(180, 130, 0, 0.4);
+  background: rgba(255, 255, 255, 0.65);
+  color: #5e4a1d;
+  z-index: 30; /* 도트(z-index 1~24) 위 */
+  transition: all 0.2s;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
-.enc-btn:active { transform: translateY(2px); }
-.enc-btn-catch {
-  background: linear-gradient(135deg, #ffc24a, #f59e0b);
+.lobby-auto-flee-toggle:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(180, 130, 0, 0.7);
+}
+.lobby-auto-flee-toggle:active { transform: translateY(1px); }
+.lobby-auto-flee-toggle.on {
+  background: linear-gradient(135deg, #ffd34d, #ffae3a);
+  border-color: rgba(240, 140, 0, 0.7);
   color: #3a2400;
-  box-shadow: 0 5px 0 #c47800, 0 8px 16px rgba(0,0,0,0.4);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.18), 0 0 14px rgba(255, 180, 80, 0.55);
+  animation: lobbyAutoFleePulse 1.6s ease-in-out infinite;
 }
-.enc-btn-catch:hover { box-shadow: 0 5px 0 #c47800, 0 8px 22px rgba(255, 180, 80, 0.5); }
-.enc-btn-flee {
-  background: linear-gradient(135deg, #6b6b6b, #4a4a4a);
-  color: #fff;
-  box-shadow: 0 5px 0 #2c2c2c, 0 8px 16px rgba(0,0,0,0.4);
-}
-.enc-btn-flee:hover { box-shadow: 0 5px 0 #2c2c2c, 0 8px 22px rgba(120, 120, 120, 0.5); }
-.enc-stage-hint {
-  margin-top: 14px;
-  font-size: 11px;
-  color: rgba(255, 217, 122, 0.6);
-  font-style: italic;
+@keyframes lobbyAutoFleePulse {
+  0%, 100% { box-shadow: 0 2px 6px rgba(0,0,0,0.18), 0 0 14px rgba(255, 180, 80, 0.55); }
+  50%      { box-shadow: 0 2px 6px rgba(0,0,0,0.18), 0 0 22px rgba(255, 200, 90, 0.85); }
 }
 
 /* 신규 해금 레드닷 — 로비 🎨 스킨 버튼 */
@@ -3285,8 +3935,35 @@ h1 {
 }
 .dex-detail-key { color: #7a5500; font-weight: 600; }
 .dex-detail-val { color: #3a2e00; font-weight: 700; }
+/* 스킨으로 장착하기 — 포획/진화 상태에서만 노출 */
+.dex-detail-equip {
+  margin-top: 14px;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffe066 0%, #ffae3a 100%);
+  color: #3a2400;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  box-shadow:
+    0 4px 0 #c47800,
+    0 6px 12px rgba(196,120,0,0.25),
+    inset 0 2px 0 rgba(255,255,255,0.55);
+  transition: transform 0.1s, filter 0.15s;
+}
+.dex-detail-equip:hover  { filter: brightness(1.06); }
+.dex-detail-equip:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #c47800, 0 3px 6px rgba(196,120,0,0.25), inset 0 2px 0 rgba(255,255,255,0.55);
+}
+.dex-detail-equip.hidden { display: none; }
+
 .dex-detail-debug {
-  margin-top: 12px;
+  margin-top: 8px;
   width: 100%;
   padding: 10px;
   border: 0;

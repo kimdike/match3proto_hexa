@@ -5,6 +5,98 @@
 
 ---
 
+## 2026.05.09~10 (17~18일차) — 야생 조우/포획 풀스펙 + UI 전면 리디자인
+
+집-회사 git divergence 복구로 시작 → 18지역 매핑 → 조우/포획 풀스펙 → UI 리디자인까지 한 묶음.
+
+### Git divergence 복구 (집 세션 시작)
+- 회사가 04f4b6a "도감 풀스펙 + 천장 게이지 + 스킨 정비" push했으나 집에서 fetch 안 함
+- 집에서 18지역 매핑 + 속도 변수 분리 + 인스펙터 툴팁 버그 수정 작업 후 발견
+- `git stash push -u` → `git pull` → `git stash pop` 자동 머지 성공 (충돌 0건)
+- 회사 ui.js 177줄 vs 집 ui.js 24줄이 영역 안 겹쳐서 운 좋게 머지됨
+- 메모리화: `feedback_multimachine_git.md` — 다음부터 세션 시작 시 fetch 의무
+
+### 18지역 매핑 시스템 (config.js)
+- `STAGES_PER_REGION` 한 줄로 프로토(10) ↔ 출시(100) 토글
+- `REGIONS` 18종 + `getRegionByStage` / `getStageInRegion` / `isRegionLastStage` / `getStageConfig` / `getMonstersByRegion` 헬퍼
+- 기존 `STAGES` 배열 폐기 → `getStageConfig`로 통합 (stage_maps 우선 + DEFAULT_STAGE_CONFIG 폴백)
+- 로비 상단 "KANTO LEAGUE" → "풀의 지역 1/10" 동적 표시
+- 속도 변수 분리: `gravityDelay` → `gravityIterDelay` (iter 페이싱) + `gravitySettleDelay` (콤보 호흡)
+- dead code 제거: `fillDelay` / `diagDelay` (4월 18일 모듈화 후 미참조)
+- 인스펙터 툴팁 transform 부모 영향 회피: `body`로 detach + CSS 셀렉터 단순화
+
+### 야생 조우 시스템 (encounter.js 신설)
+- `decideEncounter(stage, pityResult, combo, mode)`: **튜토리얼 > 천장 > 25%+콤보보너스** 우선순위
+- rarity 가중치 (normal 80 / rare 18 / epic·legendary 2) 1마리 추첨
+- 풀 부족 지역(악 등) 비어있으면 조우 무발생
+- pity.js `rollEncounter` 결과 + 자체 확률 통과 시 `resetPity`로 카운터 0 동기화
+- 튜토리얼 강제: 1=이상해씨 / 5=뚜벅쵸 / 10=모다피 / 15=아라리 (`monster_table.tutorial_stage` 매칭)
+
+### 포획 시스템 (balls.js 신설)
+- 4종 인벤토리: 기본 5 / 슈퍼 3 / 하이퍼 2 / 마스터 1 (시작값)
+- 확률 공식: `ballRate × MonsterDifficulty × StackBonus × ComboBonus` (최소 5% / 최대 100%)
+- failStack 누적 (포획 실패 시 +1, 성공 시 0 리셋), 콤보 보너스 (5/10/15+)
+- 마스터볼 100% 확정 / 다른 볼은 rarity별 차감
+
+### DEV 즉시 클리어 + 인벤토리 stepper
+- 우상단 `⚡ 클리어! (C)` 버튼 + 단축키 C → `totalStones=0 + score=stageTarget` → `checkGameEnd` 트리거
+- 개발자 패널: 4종 볼 ±5 stepper (이벤트 위임으로 안정적 바인딩)
+- `addBall` 클램프 추가 (음수 차감 시 0 미만 방지)
+
+### 자동 도망 영구 토글 + 점진 노출
+- `localStorage hexPuzzleAutoFlee` (ON/OFF) + `hexPuzzleAutoFleeSeen` (첫 ON 트리거)
+- 신규 유저: 로비 토글 안 보임 → 첫 v체크 ON 시점에 노출 시작
+- 로비 풀밭 우상단 골드 펄스 / 반투명 OFF
+- 양쪽 UI 자동 동기화 (조우 화면 ↔ 로비)
+- "처음으로" 청소 키 확장: `hexPuzzleBalls` / `AutoFlee` / `AutoFleeSeen` / `Pity*`
+
+### UI 전면 리디자인 (포켓몬 GO 스타일)
+디자인 키워드: 야생 조우 경험, 같은 공간 안에서 결과 발생, 모바일 캐주얼 polish.
+
+**진입 transition** — 검은 유기 wipe (`.enc-vortex` ::before/::after 블롭 2개가 반대 방향 회전 + border-radius 변화로 화면 덮음 → 사라짐). 포켓몬 전투 진입 느낌.
+
+**타입별 분위기 배경** — 18타입 모두 매핑 (`[data-region-type="grass"]` radial-gradient 등). 떠오르는 파티클 6개 + vignette.
+
+**레이아웃 시선 흐름**:
+- 좌상단 X (도망 보조 액션, 32×32 원형)
+- 지역 라벨 (uppercase letter-spacing 4px)
+- 큰 이름 36px Black Han Sans ("야생 OO!")
+- 스프라이트 180px + drop-shadow + soft white glow + radial spotlight
+- 메타 #001 · 타입 태그
+- **볼 셀렉터** (좌우 화살표 + 큰 볼 56px + 이름/수량/난이도)
+- 난이도 dots: ●○○ 어려움 / ●●○ 보통 / ●●● 높음 / ★★★ 확정 (failStack 자동 반영)
+- **메인 CTA** 22px 골드 알약 + pulse + 플라스틱 광택 (안쪽 하이라이트 + 음영)
+- 자동 도망 v체크 (하단 작게)
+
+### 결과 = 모달 팝업 (페이지 이동 X)
+- `.enc-result-overlay` — 메인 패널 위 backdrop blur 모달
+- 팝업 scale 0.85→1 bounce + 아이콘 0.4→1.2→1 (장난감 느낌)
+- 성공: ✨ 잡았다! + **별 8개 outward burst** + #번호 + [계속하기/도감 보기]
+- 실패: 💨 앗! 도망쳤다! + 다음 시도 +5% 보정 안내 + [다시 던지기/도망가기]
+- 성공 시 sprite 볼 안 유지 (scale 0) — "잡힌 후 포켓몬은 볼 안에 있다"는 시각적 일관성
+
+### 던지기 연출 (포물선 + 흔들림 + 결과)
+- 포물선 비행 0.6s, peak 90% / land 70% / 회전 720°
+- 몬스터 흡수: filter brightness/sepia/saturate/hue-rotate로 빨간 flash → scale 0
+- 흔들림 3회 진폭 점점 감소: ±12° → ±8° → ±4° (총 1.2s)
+- 성공: 별빛 펄스 (box-shadow glow) / 실패: 볼 깨짐 + 몬스터 재등장
+
+### 도감 → 스킨 연결
+- 도감 상세 모달 (포획/진화 상태)에 `🎨 스킨으로 장착하기` 버튼
+- 클릭 시 도감 상세 닫고 스킨 화면 진입
+- 잡기 → 도감 보기 → 스킨 장착 자연스러운 루프 완성
+
+### 💡 오늘의 교훈
+
+1. **멀티머신 git divergence는 발견 시점이 비용**: 일찍 발견하면 stash+pull+pop만으로 끝, 늦으면 충돌 다발. 세션 시작 시 fetch 의무화 메모리.
+2. **자동 머지 성공도 "운"이라는 인식**: ui.js 177줄 vs 24줄이 영역 안 겹쳤기 때문. 다음엔 운 안 좋을 수도.
+3. **UI 리디자인은 단계별 검증**: 한 번에 갈아엎지 말고 [구조 → 기본 스타일 → 텍스트 → 버튼 polish → 연출] 순서로 사용자가 단계마다 확인. 사용자 피드백 흐름 따라가는 게 결과물 퀄리티 높음.
+4. **결과 = 페이지 vs 모달의 UX 차이**: 페이지 전환은 정보 전달용, 모달은 흐름 유지용. "같은 공간 안에서 결과 발생"이 도파민 강화. UX 디테일이 곧 게임감.
+5. **failStack 시각화**: 단순 데이터 누적이 아닌 dots 자연 상승으로 시각화 → "계속 시도하면 잡을 수 있다" 직관 전달. 메커닉이 UI 통해 대화하는 게 좋은 디자인.
+6. **개발자 모드 stepper의 견고함**: querySelectorAll로 직접 바인딩보다 부모 컨테이너에 이벤트 위임이 안전. 동적 DOM 변경에도 강함.
+
+---
+
 ## 2026.05.06 (16일차)
 
 ### 🎯 로비 재설계 한 묶음 구현

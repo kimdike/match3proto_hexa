@@ -2,7 +2,7 @@
 // 상수/설정값은 config.js로 분리되어 있음 (index.html에서 먼저 로드)
 
 let currentStage = parseInt(localStorage.getItem('hexPuzzleStage')) || 1;
-let stageTarget = STAGES[0].target;
+let stageTarget = DEFAULT_STAGE_CONFIG.target; // startGame()에서 스테이지별 값으로 덮어씀
 
 // calcLineScore / calcComboBonus는 match.js로 이동
 

@@ -1546,7 +1546,7 @@ h1 {
 
 .insp-help:hover { background: var(--accent-color); color: #fff; border-color: var(--accent-color); }
 
-.insp-help .insp-tooltip {
+.insp-tooltip {
   display: none;
   position: fixed;
   background: #222;

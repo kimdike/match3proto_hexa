@@ -84,10 +84,10 @@ async function applyGravity(){
       animateDiagonalDOM(diagMoves);
     }
     anyMoved=true;
-    await skippableDelay(CFG.gravityDelay/3); // 다음 단계 일찍 시작 (연속 흐름)
+    await skippableDelay(CFG.gravityIterDelay); // iter 사이 페이싱 (블록 여러 칸 낙하 시 단계 표현)
   }
   if(anyMoved){
-    await skippableDelay(CFG.gravityDelay); // 마지막 transition 완료 + 보드 안정화
+    await skippableDelay(CFG.gravitySettleDelay); // 루프 종료 후 안정화 (다음 매치 검사 전 호흡)
     refreshBlockElsCoordinates();
   }
 }
@@ -113,10 +113,10 @@ async function fillEmpty(){
       animateDiagonalDOM(diagMoves);
     }
     anyActivity=true;
-    await skippableDelay(CFG.gravityDelay*0.33); // iter 간 짧게 겹쳐 연속 흐름
+    await skippableDelay(CFG.gravityIterDelay); // iter 사이 페이싱 (충전 루프 단계 표현)
   }
   if(anyActivity){
-    await skippableDelay(CFG.gravityDelay); // 루프 끝난 후 1회 안정화
+    await skippableDelay(CFG.gravitySettleDelay); // 루프 종료 후 안정화 (다음 매치 검사 전 호흡)
     refreshBlockElsCoordinates();
   }
 }

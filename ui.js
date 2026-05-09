@@ -142,7 +142,7 @@ function showEndScreen(cleared){
     sc.textContent=`\uD83E\uDE99 +${goldReward.toLocaleString()} \uACE8\uB4DC \uD68D\uB4DD!`;
     sc.classList.remove('hidden');
     // 다음 스테이지 해금
-    if(currentStage<STAGES.length){
+    if(currentStage<TOTAL_STAGES){
       currentStage++;
       localStorage.setItem('hexPuzzleStage',currentStage);
     }
@@ -380,8 +380,8 @@ function setupDevMode(){
   const stageMsg=document.getElementById('dev-stage-msg');
   document.getElementById('dev-stage-go').addEventListener('click',()=>{
     const num=parseInt(stageInput.value);
-    if(isNaN(num)||num<1||num>STAGES.length){
-      stageMsg.textContent=`1~${STAGES.length} 사이 숫자를 입력하세요`;
+    if(isNaN(num)||num<1||num>TOTAL_STAGES){
+      stageMsg.textContent=`1~${TOTAL_STAGES} 사이 숫자를 입력하세요`;
       stageMsg.classList.remove('hidden');
       return;
     }
@@ -463,8 +463,12 @@ function buildInspector(){
     }
   });
   // 툴팁 위치 (fixed 기반)
+  // ⚠️ #game-container에 transform: scale()이 걸려 있어 그 안의 fixed는 뷰포트 기준이 아닌
+  //   컨테이너 기준이 됨. 툴팁을 body 직속으로 빼서 transform 영향 회피.
   container.querySelectorAll('.insp-help').forEach(btn=>{
     const tip=btn.querySelector('.insp-tooltip');
+    if(!tip) return;
+    if(tip.parentNode!==document.body) document.body.appendChild(tip);
     btn.addEventListener('mouseenter',()=>{
       const r=btn.getBoundingClientRect();
       tip.style.display='block';
@@ -568,21 +572,27 @@ function getCharacterImgPath(character){
 function updateLobbyStage(){
   const stageBtn=document.getElementById('lobby-stage-btn');
   const numEl=document.getElementById('lobby-stage-num');
-  if(currentStage>STAGES.length){
-    // 올클리어
+  const regionLabel=document.getElementById('lobby-region-label');
+  if(currentStage>TOTAL_STAGES){
+    // 모든 지역 정복
     if(stageBtn) stageBtn.style.display='none';
     let allClear=document.querySelector('.lobby-all-clear');
     if(!allClear&&stageBtn){
       allClear=document.createElement('div');
       allClear.className='lobby-all-clear';
-      allClear.textContent='ALL STAGE CLEAR!';
+      allClear.textContent='모든 지역 정복!';
       stageBtn.parentNode.insertBefore(allClear,stageBtn);
     }
+    if(regionLabel) regionLabel.textContent='KANTO LEAGUE';
   } else {
     if(stageBtn) stageBtn.style.display='';
     const allClear=document.querySelector('.lobby-all-clear');
     if(allClear) allClear.remove();
     if(numEl) numEl.textContent=currentStage;
+    if(regionLabel){
+      const r=getRegionByStage(currentStage);
+      regionLabel.textContent=r?`${r.name_ko} ${r.stageInRegion}/${STAGES_PER_REGION}`:'KANTO LEAGUE';
+    }
   }
 }
 
@@ -882,7 +892,7 @@ function setupScreenNav(){
   });
   // 스테이지 버튼 → 게임 시작
   document.getElementById('lobby-stage-btn').addEventListener('click',()=>{
-    if(currentStage>STAGES.length) return;
+    if(currentStage>TOTAL_STAGES) return;
     playSfx('btn_click');
     showScreen('game-container');
     if(!playing) startGame();

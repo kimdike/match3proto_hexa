@@ -294,18 +294,16 @@ function startGame(){
   score=0;
   clearHint();clearAllBlocks();
 
-  // 스테이지 데이터 적용 (stage_maps.json 우선, 없으면 STAGES 폴백)
-  const sd=STAGES[currentStage-1]||STAGES[STAGES.length-1];
-  const mapData=stageMaps?.stages?.find(s=>s.stage===currentStage);
-  stageTarget=sd.target;
-  maxMoves=mapData?.moves??sd.moves;
+  // 스테이지 데이터 적용 (stage_maps.js 우선, 없으면 DEFAULT_STAGE_CONFIG 폴백)
+  const sc=getStageConfig(currentStage);
+  stageTarget=sc.target;
+  maxMoves=sc.moves;
   movesLeft=maxMoves;
-  numColors=mapData?.colorTypes??sd.colorTypes;
+  numColors=sc.colorTypes;
 
   // 스테이지 맵 셀 타입 + 기믹 적용
   applyStageCells(currentStage);
   applyStageGimmicks(currentStage);
-  console.log('[startGame] stage',currentStage,'mapData:',!!mapData,'entrance:',entranceCols.size,'gimmicks:',gimmick.reduce((n,c)=>n+(c?c.filter(Boolean).length:0),0));
 
   // UI 갱신 후 게임 시작
   // (인게임 BGM은 로비에서 lobby-stage-btn 클릭 시 showScreen('game-container')이 처리)

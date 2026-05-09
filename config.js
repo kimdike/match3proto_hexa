@@ -10,19 +10,68 @@ const COL_SPACING = HEX_SIZE * 1.5;
 const ROW_SPACING = HEX_H;
 const BLOCK_D = 55;
 
-// ── 스테이지 데이터 ──
-const STAGES = [
-  { stage:1,  target:10000, moves:30, colorTypes:5 },
-  { stage:2,  target:15000, moves:28, colorTypes:5 },
-  { stage:3,  target:20000, moves:26, colorTypes:6 },
-  { stage:4,  target:25000, moves:25, colorTypes:6 },
-  { stage:5,  target:30000, moves:24, colorTypes:6 },
-  { stage:6,  target:35000, moves:23, colorTypes:6 },
-  { stage:7,  target:40000, moves:22, colorTypes:6 },
-  { stage:8,  target:45000, moves:21, colorTypes:6 },
-  { stage:9,  target:48000, moves:20, colorTypes:6 },
-  { stage:10, target:50000, moves:20, colorTypes:6 },
+// ── 18타입 = 18지역 매핑 ──
+// 순서: 풀→불꽃→물→전기→노말→비행→독→벌레→격투→땅→바위→에스퍼→얼음→고스트→강철→드래곤→페어리→악
+// ⚠️ 출시 시 STAGES_PER_REGION을 100으로 변경 (현재 프로토용 10)
+const STAGES_PER_REGION = 10;
+const REGION_TYPES = [
+  { type:'grass',    name_ko:'풀의 지역'     },
+  { type:'fire',     name_ko:'불꽃의 지역'   },
+  { type:'water',    name_ko:'물의 지역'     },
+  { type:'electric', name_ko:'전기의 지역'   },
+  { type:'normal',   name_ko:'노말의 지역'   },
+  { type:'flying',   name_ko:'비행의 지역'   },
+  { type:'poison',   name_ko:'독의 지역'     },
+  { type:'bug',      name_ko:'벌레의 지역'   },
+  { type:'fighting', name_ko:'격투의 지역'   },
+  { type:'ground',   name_ko:'땅의 지역'     },
+  { type:'rock',     name_ko:'바위의 지역'   },
+  { type:'psychic',  name_ko:'에스퍼의 지역' },
+  { type:'ice',      name_ko:'얼음의 지역'   },
+  { type:'ghost',    name_ko:'고스트의 지역' },
+  { type:'steel',    name_ko:'강철의 지역'   },
+  { type:'dragon',   name_ko:'드래곤의 지역' },
+  { type:'fairy',    name_ko:'페어리의 지역' },
+  { type:'dark',     name_ko:'악의 지역'     },
 ];
+const REGIONS = REGION_TYPES.map((r,i)=>({
+  ...r,
+  stageStart: i*STAGES_PER_REGION + 1,
+  stageEnd:  (i+1)*STAGES_PER_REGION,
+}));
+const TOTAL_STAGES = REGIONS.length * STAGES_PER_REGION;
+// stage_maps.js에 정의되지 않은 스테이지의 기본 설정 (target은 사실상 dead — 돌 미션이 클리어 조건)
+const DEFAULT_STAGE_CONFIG = { target:50000, moves:20, colorTypes:6 };
+
+function getRegionByStage(stage){
+  if(typeof stage!=='number'||stage<1||stage>TOTAL_STAGES) return null;
+  const idx=Math.floor((stage-1)/STAGES_PER_REGION);
+  const r=REGIONS[idx];
+  return { index:idx, type:r.type, name_ko:r.name_ko, stageStart:r.stageStart, stageEnd:r.stageEnd, stageInRegion: stage - r.stageStart + 1 };
+}
+function getStageInRegion(stage){
+  const r=getRegionByStage(stage);
+  return r?r.stageInRegion:null;
+}
+function isRegionLastStage(stage){
+  if(typeof stage!=='number'||stage<1||stage>TOTAL_STAGES) return false;
+  return stage%STAGES_PER_REGION===0;
+}
+function getStageConfig(stage){
+  // stage_maps 데이터 우선, 없으면 DEFAULT_STAGE_CONFIG 폴백
+  let sm=(typeof STAGE_MAPS_DATA!=='undefined')?STAGE_MAPS_DATA:null;
+  if(!sm&&typeof stageMaps!=='undefined'&&stageMaps) sm=stageMaps;
+  const entry=sm?.stages?.find(s=>s.stage===stage);
+  return {
+    target:     DEFAULT_STAGE_CONFIG.target,
+    moves:      entry?.moves      ?? DEFAULT_STAGE_CONFIG.moves,
+    colorTypes: entry?.colorTypes ?? DEFAULT_STAGE_CONFIG.colorTypes,
+  };
+}
+function getMonstersByRegion(regionType){
+  if(typeof MONSTER_TABLE_DATA==='undefined'||!MONSTER_TABLE_DATA?.monsters) return [];
+  return MONSTER_TABLE_DATA.monsters.filter(m=>Array.isArray(m.regions)&&m.regions.includes(regionType));
+}
 
 // ── 색상 팔레트 ──
 const ALL_COLORS = [
@@ -34,9 +83,10 @@ const ALL_COLORS = [
 
 // ── 조절 가능한 설정값 (인스펙터에서 수정) ──
 const CFG = {
-  gravityTransition: 0.1,   gravityDelay: 240,
-  fillTransition: 0.2,      fillDelay: 200,
-  diagTransition: 0.075,    diagDelay: 180,
+  gravityTransition: 0.15,
+  gravityIterDelay: 70,     gravitySettleDelay: 200,
+  fillTransition: 0.18,
+  diagTransition: 0.075,
   projectileTransition: 0.45,
   matchedDelay: 200,         mergeDelay: 130,
   explosionLifetime: 400,
@@ -48,11 +98,10 @@ const CFG = {
 const CFG_DEFAULTS = {...CFG};
 const CFG_META = [
   {key:'gravityTransition',label:'gravity transition',desc:'매치 후 블록이 아래로 떨어지는 애니메이션 시간. 낮을수록 빠르게 착지 (권장: 0.1s ~ 0.5s)',unit:'s',step:0.05,group:'speed'},
-  {key:'gravityDelay',label:'gravity delay',desc:'낙하 애니메이션 완료 후 다음 단계 진행까지 대기 시간. gravity transition보다 약간 길게 설정 (권장: 100ms ~ 500ms)',unit:'ms',step:10,group:'speed'},
+  {key:'gravityIterDelay',label:'gravity iter delay',desc:'블록이 여러 칸 떨어질 때 단계 사이 페이싱(iter 사이 대기). transition보다 작으면 블록이 점프하듯 빠르게 보임 (권장: 80ms ~ 150ms)',unit:'ms',step:10,group:'speed'},
+  {key:'gravitySettleDelay',label:'gravity settle delay',desc:'중력/충전 루프 종료 후 다음 매치 검사까지 안정화 대기. 연쇄 사이 호흡 — 늘리면 연쇄가 차분해짐 (권장: 150ms ~ 350ms)',unit:'ms',step:10,group:'speed'},
   {key:'fillTransition',label:'fill transition',desc:'빈 칸에 새 블록이 위에서 내려오는 애니메이션 시간. 낮을수록 빠르게 충전 (권장: 0.1s ~ 0.6s)',unit:'s',step:0.05,group:'speed'},
-  {key:'fillDelay',label:'fill delay',desc:'새 블록 충전 완료 후 매치 검사까지 대기 시간. fill transition보다 약간 길게 설정 (권장: 150ms ~ 600ms)',unit:'ms',step:10,group:'speed'},
   {key:'diagTransition',label:'diag transition',desc:'대각선 충전 시 블록이 옆으로 이동하는 애니메이션 시간. 낮을수록 빠름 (권장: 0.05s ~ 0.4s)',unit:'s',step:0.05,group:'speed'},
-  {key:'diagDelay',label:'diag delay',desc:'대각선 충전 완료 후 다음 단계까지 대기 시간 (권장: 50ms ~ 400ms)',unit:'ms',step:10,group:'speed'},
   {key:'projectileTransition',label:'projectile transition',desc:'타겟볼 발사체가 목표 지점까지 날아가는 시간. 낮으면 빠르게 적중 (권장: 0.1s ~ 0.6s)',unit:'s',step:0.05,group:'speed'},
   {key:'matchedDelay',label:'matched delay',desc:'매치된 블록의 pop 애니메이션 재생 후 DOM에서 제거까지 대기 시간 (권장: 200ms ~ 500ms)',unit:'ms',step:10,group:'timing'},
   {key:'mergeDelay',label:'merge delay',desc:'특수블록 생성 시 주변 블록이 중심으로 빨려드는 머지 애니메이션 시간 (권장: 200ms ~ 500ms)',unit:'ms',step:10,group:'timing'},

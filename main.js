@@ -244,15 +244,17 @@ async function processPendingMatches(){
 // ── 게임 종료 ──
 function checkGameEnd(){
   if(!playing) return;
-  // 돌 기믹이 있으면 돌 전부 제거가 클리어 조건
-  if(hasStones()){
-    if(totalStones<=0){playing=false;setTimeout(()=>showEndScreen(true),400);}
+  // 미션이 정의되어 있으면 모든 미션 클리어가 승리 조건
+  if(hasMissionDefined()){
+    if(isMissionCleared()){playing=false;setTimeout(()=>showEndScreen(true),400);}
     else if(movesLeft<=0){playing=false;setTimeout(()=>showEndScreen(false),400);}
   } else {
     if(score>=stageTarget){playing=false;setTimeout(()=>showEndScreen(true),400);}
     else if(movesLeft<=0){playing=false;setTimeout(()=>showEndScreen(false),400);}
   }
 }
+// 클리어 보상 — 골드 외 4종 재료(기본/슈퍼/하이퍼/마스터 합성용)는 다음 phase에서 추가 예정.
+// 무료 휘발 볼은 폐기됨.
 
 
 function resetToStart(){
@@ -292,6 +294,8 @@ function startGame(){
   playing=false;busy=false;isBusyRainbow=false;isBusyNormal=false;
   dragState=null;animQueue.length=0;animRunning=false;skipDelay=false;
   score=0;
+  // 스킨 데이터 재로드 — 인트로 후 슬롯 변경 / "처음으로" 후 옛 캐시 방지
+  if(typeof loadSkinData==='function') skinData=loadSkinData();
   clearHint();clearAllBlocks();
 
   // 스테이지 데이터 적용 (stage_maps.js 우선, 없으면 DEFAULT_STAGE_CONFIG 폴백)
@@ -313,9 +317,13 @@ function startGame(){
   // target-value 요소는 HUD에서 제거됨 — 존재할 때만 갱신
   const _tgtEl=document.getElementById('target-value');
   if(_tgtEl) _tgtEl.textContent=stageTarget.toLocaleString();
-  initBoard();spawnAllBlocks();spawnGimmicks();
+  initBoard();spawnAllBlocks();spawnGimmicks();spawnTiles();
   totalStones=countStones();
   initialStones=totalStones;
+  totalGrass=countGrass();
+  initialGrass=totalGrass;
+  // 미션 모델 D: stage_maps.missions 명시 우선, 없으면 보드 자동 카운트
+  loadStageMissions(currentStage);
   refreshBlockElsCoordinates();
   updateMissionUI();
 

@@ -5,6 +5,128 @@
 
 ---
 
+## 2026.05.10 (19일차 후반) — C-3 몬스터볼 자연충전 + skin/devClear 호환 fix
+
+기믹 phase 1 검증 후 메타게임 C-3 (몬스터볼 자연충전) 진행.
+
+### C-3 자연충전 단일 풀 모델
+사용자 검토 결과 처음 짠 3-rail (natural / freeBasic / 일반 basic) 분리는 너무 복잡. **단일 풀 모델**로 단순화 — `hexPuzzleBalls.basic` 자체가 자연 + 보상 통합 풀. 자연충전은 풀이 5 미만일 때만 진행, 5 이상이면 정지. 보상으로 11개 등 5 초과 보유 가능.
+
+- balls.js 전체 갈아엎기 — 단일 풀 + `hexPuzzleBasicChargeAt` 트래킹
+- 소비 우선순위 분기 폐기 (단일 풀이라 단순 -=1)
+- main.js `onStageCleared` 폐기 (freeBasic 무료 휘발 폐기, 향후 재료 시스템으로 대체)
+- ui.js 로비 "기본볼 자연충전" 카드 (`🔴 N/5 +mm:ss`) — N이 5 이상이면 timer 숨김 + is-full
+
+### `Date.now() | 0` 비트 버그 (root cause)
+처음 `saveChargeAt(t | 0)` 사용. 13자리 timestamp(약 1.7e12)가 **32-bit 정수로 잘려 음수**로 저장됨. 다음 호출 `loadChargeAt`이 음수 반환 → `elapsed = Date.now() - 음수` = 거대한 양수 → 자연충전 트리거 → b.basic 4→5 다시 차오름. 사용자 보고 "throw 후에도 5/5 그대로" 원인.
+- fix: `String(t | 0)` → `String(Math.floor(t))`
+
+### 셀렉터 카운트 표시 fix (encounter.js)
+`refreshBallButtons` / `refreshSelectedBall`이 `getAllBalls()` (일반 인벤토리만) 사용해서 자연 풀 변화 안 보였음. `getBalls(t)` (단일 풀이라 합산 의미 X, 그대로 풀 카운트) 사용으로 변경.
+
+### devForceClear 미션 모델 D 호환
+C 치트가 미션 모델 D 도입 후 안 작동. 옛 카운터(`totalStones=0`)만 set + score=stageTarget 했는데, `isMissionCleared()`가 `currentMissions[].count` 기반 → sync 안 됨.
+- fix: `currentMissions[].count = 0` 모두 강제 + `updateMissionUI()` 호출
+
+### 가방 (인벤토리) 화면 신규
+사용자 컨셉: "관리 UI"가 아니라 "탐험 도구함" — 포켓몬GO 스타일 toy 감성. 우하단 "준비중" → 🎒 가방.
+
+- 3탭: 포획(4종 볼) / 재료(사탕 + 향후 재료) / 특수(실루엣 placeholder)
+- 골드/다이아는 가방 X — 로비 헤더 카드에서 관리 (역할 분리)
+- 리스트형 카드 (그리드 X), 자연충전 ⏱는 로비 카드만 표시 (가방 X)
+- 카드 탭: bounce 애니 (scale 1.0→1.10→1.04→1.0 + ±2° wiggle, 200ms)
+- 모달: 닌텐도 스타일 + hero 아이콘 idle bob (1.6s 무한)
+- 모달 닫기: ✕ 버튼 + 바깥 영역 탭 둘 다
+- **첫 시도 fix**: showScreen 화면 목록에 'bag-screen' 빠뜨림 → 뒤로가기 시 bag이 lobby 위에 그대로 떠있어 안 닫힘. 배열에 추가하여 해결
+- **톤 fix**: 처음 soft green으로 짰는데 도감/스킨과 톤 안 맞아 어색 → 크림/옐로우(#fff8e7 + 도트 패턴 + Black Han Sans 24px)로 통일
+- 카운터 배지 + 헤더 타이틀 폰트도 도감/스킨과 1:1 통일
+
+### 기획서 갱신 (design_system.md v0.6)
+- §4-5 몬스터볼 — 단일 풀 모델로 단순화 (자연충전 = basic 자체, 5 미만일 때만 진행, 보상으로 5 초과 가능)
+- §4-6 재료 시스템 신규 — 3종 재료(기본/슈퍼/하이퍼), 클리어 시 60/30/10% 드롭, 5개 합성 → 볼 1개. 옛 조각 시스템 폐기
+- §12-8 가방 화면 신규
+- §14 상점 시스템 갱신 — 합성 탭 + 골드 구매 + 스킨/프리미엄
+- §16 개발 진행 현황 — 19개 완료 항목 정리 + TODO에 재료/상점/볼 부족 다이얼로그 추가
+
+### skinData 캐시 reload
+"처음으로" → 새 계정 생성 → stage 1 시 옛 스킨 그대로 보이는 버그. game.js `let skinData = loadSkinData()` 가 모듈 로드 시 한 번만 호출되어 메모리 캐시. 인트로에서 슬롯 set 후 캐시 갱신 X.
+- fix: `lobby.js` 인트로 끝(starter 지급 후) `skinData = loadSkinData()` 재호출
+- fix: `main.js startGame` 시작에도 동일 재호출
+
+### 💡 오늘의 교훈
+1. **`x | 0` 트릭은 32-bit 안전 영역만**: timestamp/큰 숫자에 쓰면 silently wrap. `Math.floor(x)` 또는 그냥 `Number(x)` 써야 안전. 한 글자 차이로 자연충전 시스템 전체가 무한 트리거되는 버그 생김.
+2. **다중 풀 분리는 도입 전 한 번 더 검토**: 처음 짠 3-rail은 구조상 단순해 보였지만 사용자 의도(단일 풀 + 5 임계값)와 안 맞아 갈아엎었다. 스펙 §4-5의 휘발 동기는 차후 "재료 + 합성"으로 대체될 예정 — 디자인 의도를 코드 구조에 직접 박기 전에 한 번 더 사용자 모델 확인이 단축 경로.
+3. **메모리 캐시는 명시 reload 지점 필수**: `let x = loadX()` 모듈 로드 시 한 번 캐시는 편하지만, 데이터 변경(slots/missions 등) 후 reload 안 하면 stale. 갱신 시점이 다양하면 함수 호출자가 책임지고 reload — 또는 `getX()` 매 호출 reload.
+4. **디버그 console.log 박는 시점**: 사용자가 "5 그대로" 보고 → 첫 try에서 storage 자체 변화도 안 보였음. forEach 안에 `console.log(els.length, before, after)` 박으니 즉시 원인(getBalls가 4 받고 다시 5 반환)이 드러남. 의심 시점에 한 번 박는 게 시간 절약.
+
+---
+
+## 2026.05.10 (19일차) — 기믹 인프라 일반화 + 잔디(Grass) Phase 1 + 미션 모델 D + 맵 에디터 미션 설정
+
+design_gimmick.md 부록 D Phase 1을 시작. 잔디 단일 기믹만 들어가는 줄 알았는데 검증하면서 줄볼/폭탄/무지개 트리거 누락이 드러나서 special.js 21곳 통합 마이그레이션, 그리고 미션 모델 + 타겟볼 우선순위 + 맵 에디터까지 한 패키지로 묶여 진행됐다.
+
+### Phase 1: 잔디 인프라 + 단독 잔디 구현
+- **별도 레이어 결정**: 잔디는 타일형이라 `gimmick[][]` 에 넣으면 gravity 시스템(stone과 동일 장벽 처리)이 깨짐. 별도 `tile[col][row]` + `tileEls[col][row]` 신설로 해결.
+- **board.js**:
+  - 일반화 dispatcher 신설: `hitGimmick` (type 분기) / `destroyGimmick` / `placeGimmick`
+  - 잔디 헬퍼: `placeGrass` / `removeTile` / `updateTileVisual` / `spawnTiles` / `countGrass` / `hasGrass`
+  - 트리거: `onBlockDestroyedAt(c,r)` — 그 셀에 잔디 있으면 단계 -1, 0이면 제거 + 미션 카운트 -1
+  - `applyStageGimmicks` type 분기: `g.type === 'grass'` → tile 적재 / 나머지 → gimmick 그대로
+  - `clearAllBlocks` / `initBoard` 등에 tile 초기화 추가
+- **game.js**: 매치 제거 루프 / 타겟볼 area / 발사 3곳에 `onBlockDestroyedAt` hook
+- **main.js startGame**: `spawnTiles()` + `initialGrass = countGrass()` 초기화
+- **main.js checkGameEnd**: 돌+잔디 둘 다 0이어야 클리어 (이후 `isMissionCleared()`로 일반화됨)
+- **style.css**: `.gimmick-tile` z-index 0 (hex-cell 위, hex-block 아래로 정확히 끼움). grass-2=진녹 #2c5a2c / grass-1=연녹 #79c95c + 격자 텍스처
+- **stage_maps stage 1**: 검증용 잔디 2개 배치
+
+### Phase 1 검증 중 발견한 이슈 3건
+1. **z-index 충돌** — 처음 `.gimmick-tile` z-index를 1로 했는데 `.hex-block`도 1. DOM 순서로 잔디가 블록 위에 덮여 시작 시 블록이 가려짐. 잔디 0으로 낮춰서 hex-cell(0)/잔디(0, DOM 후행)/hex-block(1) 정확히 stack.
+2. **HUD 미션 카드가 잔디 미반영** — 단순 합산 표시(`totalStones+totalGrass`)라 잔디 갯수 시각화 X. 멀티 카드(1/2/3/4 카운트별 레이아웃) 도입.
+3. **줄볼/폭탄/무지개로 잔디 안 깎임** — Phase 1에서 의도적으로 미룬 special.js 21곳 통합이 수면 위로. game.js 메인 매치 제거 루프 + 타겟볼만 hook 됐고 special.js 직접 `board[c][r]=null` 경로 다수가 잔디 트리거 누락.
+
+### Phase 1.5: special.js 16곳 onBlockDestroyedAt 통합 마이그레이션
+- 모든 `board[c][r]=null` 직전에 `onBlockDestroyedAt(c,r)` hook 추가 (rainbow self/targets, chainSpecials, target step2, self destroy, cross removeBoth, destroyCells, initialDestroy×2, areaKill×3, stripe inline destroyed, rainbow+bomb converts, rainbow+target finalHit, target self)
+- 동일 패턴(`initialDestroy` 루프, `areaKill` 처리)은 `replace_all=true`로 묶음 처리
+- 결과: 줄볼/폭탄/타겟볼/무지개/10가지 교차 효과 모두 잔디 일관 트리거
+
+### 미션 모델 D 도입
+사용자 제안: "에디터에서 미션 설정도 사용자가 직접 할 수 있게 하자" + "어떤 기믹에 우선으로 갈지, 어떤 기믹의 높은 단계부터 우선으로 갈지 이런 걸 넣어야 해서". 두 축의 우선순위 — 기믹 종류(cross-type) + 같은 종류 안 단계(intra-type) — 를 분석해 후보 D(Two-key sort, missions 순서 + 자연 룰 단계 정렬)로 결정.
+
+- **데이터 모델**: `stage_maps.missions: [{type, count}, ...]` — 배열 순서가 우선순위
+- **board.js**: `currentMissions` 글로벌 + 헬퍼 6개 (`loadStageMissions` / `decrementMission` / `isMissionCleared` / `hasMissionDefined` / `collectMissionCells` / `countMissionType`)
+- **타겟볼 우선순위 일반화** (special.js `getTargetBallTarget`): missions 순서 → 같은 type 안 단계 높은 거 → random fallback. 후방 호환: missions 미정의 시 기존 돌 우선
+- **잔디 빈 셀 예외**: 사용자 결정 — "잔디 셀 빈 셀이어도 타겟볼 도착해서 단계 -1". 도착 처리 5곳(game.js + special.js stripe+target / target+target / bomb+target / rainbow+target / computeSpecialEffect step2)에 `if(!board[rc]?.[rr]) onBlockDestroyedAt(rc,rr)` 추가
+- **HUD 멀티 카드** (`updateMissionUI` 동적 렌더링): 1개=정중앙(큰)/2개=가로(중)/3개=2+1(작)/4개=2x2(작). `mission-list[data-count]` CSS grid 레이아웃 + `MISSION_ICONS` 매핑
+
+### 맵 에디터 미션 설정 UI + 자동 sync
+사용자 이슈: "돌 미션 개수가 맵에 배치된 돌 기믹 수랑 다르네. 자동 체크가 되어야 해."
+→ "보드 배치 = 진실의 원천" 통일. 양쪽(에디터 + 게임 코드) 자동 sync.
+
+- **에디터 (`map_editor.html`)**:
+  - 잔디 도구 버튼 2개 (CSS 헥사 도형, gimmick-tile과 동일 톤)
+  - 잔디 셀 렌더링 + `onCellClick` stone/grass 일반화
+  - 미션 패널: 4개까지 + type 드롭다운 + count **readonly span** + ✕ 삭제 + "+ 미션 추가" 버튼
+  - 우선순위 안내 텍스트
+  - `syncMissionsToBoard()` 헬퍼 — `renderMissions` 시작에서 자동 호출 → 모든 진입점에서 `count = countTypeOnBoard(type)` 보장
+  - import/export missions 처리
+  - addMission 디폴트 type = "미션에 없는 첫 type" (작은 UX 개선)
+  - 스테이지 요약에 미션 카운트 추가
+- **게임 코드 (`board.js loadStageMissions`)**: 명시 `missions[].count` 무시하고 `countMissionType(type)`으로 보드 자동. 어긋남 자체가 발생 X.
+
+### design_gimmick.md v0.2
+- §2-4 잔디 빈 셀 예외 룰 추가
+- **부록 G** 신설: 트리거 점검 체크리스트 (10경로 × 2기믹). 새 기믹 추가 시 필수 점검
+- **부록 H** 신설: 타겟볼 우선순위 룰 (모델 D) + 자동 sync 룰 + 도착 처리 분기
+
+### 💡 오늘의 교훈
+1. **타일형은 별도 레이어**: 같은 차원(`gimmick[][]`)에 다른 동작 룰을 욱여넣으면 시스템이 깨진다. 잔디는 셀 바닥 + 위 블록 공존 — 처음부터 별도 레이어로 분리한 게 정답이었음.
+2. **트리거 누락은 신규 기믹의 산문**: special.js의 21곳을 Phase 1에서 미뤘는데 검증 즉시 드러남. design_gimmick.md 부록 G 체크리스트가 그 증거. 새 기믹 추가 시 모든 트리거 경로를 점검하지 않으면 일관성 깨짐.
+3. **z-index 동일 + DOM 순서 의존은 함정**: hex-block(1) vs gimmick-tile(1) 동일이면 DOM 순서가 결정. spawn 순서가 바뀌면 시각이 바뀜. 0/0/1 같이 정확히 끼우는 게 안전.
+4. **자동 sync = 진실의 원천 단일화**: missions count를 사용자 입력 + 보드 배치 두 곳 두면 어긋남 발생 가능. "보드 = 진실의 원천" 한 줄로 단순화하니 디자인 의도(type 순서)와 구현 정합성(count) 분리됨.
+5. **모델 D vs 명시 우선순위**: 처음엔 별도 `targetPriority` 필드도 고려했지만, 미션 정의 = 우선순위 통합이 디자인 의도를 직접 표현(type 순서가 곧 우선순위). 향후 자유도가 더 필요하면 `levelOrder` 옵션 필드 / 명시 모드를 점진 추가 가능 — 처음부터 over-engineering 안 한 게 옳았음.
+
+---
+
 ## 2026.05.09~10 (17~18일차) — 야생 조우/포획 풀스펙 + UI 전면 리디자인
 
 집-회사 git divergence 복구로 시작 → 18지역 매핑 → 조우/포획 풀스펙 → UI 리디자인까지 한 묶음.

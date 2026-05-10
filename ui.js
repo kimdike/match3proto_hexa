@@ -95,24 +95,36 @@ function clearMatchLogs(){
 }
 
 // ── HUD ──
+// 미션 type별 아이콘 HTML — 향후 ice/crates/keys 추가 시 자리만 추가
+const MISSION_ICONS={
+  stones: '<img class="mission-icon" src="assets/gimmick/stone_1.png" alt="stone">',
+  grass:  '<span class="mission-icon grass-icon" aria-label="grass"></span>',
+  // ice:    '<span class="mission-icon ice-icon" aria-label="ice"></span>',
+  // crates: '<img class="mission-icon" src="assets/gimmick/crate_1.png" alt="crate">',
+  // keys:   '<img class="mission-icon" src="assets/gimmick/key.png" alt="key">',
+};
+
 function updateMissionUI(){
   const el=document.getElementById('mission-display');
   if(!el) return;
-  // 처음부터 미션 자체가 없는 스테이지(점수 모드 등)는 카드 숨김
-  if(initialStones<=0){
+  const list=document.getElementById('mission-list');
+  if(!list) return;
+  // 미션 모델 D: currentMissions 배열 우선 (없으면 카드 숨김)
+  const missions=(typeof currentMissions!=='undefined')?currentMissions:[];
+  if(missions.length===0){
     el.classList.add('hidden');
     return;
   }
-  // 미션 있는 스테이지: 카드 항상 표시 (남은 개수 또는 클리어 ✅)
   el.classList.remove('hidden');
-  const countEl=document.getElementById('mission-count');
-  if(totalStones>0){
-    countEl.textContent=totalStones;
-    countEl.classList.remove('mission-cleared');
-  } else {
-    countEl.textContent='✅';
-    countEl.classList.add('mission-cleared');
-  }
+  list.dataset.count=String(Math.min(missions.length,4));
+  list.innerHTML=missions.slice(0,4).map(m=>{
+    const iconHTML=MISSION_ICONS[m.type]||'<span class="mission-icon" aria-hidden="true"></span>';
+    const cleared=m.count<=0;
+    const badge=cleared
+      ? '<span class="mission-count-badge mission-cleared">✅</span>'
+      : `<span class="mission-count-badge">${m.count}</span>`;
+    return `<div class="mission-item" data-mission="${m.type}">${iconHTML}${badge}</div>`;
+  }).join('');
 }
 
 // high-score / score 표시 제거됨 — DOM 엘리먼트 없을 수 있으므로 null 가드
@@ -299,9 +311,16 @@ function setupUI(){
 // DEV 즉시 클리어 — 돌 미션/점수 양쪽 충족시켜 cleared=true 분기 트리거
 function devForceClear(){
   if(!devUnlocked || !playing) return;
-  totalStones=0;          // 돌 미션 클리어 조건
-  score=stageTarget;      // 점수 클리어 조건 (돌 없는 스테이지 fallback)
+  // 글로벌 카운터 0 (legacy 호환)
+  totalStones=0;
+  totalGrass=0;
+  // 미션 모델 D: currentMissions 카운트도 모두 0으로 강제 (isMissionCleared 통과 조건)
+  if(Array.isArray(currentMissions)){
+    for(const m of currentMissions) m.count=0;
+  }
+  score=stageTarget;      // 점수 클리어 조건 (미션 미정의 스테이지 fallback)
   if(typeof playSfx==='function') playSfx('btn_click');
+  if(typeof updateMissionUI==='function') updateMissionUI();
   if(typeof checkGameEnd==='function') checkGameEnd();
 }
 
@@ -573,7 +592,7 @@ function resizeGrid(){
 
 // ── 화면 전환 ──
 function showScreen(id){
-  ['main-screen','character-select-screen','nickname-screen','intro-screen','lobby-screen','skin-screen','dex-screen','encounter-screen','game-container'].forEach(s=>{
+  ['main-screen','character-select-screen','nickname-screen','intro-screen','lobby-screen','skin-screen','dex-screen','bag-screen','encounter-screen','game-container'].forEach(s=>{
     const el=document.getElementById(s);
     if(el) el.classList.add('hidden');
   });
@@ -664,6 +683,8 @@ function updateLobbyProfile(){
   updateLobbyGoldUI();
   updateLobbyDiamondUI();
   updateLobbyStreakUI();
+  updateLobbyNaturalBallUI();
+  startNaturalBallTimer();
   updateLobbySkinBadge();
 }
 
@@ -673,6 +694,203 @@ function loadDiamond(){
   return Number.isFinite(v)?v:0;
 }
 function saveDiamond(n){ localStorage.setItem('hexPuzzleDiamond',String(n|0)); }
+// ── 가방 (인벤토리) 화면 ──
+// 3탭: 포획 / 재료 / 특수 (특수는 실루엣 placeholder)
+// 리스트형 + 카드 탭 → bounce 애니 + 상세 모달
+// 톤: soft green + glow + vignette (조우 화면 톤 참고)
+
+const BAG_DATA = {
+  capture: [
+    { id:'basic',  iconClass:'bag-icon-basic',  name:'기본볼',   desc:'포획 확률 33%',  modalDesc:'야생 포켓몬을 잡을 수 있는 기본 도구.', getCount: ()=>(typeof getBalls==='function' ? getBalls('basic') : 0) },
+    { id:'super',  iconClass:'bag-icon-super',  name:'슈퍼볼',   desc:'포획 확률 60%',  modalDesc:'기본볼보다 강력한 포획 도구.', getCount: ()=>(typeof getBalls==='function' ? getBalls('super') : 0) },
+    { id:'hyper',  iconClass:'bag-icon-hyper',  name:'하이퍼볼', desc:'포획 확률 80%',  modalDesc:'고급 포획 도구.', getCount: ()=>(typeof getBalls==='function' ? getBalls('hyper') : 0) },
+    { id:'master', iconClass:'bag-icon-master', name:'마스터볼', desc:'포획 확률 100%', modalDesc:'반드시 포획 성공하는 전설의 볼.', getCount: ()=>(typeof getBalls==='function' ? getBalls('master') : 0) },
+  ],
+  material: [
+    { id:'candy', iconClass:'bag-icon-candy', name:'사탕', desc:'진화에 사용되는 만능 재료', modalDesc:'모든 포켓몬 진화에 공통으로 쓰이는 재료.', getCount: ()=>(typeof getCandy==='function' ? getCandy() : 0) },
+  ],
+  special: [
+    { silhouette:true, label:'???', desc:'곧 등장!' },
+    { silhouette:true, label:'???', desc:'곧 등장!' },
+    { silhouette:true, label:'???', desc:'곧 등장!' },
+    { silhouette:true, label:'???', desc:'곧 등장!' },
+  ],
+};
+let _bagCurrentTab = 'capture';
+
+function openBagScreen(){
+  showScreen('bag-screen');
+  setBagTab(_bagCurrentTab || 'capture', /*skipFade*/true);
+}
+
+function setBagTab(tabId, skipFade){
+  _bagCurrentTab = tabId;
+  document.querySelectorAll('.bag-tab').forEach(t=>{
+    t.classList.toggle('is-active', t.dataset.bagTab === tabId);
+  });
+  // 첫 진입 시 화면이 막 visible — layout 측정이 0 나올 수 있어 다음 frame으로 deferred
+  const underline = document.getElementById('bag-tab-underline');
+  if(skipFade && underline){
+    underline.style.transition = 'none';
+    requestAnimationFrame(()=>{
+      positionBagTabUnderline(tabId);
+      requestAnimationFrame(()=>{ underline.style.transition = ''; });
+    });
+  } else {
+    requestAnimationFrame(()=>positionBagTabUnderline(tabId));
+  }
+  const list = document.getElementById('bag-list');
+  if(!list) return;
+  if(skipFade){
+    renderBagList(tabId);
+    list.style.opacity = '1';
+  } else {
+    list.style.transition = 'opacity 200ms ease';
+    list.style.opacity = '0';
+    setTimeout(()=>{
+      renderBagList(tabId);
+      list.style.opacity = '1';
+    }, 180);
+  }
+}
+
+function positionBagTabUnderline(tabId){
+  const tabs = document.getElementById('bag-tabs');
+  const active = tabs?.querySelector(`.bag-tab[data-bag-tab="${tabId}"]`);
+  const underline = document.getElementById('bag-tab-underline');
+  if(!active || !underline) return;
+  underline.style.left = `${active.offsetLeft}px`;
+  underline.style.width = `${active.offsetWidth}px`;
+}
+
+function renderBagList(tabId){
+  const list = document.getElementById('bag-list');
+  const totalEl = document.getElementById('bag-total');
+  if(!list) return;
+  const items = BAG_DATA[tabId] || [];
+  list.innerHTML = '';
+
+  // 특수 탭 — 실루엣 placeholder
+  if(tabId === 'special'){
+    if(totalEl) totalEl.textContent = '곧 등장!';
+    items.forEach(()=>{
+      const card = document.createElement('div');
+      card.className = 'bag-card bag-card-silhouette';
+      card.innerHTML = `
+        <div class="bag-card-icon bag-icon-silhouette"></div>
+        <div class="bag-card-body">
+          <div class="bag-card-name">???</div>
+          <div class="bag-card-desc">곧 등장!</div>
+        </div>
+      `;
+      list.appendChild(card);
+    });
+    return;
+  }
+
+  // 일반 탭 — 포획은 4종 다 표시 (0개여도), 재료는 보유한 것만
+  const renderItems = (tabId === 'capture')
+    ? items
+    : items.filter(it => (it.getCount?.() ?? 0) > 0);
+  if(totalEl) totalEl.textContent = `총 ${renderItems.length}개`;
+
+  renderItems.forEach(it=>{
+    const cnt = it.getCount?.() ?? 0;
+    const card = document.createElement('div');
+    card.className = 'bag-card';
+    card.dataset.itemId = it.id;
+    card.innerHTML = `
+      <div class="bag-card-icon ${it.iconClass}"></div>
+      <div class="bag-card-body">
+        <div class="bag-card-name">${it.name}</div>
+        <div class="bag-card-desc">${it.desc}</div>
+      </div>
+      <div class="bag-card-count">×${cnt}</div>
+    `;
+    card.addEventListener('click', ()=>{
+      card.classList.remove('bouncing');
+      void card.offsetWidth; // reflow → 애니 재시작
+      card.classList.add('bouncing');
+      setTimeout(()=>card.classList.remove('bouncing'), 220);
+      openBagItemModal(it, cnt);
+    });
+    list.appendChild(card);
+  });
+}
+
+function openBagItemModal(item, count){
+  const overlay = document.getElementById('bag-modal-overlay');
+  const iconEl = document.getElementById('bag-modal-icon');
+  const nameEl = document.getElementById('bag-modal-name');
+  const descEl = document.getElementById('bag-modal-desc');
+  const countEl = document.getElementById('bag-modal-count');
+  if(!overlay) return;
+  iconEl.className = 'bag-modal-icon ' + (item.iconClass || '');
+  nameEl.textContent = item.name;
+  descEl.textContent = item.modalDesc || item.desc || '';
+  countEl.textContent = `보유 ${count}개`;
+  overlay.classList.remove('hidden');
+}
+function closeBagItemModal(){
+  const overlay = document.getElementById('bag-modal-overlay');
+  if(overlay) overlay.classList.add('hidden');
+}
+
+function setupBagEvents(){
+  const backBtn = document.getElementById('bag-back-btn');
+  if(backBtn) backBtn.addEventListener('click', ()=>{
+    if(typeof playSfx==='function') playSfx('btn_click');
+    showScreen('lobby-screen');
+  });
+  document.querySelectorAll('.bag-tab').forEach(tab=>{
+    tab.addEventListener('click', ()=>{
+      const id = tab.dataset.bagTab;
+      if(id === _bagCurrentTab) return;
+      if(typeof playSfx==='function') playSfx('btn_click');
+      setBagTab(id);
+    });
+  });
+  const closeBtn = document.getElementById('bag-modal-close');
+  if(closeBtn) closeBtn.addEventListener('click', closeBagItemModal);
+  const overlay = document.getElementById('bag-modal-overlay');
+  if(overlay) overlay.addEventListener('click', (e)=>{
+    if(e.target === overlay) closeBagItemModal();
+  });
+}
+
+// C-3 자연충전 카드 갱신 — basic 단일 풀 (자연 + 보상 통합)
+// 표시: "N/5" — N이 5 초과여도 "11/5" 그대로. timer는 N < 5 일 때만.
+function updateLobbyNaturalBallUI(){
+  const numEl=document.getElementById('lobby-natural-num');
+  const timerEl=document.getElementById('lobby-natural-timer');
+  const card=document.getElementById('lobby-natural-card');
+  if(!numEl||!timerEl||!card) return;
+  if(typeof tickNatural!=='function'){ return; } // balls.js 미로드
+  const count=tickNatural()|0; // 충전 갱신 후 basic 카운트
+  numEl.textContent=count;
+  if(count>=NATURAL_MAX){
+    card.classList.add('is-full');
+    timerEl.textContent='';
+  } else {
+    card.classList.remove('is-full');
+    const ms=getNaturalNextChargeMs();
+    const sec=Math.max(0, Math.ceil(ms/1000));
+    const mm=Math.floor(sec/60);
+    const ss=sec%60;
+    timerEl.textContent=`+${mm}:${ss.toString().padStart(2,'0')}`;
+  }
+}
+// 자연충전 자동 갱신 인터벌 (한 번만 시작)
+let _naturalBallTimer=null;
+function startNaturalBallTimer(){
+  if(_naturalBallTimer) return;
+  _naturalBallTimer=setInterval(()=>{
+    // 로비 화면 활성 시에만 갱신 (불필요한 DOM 조작 회피)
+    const lobby=document.getElementById('lobby-screen');
+    if(lobby && !lobby.classList.contains('hidden')) updateLobbyNaturalBallUI();
+  }, 1000);
+}
+
 function updateLobbyDiamondUI(){
   const el=document.getElementById('lobby-diamond-num');
   if(el) el.textContent=loadDiamond();
@@ -924,6 +1142,8 @@ function setupScreenNav(){
       showScreen('character-select-screen');
     }
   });
+  // 가방 화면 이벤트
+  setupBagEvents();
   // 로비 하단 버튼
   document.querySelectorAll('.lobby-menu-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
@@ -934,6 +1154,8 @@ function setupScreenNav(){
         renderSkinScreen();
       } else if(target==='collection'){
         showDexScreen();
+      } else if(target==='bag'){
+        openBagScreen();
       } else {
         document.getElementById('coming-soon-overlay').classList.remove('hidden');
       }
@@ -978,7 +1200,10 @@ function setupScreenNav(){
         'hexPuzzlePityRepeat',      // v0.5
         'hexPuzzleEncounterStreak', // 레거시
         // 조우/포획 (Stage C)
-        'hexPuzzleBalls',           // 몬스터볼 인벤토리 (4종)
+        'hexPuzzleBalls',           // 몬스터볼 인벤토리 (4종, basic 단일 풀)
+        'hexPuzzleBasicChargeAt',   // C-3 basic 자연충전 chargeAt
+        'hexPuzzleNaturalBall',     // (deprecated) 옛 자연 풀 트랙 — 호환 청소
+        'hexPuzzleFreeBasic',       // (deprecated) 옛 무료 휘발 트랙 — 호환 청소
         'hexPuzzleAutoFlee',        // 자동도망 ON/OFF
         'hexPuzzleAutoFleeSeen',    // 자동도망 첫 ON 트리거 (로비 토글 노출 플래그)
       ];

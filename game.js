@@ -372,6 +372,7 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
   for(const [c,r] of allCells){
     if(mergeSet.has(`${c},${r}`)) continue;
     if(blockEls[c][r]) blockEls[c][r].classList.add('matched');
+    onBlockDestroyedAt(c,r);
     board[c][r]=null;
   }
   await delay(CFG.matchedDelay);
@@ -394,6 +395,7 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
           if(!hitStones.has(sk)){ hitStones.add(sk); hitStone(ac,ar); }
         } else if(board[ac]?.[ar]!==null){
           if(blockEls[ac][ar]) blockEls[ac][ar].classList.add('matched');
+          onBlockDestroyedAt(ac,ar);
           board[ac][ar]=null;
           score+=100;updateScoreUI();
         }
@@ -412,11 +414,15 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
         if(hit.isStone){
           hitStone(rc,rr);
         } else {
-          if(blockEls[rc][rr]) blockEls[rc][rr].classList.add('matched');
-          board[rc][rr]=null;
-          score+=100;updateScoreUI();
-          await delay(CFG.specialActivateDelay);
-          if(blockEls[rc][rr]){blockEls[rc][rr].remove();blockEls[rc][rr]=null;}
+          // 잔디 트리거 (빈 셀이어도 — 잔디 빈 셀 예외)
+          onBlockDestroyedAt(rc,rr);
+          if(board[rc]?.[rr]){
+            if(blockEls[rc][rr]) blockEls[rc][rr].classList.add('matched');
+            board[rc][rr]=null;
+            score+=100;updateScoreUI();
+            await delay(CFG.specialActivateDelay);
+            if(blockEls[rc][rr]){blockEls[rc][rr].remove();blockEls[rc][rr]=null;}
+          }
         }
       }
     }

@@ -106,6 +106,11 @@
           <span class="lobby-meta-icon">⭐</span>
           <span id="lobby-streak-num">0</span><span class="lobby-meta-sep">/5</span>
         </div>
+        <div class="lobby-meta lobby-meta-balls" aria-label="기본볼 자연충전" id="lobby-natural-card">
+          <span class="lobby-meta-icon">🔴</span>
+          <span id="lobby-natural-num">5</span><span class="lobby-meta-sep">/5</span>
+          <span class="lobby-natural-timer" id="lobby-natural-timer"></span>
+        </div>
       </div>
     </div>
     <div class="lobby-character-area">
@@ -123,7 +128,7 @@
       <button class="lobby-menu-btn" data-target="skin" type="button"><span class="lobby-menu-icon">🎨</span><span>스킨</span></button>
       <button class="lobby-menu-btn" data-target="shop" type="button"><span class="lobby-menu-icon">🛒</span><span>상점</span></button>
       <button class="lobby-menu-btn" data-target="collection" type="button"><span class="lobby-menu-icon">📖</span><span>도감</span></button>
-      <button class="lobby-menu-btn" data-target="locked" type="button"><span class="lobby-menu-icon">🔒</span><span>준비중</span></button>
+      <button class="lobby-menu-btn" data-target="bag" type="button"><span class="lobby-menu-icon">🎒</span><span>가방</span></button>
     </div>
     <button id="lobby-dev-btn" class="lobby-dev-btn" type="button" aria-label="개발자 모드">DEV</button>
   </div>
@@ -193,6 +198,38 @@
     <div id="coming-soon-panel">
       <div id="coming-soon-msg">준비 중입니다!</div>
       <button id="coming-soon-ok" class="confirm-btn no">확인</button>
+    </div>
+  </div>
+
+  <!-- ── 가방 (인벤토리) 화면 ── -->
+  <div id="bag-screen" class="hidden">
+    <div class="bag-bg" aria-hidden="true"></div>
+    <div class="bag-vignette" aria-hidden="true"></div>
+
+    <header class="bag-header">
+      <button id="bag-back-btn" class="bag-back-btn" type="button" aria-label="뒤로가기">←</button>
+      <h2 class="bag-title">가방</h2>
+      <span class="bag-total" id="bag-total">총 0개</span>
+    </header>
+
+    <nav class="bag-tabs" id="bag-tabs">
+      <button class="bag-tab is-active" data-bag-tab="capture" type="button">포획</button>
+      <button class="bag-tab" data-bag-tab="material" type="button">재료</button>
+      <button class="bag-tab" data-bag-tab="special" type="button">특수</button>
+      <span class="bag-tab-underline" id="bag-tab-underline" aria-hidden="true"></span>
+    </nav>
+
+    <div class="bag-list" id="bag-list" role="list"></div>
+
+    <!-- 상세 모달 -->
+    <div class="bag-modal-overlay hidden" id="bag-modal-overlay" role="dialog" aria-modal="true">
+      <div class="bag-modal" id="bag-modal">
+        <button class="bag-modal-close" id="bag-modal-close" type="button" aria-label="닫기">✕</button>
+        <div class="bag-modal-icon" id="bag-modal-icon"></div>
+        <h3 class="bag-modal-name" id="bag-modal-name"></h3>
+        <p class="bag-modal-desc" id="bag-modal-desc"></p>
+        <div class="bag-modal-count" id="bag-modal-count"></div>
+      </div>
     </div>
   </div>
 
@@ -299,8 +336,7 @@
         <div id="mission-display" class="hud-card hidden">
           <div class="hud-card-label">목표</div>
           <div class="hud-card-body mission-body">
-            <img src="assets/gimmick/stone_1.png" class="mission-icon" alt="stone">
-            <span id="mission-count" class="mission-count-badge">0</span>
+            <div id="mission-list" class="mission-list" data-count="0"></div>
           </div>
         </div>
       </div>

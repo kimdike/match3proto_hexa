@@ -4,6 +4,10 @@ var STAGE_MAPS_DATA = {
       "stage": 1,
       "colorTypes": 5,
       "moves": 30,
+      "missions": [
+        { "type": "grass",  "count": 2 },
+        { "type": "stones", "count": 4 }
+      ],
       "cells": [
         {
           "col": 0,
@@ -87,6 +91,18 @@ var STAGE_MAPS_DATA = {
         }
       ],
       "gimmicks": [
+        {
+          "col": 4,
+          "row": 4,
+          "type": "grass",
+          "level": 2
+        },
+        {
+          "col": 5,
+          "row": 4,
+          "type": "grass",
+          "level": 1
+        },
         {
           "col": 2,
           "row": 6,

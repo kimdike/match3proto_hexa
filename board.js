@@ -15,6 +15,18 @@ let entranceCols=new Set(); // 사출구가 있는 컬럼 (블록 충전 대상)
 let totalStones=0;   // 남은 돌 총 개수
 let initialStones=0; // 시작 시 돌 총 개수 (승리조건 판별용)
 
+// tile[col][row] = { type:'grass', level:1|2 } | null  (타일형 — 셀 바닥, 위에 블록 공존)
+// gimmick과 별개 레이어. 중력 영향 X, 매칭 X. 그 셀에서 블록이 매칭으로 제거될 때 단계 -1.
+const tile=[], tileEls=[];
+let totalGrass=0;
+let initialGrass=0;
+
+// 현재 스테이지의 미션 정의 (모델 D)
+// [{ type:'stones'|'grass'|'ice'|'crates'|'keys', count:N, initial:N }]
+// stage_maps.missions 배열 우선, 없으면 보드 배치로 자동 산출.
+// 타겟볼 우선순위 = missions 배열 순서 (앞이 1순위), 같은 type 안에선 단계 높은 거 우선.
+let currentMissions = [];
+
 // ── 스테이지 셀/기믹 적용 ──
 // stageMaps는 game.js에서 관리 (fetch/script 양쪽 로드 대응)
 function applyStageGimmicks(stageNum){
@@ -24,8 +36,13 @@ function applyStageGimmicks(stageNum){
   if(!stageData.gimmicks){ console.warn('[gimmicks] no gimmicks array for stage',stageNum); return; }
   console.log('[gimmicks] loading',stageData.gimmicks.length,'gimmicks for stage',stageNum);
   for(const g of stageData.gimmicks){
-    if(!gimmick[g.col]) gimmick[g.col]=[];
-    gimmick[g.col][g.row]={type:g.type,level:g.level};
+    if(g.type==='grass'){
+      if(!tile[g.col]) tile[g.col]=[];
+      tile[g.col][g.row]={type:'grass',level:g.level};
+    } else {
+      if(!gimmick[g.col]) gimmick[g.col]=[];
+      gimmick[g.col][g.row]={type:g.type,level:g.level};
+    }
   }
 }
 
@@ -164,9 +181,11 @@ function spawnAllBlocks(){
 }
 function clearAllBlocks(){
   const container=document.getElementById('grid-container');
-  container.querySelectorAll('.hex-block,.gimmick-el,.score-popup,.stripe-beam,.bomb-explosion,.target-projectile').forEach(e=>e.remove());
-  for(let col=0;col<COLS_PATTERN.length;col++){blockEls[col]=[];board[col]=[];gimmick[col]=[];gimmickEls[col]=[];}
+  container.querySelectorAll('.hex-block,.gimmick-el,.gimmick-tile,.score-popup,.stripe-beam,.bomb-explosion,.target-projectile').forEach(e=>e.remove());
+  for(let col=0;col<COLS_PATTERN.length;col++){blockEls[col]=[];board[col]=[];gimmick[col]=[];gimmickEls[col]=[];tile[col]=[];tileEls[col]=[];}
   totalStones=0;initialStones=0;
+  totalGrass=0;initialGrass=0;
+  currentMissions=[];
   dragState=null;
 }
 
@@ -222,6 +241,7 @@ function hitStone(col,row){
     if(typeof playSfx==='function') playSfx('stone_break');
     removeGimmickEl(col,row);
     totalStones--;
+    decrementMission('stones');
   } else {
     if(typeof playSfx==='function') playSfx('stone_hit');
     if(gimmickEls[col][row]){
@@ -266,4 +286,167 @@ function getRandomStonePos(excludeSet){
       if(gimmick[c][r]?.type==='stone'&&(!excludeSet||!excludeSet.has(`${c},${r}`)))
         cands.push([c,r]);
   return cands.length?cands[Math.floor(Math.random()*cands.length)]:null;
+}
+
+// ── 일반화 dispatcher (Phase 1: 외부 호출은 hitStone/placeStone 그대로 유지) ──
+// 향후 crate/ice 추가 시 hitGimmick 분기에 case 추가하고 호출처를 점진 이행.
+function hitGimmick(col,row){
+  const g=gimmick[col]?.[row];
+  if(!g) return;
+  switch(g.type){
+    case 'stone': hitStone(col,row); break;
+    // 향후: case 'crate': hitCrate(col,row); break;
+    //       case 'ice':   hitIce(col,row);   break;
+  }
+}
+function destroyGimmick(col,row){ removeGimmickEl(col,row); }
+function placeGimmick(col,row,type,level){
+  if(type==='grass') return placeGrass(col,row,level);
+  if(type==='stone') return placeStone(col,row,level);
+  // 향후: crate/ice/key
+}
+
+// ── 잔디 (타일형) ──
+// 셀 바닥 텍스처. 그 위에 블록 정상 충전. 그 셀의 블록이 매칭/효과로 제거되는 순간 단계 -1.
+function createTileEl(col,row,t){
+  if(!t) return null;
+  const pos=getCellPos(col,row);
+  const el=document.createElement('div');
+  el.className='gimmick-tile';
+  el.classList.add(`grass-${t.level}`);
+  el.style.left=`${pos.x}px`;el.style.top=`${pos.y}px`;
+  el.style.width=`${HEX_W}px`;el.style.height=`${HEX_H}px`;
+  return el;
+}
+function placeGrass(col,row,level){
+  if(!isValid(col,row)||isNonPlayable(col,row)) return;
+  removeTile(col,row);
+  if(!tile[col]) tile[col]=[];
+  if(!tileEls[col]) tileEls[col]=[];
+  tile[col][row]={type:'grass',level};
+  totalGrass++;
+  const container=document.getElementById('grid-container');
+  const el=createTileEl(col,row,tile[col][row]);
+  if(el){ container.appendChild(el); tileEls[col][row]=el; }
+  updateMissionUI();
+}
+function removeTile(col,row){
+  if(tileEls[col]?.[row]){
+    tileEls[col][row].remove();
+    tileEls[col][row]=null;
+  }
+  if(tile[col]?.[row]) tile[col][row]=null;
+}
+function updateTileVisual(col,row){
+  const t=tile[col]?.[row];
+  const el=tileEls[col]?.[row];
+  if(!t||!el) return;
+  el.classList.remove('grass-1','grass-2');
+  el.classList.add(`grass-${t.level}`);
+}
+function spawnTiles(){
+  const container=document.getElementById('grid-container');
+  for(let col=0;col<COLS_PATTERN.length;col++){
+    if(!tile[col]) tile[col]=[];
+    if(!tileEls[col]) tileEls[col]=[];
+    for(let row=0;row<COLS_PATTERN[col];row++){
+      const t=tile[col][row];
+      if(!t) continue;
+      const el=createTileEl(col,row,t);
+      if(el){ container.appendChild(el); tileEls[col][row]=el; }
+    }
+  }
+}
+function countGrass(){
+  let cnt=0;
+  for(let col=0;col<COLS_PATTERN.length;col++)
+    for(let row=0;row<(tile[col]?.length||0);row++)
+      if(tile[col][row]?.type==='grass') cnt++;
+  return cnt;
+}
+function hasGrass(){ return initialGrass>0; }
+
+// ── 잔디 깎임 트리거 ──
+// game.js 매치 제거 루프 / 타겟볼 area / 발사 등에서 board[c][r]=null 직전에 호출.
+// 그 셀에 잔디가 있으면 단계 -1 (level 0이면 타일 제거 + 미션 카운트 -1).
+function onBlockDestroyedAt(col,row){
+  const t=tile[col]?.[row];
+  if(!t||t.type!=='grass') return;
+  t.level--;
+  if(t.level<=0){
+    removeTile(col,row);
+    totalGrass--;
+    decrementMission('grass');
+    updateMissionUI();
+  } else {
+    updateTileVisual(col,row);
+  }
+}
+
+// ── 미션 모델 D 헬퍼 ──
+// loadStageMissions: 명시 missions 우선, 없으면 보드 배치로 자동 산출
+// decrementMission: 카운트 -1 (0 이하로 안 내려감)
+// isMissionCleared: 모든 미션 0
+// hasMissionDefined: 미션이 1개 이상 정의됨
+
+function loadStageMissions(stageNum){
+  currentMissions=[];
+  let sd=null;
+  if(typeof stageMaps!=='undefined'&&stageMaps) sd=stageMaps.stages.find(s=>s.stage===stageNum);
+  if(sd&&Array.isArray(sd.missions)&&sd.missions.length>0){
+    // 명시 missions: type 순서 = 우선순위. count는 보드 배치로 자동 sync (어긋남 방지).
+    for(const m of sd.missions){
+      const autoCnt=countMissionType(m.type);
+      currentMissions.push({type:m.type, count:autoCnt, initial:autoCnt});
+    }
+    return;
+  }
+  // fallback: 보드 배치 자동 카운트
+  if(totalStones>0) currentMissions.push({type:'stones', count:totalStones, initial:totalStones});
+  if(totalGrass>0)  currentMissions.push({type:'grass',  count:totalGrass,  initial:totalGrass});
+}
+
+// 미션 type별 보드 배치 갯수 (자동 sync용)
+function countMissionType(type){
+  if(type==='stones') return countStones();
+  if(type==='grass')  return countGrass();
+  // 향후: ice / crates / keys
+  return 0;
+}
+
+function decrementMission(type){
+  const m=currentMissions.find(x=>x.type===type);
+  if(m && m.count>0) m.count--;
+}
+
+function isMissionCleared(){
+  if(currentMissions.length===0) return false;
+  return currentMissions.every(m=>m.count<=0);
+}
+
+function hasMissionDefined(){ return currentMissions.length>0; }
+
+// 타겟볼 우선순위용: 미션 type별 후보 셀 추출
+// 반환: [{ pos:[c,r], isStone, isGrass, level, missionType }]
+function collectMissionCells(type, excludeSet){
+  const result=[];
+  const blocked = (c,r) => excludeSet?.has(`${c},${r}`);
+  if(type==='stones'){
+    for(let c=0;c<COLS_PATTERN.length;c++)
+      for(let r=0;r<(gimmick[c]?.length||0);r++){
+        const g=gimmick[c][r];
+        if(g?.type==='stone' && !blocked(c,r))
+          result.push({pos:[c,r], isStone:true, level:g.level||0, missionType:'stones'});
+      }
+  } else if(type==='grass'){
+    // 잔디 셀은 블록 유무와 무관하게 우선 타격 후보 (사용자 결정: 빈 셀이어도 타겟볼 강제 도착)
+    for(let c=0;c<COLS_PATTERN.length;c++)
+      for(let r=0;r<(tile[c]?.length||0);r++){
+        const t=tile[c][r];
+        if(t?.type==='grass' && !blocked(c,r))
+          result.push({pos:[c,r], isStone:false, isGrass:true, level:t.level||0, missionType:'grass'});
+      }
+  }
+  // 향후: case 'crates': case 'ice': case 'keys'
+  return result;
 }

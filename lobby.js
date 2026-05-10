@@ -490,6 +490,8 @@ function runIntroSequence(){
     }
     localStorage.setItem('hexPuzzleSlots',JSON.stringify(starters));
     localStorage.setItem('hexPuzzleIntroDone','1');
+    // skinData 메모리 캐시 갱신 — startGame이 옛 슬롯 쓰는 버그 방지
+    if(typeof loadSkinData==='function') skinData=loadSkinData();
     if(typeof showScreen==='function') showScreen('lobby-screen');
     if(typeof updateLobbyProfile==='function') updateLobbyProfile();
     if(typeof updateLobbyStage==='function') updateLobbyStage();

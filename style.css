@@ -135,16 +135,49 @@ h1 {
 
 .mission-body {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 미션 리스트: 1~4개 미션을 카운트별 레이아웃으로 배치
+   - 1개: 정중앙(큰 아이콘) / 2개: 가로 / 3개: 위 2 + 아래 1(가운데) / 4개: 2x2 */
+.mission-list {
+  display: grid;
+  align-items: center;
+  justify-items: center;
+  gap: 4px 10px;
+}
+.mission-list[data-count="1"] { grid-template-columns: 1fr; }
+.mission-list[data-count="2"] { grid-template-columns: repeat(2, auto); }
+.mission-list[data-count="3"] { grid-template-columns: repeat(2, auto); }
+.mission-list[data-count="3"] .mission-item:nth-child(3) { grid-column: 1 / -1; }
+.mission-list[data-count="4"] { grid-template-columns: repeat(2, auto); }
+
+.mission-item {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
 .mission-icon {
-  width: 44px;
-  height: 44px;
   object-fit: contain;
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.15));
+}
+/* 카운트별 아이콘 사이즈: 1개=큼, 2개=중, 3~4개=작음 */
+.mission-list[data-count="1"] .mission-icon { width: 44px; height: 44px; }
+.mission-list[data-count="2"] .mission-icon { width: 34px; height: 34px; }
+.mission-list[data-count="3"] .mission-icon,
+.mission-list[data-count="4"] .mission-icon { width: 28px; height: 28px; }
+
+/* 잔디 미션 아이콘 — 자산 없으므로 CSS 헥사 도형 (gimmick-tile과 동일 톤) */
+.mission-icon.grass-icon {
+  display: inline-block;
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+  background:
+    repeating-linear-gradient(45deg, rgba(0,0,0,0.18) 0 2px, transparent 2px 6px),
+    #2c5a2c;
 }
 
 .mission-count-badge {
@@ -168,12 +201,12 @@ h1 {
 .mission-count-badge.mission-cleared {
   right: -10px;
   bottom: -10px;
-  min-width: 30px;
-  height: 30px;
+  min-width: 26px;
+  height: 26px;
   padding: 0 4px;
   background: linear-gradient(135deg, #2ecc71, #27ae60);
-  font-size: 18px;
-  line-height: 30px;
+  font-size: 16px;
+  line-height: 26px;
   box-shadow: 0 2px 8px rgba(0, 150, 50, 0.45), 0 0 0 2px #fff;
 }
 
@@ -193,6 +226,26 @@ h1 {
 @keyframes stoneHit {
   0%   { filter: brightness(2); transform: scale(1.1); }
   100% { filter: brightness(1); transform: scale(1); }
+}
+
+/* 잔디 (타일형) — 셀 바닥. 헥사 cell 모양으로 깔리고 위에 블록 정상 표시 */
+/* z-index: hex-cell(0)보다 위(DOM 순서 후행), hex-block(1)보다 아래로 끼게 0 사용 */
+.gimmick-tile {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+  transition: background 0.2s ease, opacity 0.2s ease;
+}
+.gimmick-tile.grass-2 {
+  background:
+    repeating-linear-gradient(45deg, rgba(0,0,0,0.18) 0 2px, transparent 2px 6px),
+    #2c5a2c;
+}
+.gimmick-tile.grass-1 {
+  background:
+    repeating-linear-gradient(45deg, rgba(0,0,0,0.10) 0 2px, transparent 2px 8px),
+    #79c95c;
 }
 
 /* ── 설정 바 ── */
@@ -2188,6 +2241,30 @@ h1 {
   margin-left: 1px;
 }
 
+/* C-3 자연충전 카드 (기본볼 풀 Max 5 + 다음 충전 타이머) */
+.lobby-meta-balls {
+  background: linear-gradient(135deg, #fff5f0, #ffe2cf) !important;
+  color: #6b2f1c !important;
+}
+.lobby-meta-balls .lobby-meta-icon {
+  filter: drop-shadow(0 0 2px rgba(232, 64, 64, 0.45));
+}
+.lobby-natural-timer {
+  margin-left: 6px;
+  padding-left: 6px;
+  border-left: 1px solid rgba(107, 47, 28, 0.25);
+  color: #b15a2a;
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.lobby-meta-balls.is-full .lobby-natural-timer {
+  display: none;
+}
+.lobby-meta-balls.is-full {
+  background: linear-gradient(135deg, #fff5f0, #ffd5b8) !important;
+}
+
 .lobby-reset-btn {
   padding: 7px 12px;
   border: none;
@@ -2800,6 +2877,362 @@ h1 {
 #dev-clear-btn.hidden { display: none; }
 #dev-clear-btn:hover { box-shadow: 0 5px 14px rgba(255, 82, 82, 0.7); }
 #dev-clear-btn:active { transform: translateY(2px); }
+
+/* ── 가방 (인벤토리) 화면 ── */
+/* 톤: 도감/스킨과 동일한 크림/옐로우 — #fff8e7 베이스 + 도트 패턴 + 옐로우 그라디언트
+   리스트형 카드 + 상세 모달 + 카드 bounce + 모달 idle bob */
+
+#bag-screen {
+  width: 390px;
+  height: 844px;
+  flex-shrink: 0;
+  background-color: #fff8e7;
+  background-image:
+    radial-gradient(circle, rgba(255,200,0,0.08) 1px, transparent 1px),
+    radial-gradient(ellipse at 20% 10%, #ffe999 0%, #fff8e7 40%, #ffecd2 100%);
+  background-size: 28px 28px, 100% 100%;
+  background-repeat: repeat, no-repeat;
+  box-shadow: var(--frame-shadow);
+  position: relative;
+  overflow: hidden;
+  color: #3a2e00;
+  font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+#bag-screen.hidden { display: none; }
+
+/* bg/vignette 레이어는 도감/스킨 톤이라 불필요 — 비활성 */
+.bag-bg, .bag-vignette { display: none; }
+
+.bag-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 18px 14px;
+  border-bottom: 1.5px solid rgba(180, 130, 0, 0.18);
+  background: linear-gradient(180deg, #fff4cc 0%, #fff8e7 100%);
+  flex-shrink: 0;
+}
+.bag-back-btn {
+  width: 40px; height: 40px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(200, 150, 0, 0.3);
+  background: rgba(255, 255, 255, 0.75);
+  color: #5e4a1d;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s, border-color 0.15s;
+}
+.bag-back-btn:hover {
+  background: #fff;
+  border-color: rgba(200, 150, 0, 0.5);
+}
+.bag-back-btn:active { transform: scale(0.94); }
+/* 헤더 타이틀 — 도감(.dex-title) / 스킨(.skin-title)과 동일 (Black Han Sans 한글 폰트) */
+.bag-title {
+  flex: 1;
+  font-family: 'Black Han Sans', sans-serif;
+  font-size: 24px;
+  letter-spacing: 1px;
+  color: #5e4a1d;
+  margin: 0;
+}
+/* 카운터 배지 — 도감(.dex-counter) / 스킨(.skin-counter)과 동일 스타일 */
+.bag-total {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1.5px solid rgba(200, 150, 0, 0.3);
+  border-radius: 14px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #7a5500;
+}
+
+.bag-tabs {
+  position: relative;
+  display: flex;
+  justify-content: space-around;
+  padding: 0 18px;
+  background: linear-gradient(180deg, #fff4cc 0%, #fff8e7 100%);
+  border-bottom: 1.5px solid rgba(180, 130, 0, 0.18);
+  flex-shrink: 0;
+}
+.bag-tab {
+  flex: 1;
+  padding: 12px 0 14px;
+  background: transparent;
+  border: none;
+  color: #9c8651;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.bag-tab:hover { color: #5e4a1d; }
+.bag-tab.is-active { color: #c87d2a; }
+.bag-tab-underline {
+  position: absolute;
+  bottom: -1.5px;
+  height: 3px;
+  background: linear-gradient(90deg, #ffd34d, #ff9d3a);
+  border-radius: 2px;
+  transition: left 220ms cubic-bezier(0.5, 0, 0.3, 1.4),
+              width 220ms cubic-bezier(0.5, 0, 0.3, 1.4);
+  pointer-events: none;
+  left: 0; width: 0;
+}
+
+.bag-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 14px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  opacity: 1;
+}
+.bag-list::-webkit-scrollbar { width: 6px; }
+.bag-list::-webkit-scrollbar-thumb { background: rgba(180, 130, 0, 0.25); border-radius: 3px; }
+
+.bag-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1.5px solid rgba(200, 150, 0, 0.25);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+.bag-card:hover {
+  background: #fff;
+  border-color: rgba(200, 150, 0, 0.45);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.10);
+}
+.bag-card-icon {
+  width: 52px; height: 52px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
+}
+.bag-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.bag-card-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #3a2e00;
+  margin-bottom: 3px;
+  letter-spacing: 0.3px;
+}
+.bag-card-desc {
+  font-size: 12px;
+  color: #9c8651;
+  line-height: 1.3;
+}
+.bag-card-count {
+  flex-shrink: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: #c87d2a;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* 실루엣 placeholder (특수 탭) */
+.bag-card-silhouette {
+  cursor: default;
+  opacity: 0.7;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1.5px dashed rgba(200, 150, 0, 0.3);
+  box-shadow: none;
+}
+.bag-card-silhouette:hover {
+  background: rgba(255, 255, 255, 0.5);
+  border-color: rgba(200, 150, 0, 0.3);
+  box-shadow: none;
+}
+.bag-card-silhouette .bag-card-name,
+.bag-card-silhouette .bag-card-desc {
+  color: #b09666;
+}
+
+/* 포켓볼 아이콘 (CSS 도형) — 위/아래 색 분할 + 검정 띠 + 가운데 흰 버튼 */
+.bag-icon-basic::before,
+.bag-icon-super::before,
+.bag-icon-hyper::before,
+.bag-icon-master::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.bag-icon-basic::before {
+  background: linear-gradient(180deg, #ff6b6b 0%, #e84040 49%, #1a1a1a 49%, #1a1a1a 53%, #f5f5f5 53%, #e0e0e0 100%);
+}
+.bag-icon-super::before {
+  background: linear-gradient(180deg, #4a8eff 0%, #2467d8 49%, #1a1a1a 49%, #1a1a1a 53%, #f5f5f5 53%, #e0e0e0 100%);
+}
+.bag-icon-hyper::before {
+  background: linear-gradient(180deg, #ffd34d 0%, #e0a818 49%, #1a1a1a 49%, #1a1a1a 53%, #f5f5f5 53%, #e0e0e0 100%);
+}
+.bag-icon-master::before {
+  background: linear-gradient(180deg, #a96fff 0%, #7d3fc8 49%, #1a1a1a 49%, #1a1a1a 53%, #f5f5f5 53%, #e0e0e0 100%);
+}
+.bag-icon-basic::after,
+.bag-icon-super::after,
+.bag-icon-hyper::after,
+.bag-icon-master::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 38%; height: 38%;
+  border-radius: 50%;
+  background: #f5f5f5;
+  border: 2.5px solid #1a1a1a;
+  box-sizing: border-box;
+  transform: translate(-50%, -50%);
+  box-shadow: inset 0 -2px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* 사탕 아이콘 */
+.bag-icon-candy {
+  background: radial-gradient(circle at 30% 30%, #ffadd5 0%, #ff79b8 50%, #c63d8d 100%);
+}
+.bag-icon-candy::before {
+  content: '🍬';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+}
+
+/* 실루엣 아이콘 (특수 탭) — 크림 톤에 맞춰 회색 placeholder */
+.bag-icon-silhouette {
+  background: rgba(180, 130, 0, 0.12);
+  box-shadow: inset 0 0 0 1.5px rgba(180, 130, 0, 0.25);
+}
+.bag-icon-silhouette::after {
+  content: '?';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(180, 130, 0, 0.4);
+  font-size: 26px;
+  font-weight: 800;
+}
+
+/* 카드 bounce 애니 — 좌우 wiggle + scale (toy 감성) */
+@keyframes bagCardBounce {
+  0%   { transform: scale(1.0)  rotate(0deg); }
+  30%  { transform: scale(1.10) rotate(-2deg); }
+  60%  { transform: scale(1.04) rotate(2deg); }
+  100% { transform: scale(1.0)  rotate(0deg); }
+}
+.bag-card.bouncing {
+  animation: bagCardBounce 200ms ease-out;
+}
+
+/* ── 상세 모달 (닌텐도 스타일) ── */
+.bag-modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  backdrop-filter: blur(2px);
+  animation: bagOverlayIn 200ms ease;
+}
+.bag-modal-overlay.hidden { display: none; }
+@keyframes bagOverlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.bag-modal {
+  position: relative;
+  width: 86%;
+  max-width: 320px;
+  padding: 28px 22px 22px;
+  background: linear-gradient(180deg, #f7faf0 0%, #e6efd8 100%);
+  border-radius: 22px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  color: #2a3a26;
+  animation: bagModalIn 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes bagModalIn {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.bag-modal-close {
+  position: absolute;
+  top: 10px; right: 10px;
+  width: 28px; height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.06);
+  color: #5a4d2c;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+.bag-modal-close:hover { background: rgba(0, 0, 0, 0.14); }
+.bag-modal-close:active { transform: scale(0.92); }
+
+/* hero 큰 아이콘 — 살짝 숨쉬는 idle bob */
+.bag-modal-icon {
+  width: 90px; height: 90px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+  animation: bagModalIconBob 1.6s ease-in-out infinite;
+}
+@keyframes bagModalIconBob {
+  0%, 100% { transform: scale(1.0); }
+  50%      { transform: scale(1.04); }
+}
+.bag-modal-name {
+  font-size: 19px;
+  font-weight: 800;
+  margin: 0 0 8px;
+  letter-spacing: 0.5px;
+}
+.bag-modal-desc {
+  font-size: 13px;
+  color: #6a5e3a;
+  line-height: 1.55;
+  margin: 0 0 16px;
+}
+.bag-modal-count {
+  font-size: 14px;
+  font-weight: 700;
+  color: #c87d2a;
+  padding: 8px 16px;
+  background: rgba(255, 200, 100, 0.18);
+  border-radius: 999px;
+  display: inline-block;
+}
 
 /* ── 야생 조우 화면 (포켓몬 GO 스타일 리디자인) ── */
 #encounter-screen {

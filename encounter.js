@@ -267,17 +267,16 @@ function showEncounterScreen(){
 }
 
 // 볼 잔여 카운트 갱신 (개발자 패널 + 조우 화면 셀렉터 양쪽 동기화)
+// basic은 3-rail 합산 (natural + free + 일반 basic) — getBalls('basic') 사용
 function refreshBallButtons(){
-  if(typeof getAllBalls!=='function') return;
-  const balls = getAllBalls();
+  if(typeof getBalls!=='function') return;
   const order = (typeof BALL_ORDER!=='undefined') ? BALL_ORDER : ['basic','super','hyper','master'];
   for(const t of order){
-    // 모든 [data-ball-count] (개발자 패널 등) 갱신
+    const cnt = getBalls(t)|0;
     document.querySelectorAll(`[data-ball-count="${t}"]`).forEach(el=>{
-      el.textContent = balls[t]|0;
+      el.textContent = cnt;
     });
   }
-  // 조우 화면 셀렉터도 같이 갱신
   refreshSelectedBall();
 }
 
@@ -289,9 +288,13 @@ function cycleBall(dir){
 }
 
 // 셀렉터 큰 볼 + 이름 + 수량 + 난이도 + 던지기 버튼 활성/비활성 갱신
+// basic은 3-rail 합산 (natural + free + 일반 basic) — getBalls() 사용
 function refreshSelectedBall(){
   const t = getSelectedBall();
-  const balls = (typeof getAllBalls==='function') ? getAllBalls() : {basic:0,super:0,hyper:0,master:0};
+  const getCnt = (typeof getBalls==='function')
+    ? (k)=>getBalls(k)|0
+    : (k)=>0;
+  const balls = { basic:getCnt('basic'), super:getCnt('super'), hyper:getCnt('hyper'), master:getCnt('master') };
 
   // 큰 볼 비주얼 (클래스 교체)
   const big = document.getElementById('enc-ball-big');

@@ -69,10 +69,24 @@ function getTargetAreaCells(col,row,swapDir){
   return cells;
 }
 
-// 타겟볼 타격 대상: 돌 기믹 우선, 없으면 랜덤 블록
+// 타겟볼 타격 대상 (미션 모델 D)
+// 우선순위: currentMissions 배열 순서 → 같은 type 안에선 단계 높은 거 → 일반 블록 fallback
+// 같은 단계 안에선 random. 이미 카운트 0 인 미션은 skip.
 function getTargetBallTarget(excludeSet){
-  const stone=getRandomStonePos(excludeSet);
-  if(stone) return {pos:stone,isStone:true};
+  if(typeof currentMissions!=='undefined' && currentMissions.length>0){
+    for(const m of currentMissions){
+      if(m.count<=0) continue; // 이미 클리어된 미션 skip
+      const cands=collectMissionCells(m.type, excludeSet);
+      if(!cands.length) continue;
+      const maxLv=Math.max(...cands.map(c=>c.level||0));
+      const top=cands.filter(c=>(c.level||0)===maxLv);
+      return top[Math.floor(Math.random()*top.length)];
+    }
+  } else {
+    // 후방 호환: 미션 미정의 시 기존 방식 (돌 우선)
+    const stone=getRandomStonePos(excludeSet);
+    if(stone) return {pos:stone,isStone:true};
+  }
   const block=getRandomBlockPos(excludeSet);
   if(block) return {pos:block,isStone:false};
   return null;
@@ -188,10 +202,11 @@ async function activateRainbow(col,row,targetColor){
   }
   await delay(200);
   // 무지개볼 자체 제거
-  if(blockEls[col][row]){blockEls[col][row].classList.add('matched');} board[col][row]=null;
+  if(blockEls[col][row]){blockEls[col][row].classList.add('matched');} onBlockDestroyedAt(col,row); board[col][row]=null;
   // 타겟 블록 제거
   for(const [c,r] of targets){
     if(blockEls[c][r]){blockEls[c][r].classList.remove('rainbow-marked');blockEls[c][r].classList.add('matched');}
+    onBlockDestroyedAt(c,r);
     board[c][r]=null;
   }
   // 제거된 블록에 인접한 기믹 단계 -1
@@ -262,6 +277,7 @@ function computeSpecialEffect(col,row,cell){
   for(const [dc,dr] of destroyed){
     if(!board[dc][dr]) continue;
     if(isSpecial(dc,dr)) chainSpecials.push({col:dc,row:dr,cell:{...board[dc][dr]}});
+    onBlockDestroyedAt(dc,dr);
     board[dc][dr]=null;
   }
   // 재귀적으로 연쇄 처리
@@ -279,10 +295,14 @@ function computeSpecialEffect(col,row,cell){
       const step2effects=[{type:'target',fromCol:col,fromRow:row,toCol:tc,toRow:tr,color:null,isStone:hit.isStone}];
       const step2destroyed=[];
       const step2chain=[];
-      if(!hit.isStone&&board[tc]?.[tr]){
-        if(isSpecial(tc,tr)) step2chain.push({col:tc,row:tr,cell:{...board[tc][tr]}});
-        step2destroyed.push(hit.pos);
-        board[tc][tr]=null;
+      if(!hit.isStone){
+        // 잔디 트리거: 빈 셀이어도 호출 (잔디 빈 셀 예외)
+        onBlockDestroyedAt(tc,tr);
+        if(board[tc]?.[tr]){
+          if(isSpecial(tc,tr)) step2chain.push({col:tc,row:tr,cell:{...board[tc][tr]}});
+          step2destroyed.push(hit.pos);
+          board[tc][tr]=null;
+        }
       }
       allSteps.push({col,row,cell,destroyed:step2destroyed,effects:step2effects,chainSpecials:step2chain});
       for(const cs of step2chain){
@@ -326,6 +346,7 @@ async function activateSpecialAt(col,row){
   const cell=board[col][row]; if(!cell) return;
   const cellSnap={...cell}; // 스냅샷 (board에서 제거 전)
   // board에서 자기 자신 제거
+  onBlockDestroyedAt(col,row);
   board[col][row]=null;
   // 자기 자신 DOM 제거 연출
   if(blockEls[col][row]) blockEls[col][row].classList.add('matched');
@@ -362,6 +383,7 @@ async function handleCrossEffect(c1,r1,c2,r2){
   async function removeBoth(){
     if(blockEls[c1][r1]) blockEls[c1][r1].classList.add('matched');
     if(blockEls[c2][r2]) blockEls[c2][r2].classList.add('matched');
+    onBlockDestroyedAt(c1,r1);onBlockDestroyedAt(c2,r2);
     board[c1][r1]=null;board[c2][r2]=null;
     await delay(CFG.crossEffectDelay);
     if(blockEls[c1][r1]){blockEls[c1][r1].remove();blockEls[c1][r1]=null;}
@@ -378,6 +400,7 @@ async function handleCrossEffect(c1,r1,c2,r2){
       if(isSpecial(c,r)) chainSpecials.push([c,r,{...board[c][r]}]);
       destroyed.push([c,r]);
       if(blockEls[c][r]) blockEls[c][r].classList.add('matched');
+      onBlockDestroyedAt(c,r);
       board[c][r]=null;
     }
     if(destroyed.length===0) return;
@@ -444,6 +467,7 @@ async function handleCrossEffect(c1,r1,c2,r2){
     //    특수의 연쇄 계산이 자신/이웃을 재파괴하지 않도록 먼저 보드에서 비운다
     for(const [c,r] of initialDestroy){
       if(blockEls[c][r]) blockEls[c][r].classList.add('matched');
+      onBlockDestroyedAt(c,r);
       board[c][r]=null;
     }
 
@@ -521,7 +545,7 @@ async function handleCrossEffect(c1,r1,c2,r2){
       else if(board[c]?.[r]){ areaKill.push([c,r]); }
     }
     if(areaKill.length>0){
-      for(const [c,r] of areaKill){ if(blockEls[c][r]) blockEls[c][r].classList.add('matched'); board[c][r]=null; }
+      for(const [c,r] of areaKill){ if(blockEls[c][r]) blockEls[c][r].classList.add('matched'); onBlockDestroyedAt(c,r); board[c][r]=null; }
       await delay(CFG.crossEffectDelay);
       for(const [c,r] of areaKill){ if(blockEls[c]?.[r]){blockEls[c][r].remove();blockEls[c][r]=null;} }
       score+=areaKill.length*100;updateScoreUI();
@@ -533,6 +557,7 @@ async function handleCrossEffect(c1,r1,c2,r2){
       const [rc,rr]=hit.pos;
       await fireTargetProjectile(c2,r2,rc,rr,null);
       if(hit.isStone) hitStone(rc,rr);
+      else if(!board[rc]?.[rr]) onBlockDestroyedAt(rc,rr); // 잔디 빈 셀 예외
       // 도착 지점에서 줄볼 효과 발동 (기믹/블록 무관)
       showStripeBeam(rc,rr,sCell.dir);
       const lineCells=getStripeLine(rc,rr,sCell.dir);
@@ -556,7 +581,7 @@ async function handleCrossEffect(c1,r1,c2,r2){
       else if(board[c]?.[r]){ areaKill.push([c,r]); }
     }
     if(areaKill.length>0){
-      for(const [c,r] of areaKill){ if(blockEls[c][r]) blockEls[c][r].classList.add('matched'); board[c][r]=null; }
+      for(const [c,r] of areaKill){ if(blockEls[c][r]) blockEls[c][r].classList.add('matched'); onBlockDestroyedAt(c,r); board[c][r]=null; }
       await delay(CFG.crossEffectDelay);
       for(const [c,r] of areaKill){ if(blockEls[c]?.[r]){blockEls[c][r].remove();blockEls[c][r]=null;} }
       score+=areaKill.length*100;updateScoreUI();
@@ -577,7 +602,11 @@ async function handleCrossEffect(c1,r1,c2,r2){
     const blockTargets=[];
     for(let i=0;i<hitInfo.length;i++){
       if(hitInfo[i].isStone) hitStone(targets[i][0],targets[i][1]);
-      else blockTargets.push(targets[i]);
+      else {
+        // 잔디 빈 셀 예외: 도착 셀 board null이면 강제 트리거 (블록 있으면 destroyCells가 처리)
+        if(!board[targets[i][0]]?.[targets[i][1]]) onBlockDestroyedAt(targets[i][0],targets[i][1]);
+        blockTargets.push(targets[i]);
+      }
     }
     if(blockTargets.length>0) await destroyCells(blockTargets);
   }
@@ -595,7 +624,7 @@ async function handleCrossEffect(c1,r1,c2,r2){
       else if(board[c]?.[r]){ areaKill.push([c,r]); }
     }
     if(areaKill.length>0){
-      for(const [c,r] of areaKill){ if(blockEls[c][r]) blockEls[c][r].classList.add('matched'); board[c][r]=null; }
+      for(const [c,r] of areaKill){ if(blockEls[c][r]) blockEls[c][r].classList.add('matched'); onBlockDestroyedAt(c,r); board[c][r]=null; }
       await delay(CFG.crossEffectDelay);
       for(const [c,r] of areaKill){ if(blockEls[c]?.[r]){blockEls[c][r].remove();blockEls[c][r]=null;} }
       score+=areaKill.length*100;updateScoreUI();
@@ -607,6 +636,7 @@ async function handleCrossEffect(c1,r1,c2,r2){
       const [rc,rr]=hit.pos;
       await fireTargetProjectile(c2,r2,rc,rr,null);
       if(hit.isStone) hitStone(rc,rr);
+      else if(!board[rc]?.[rr]) onBlockDestroyedAt(rc,rr); // 잔디 빈 셀 예외
       // 도착 지점에서 폭탄 효과 발동 (기믹/블록 무관)
       showBombExplosion(rc,rr);
       const nbrs=getNeighbors(rc,rr).map(([c,r])=>[c,r]);
@@ -664,6 +694,7 @@ async function handleCrossEffect(c1,r1,c2,r2){
         if(isSpecial(lc,lr)) chainSpecials.push([lc,lr,{...board[lc][lr]}]);
         destroyed.push([lc,lr]);
         if(blockEls[lc][lr]) blockEls[lc][lr].classList.add('matched');
+        onBlockDestroyedAt(lc,lr);
         board[lc][lr]=null;
       }
       await delay(stripeFastDelay);
@@ -713,6 +744,7 @@ async function handleCrossEffect(c1,r1,c2,r2){
       }
     }
     for(const [c,r] of converts){
+      onBlockDestroyedAt(c,r);
       board[c][r]=null;
       if(blockEls[c][r]) blockEls[c][r].classList.add('matched');
     }
@@ -758,6 +790,7 @@ async function handleCrossEffect(c1,r1,c2,r2){
     // 4) 초기 블록 제거 (board null + matched)
     for(const [c,r] of initialDestroy){
       if(blockEls[c][r]) blockEls[c][r].classList.add('matched');
+      onBlockDestroyedAt(c,r);
       board[c][r]=null;
     }
 
@@ -867,6 +900,8 @@ async function handleCrossEffect(c1,r1,c2,r2){
             // 도착 시점 stone 유효성 확인 (마지막 50ms 사이에 죽었을 가능성)
             if(gimmick[finalHit.pos[0]]?.[finalHit.pos[1]]?.type==='stone') hitStone(finalHit.pos[0],finalHit.pos[1]);
           } else {
+            // 잔디 트리거 (빈 셀이어도 — 잔디 빈 셀 예외)
+            onBlockDestroyedAt(finalHit.pos[0],finalHit.pos[1]);
             if(board[finalHit.pos[0]]?.[finalHit.pos[1]]){
               if(blockEls[finalHit.pos[0]]?.[finalHit.pos[1]]) blockEls[finalHit.pos[0]][finalHit.pos[1]].classList.add('matched');
               board[finalHit.pos[0]][finalHit.pos[1]]=null;
@@ -878,6 +913,7 @@ async function handleCrossEffect(c1,r1,c2,r2){
         }
         // 타겟볼 자체 제거
         if(blockEls[c]?.[r]) blockEls[c][r].classList.add('matched');
+        onBlockDestroyedAt(c,r);
         board[c][r]=null;
         score+=100; updateScoreUI();
         await delay(CFG.crossEffectDelay);

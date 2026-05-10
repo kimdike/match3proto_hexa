@@ -149,9 +149,27 @@ function showEndScreen(cleared){
     icon.textContent='\uD83C\uDF89';title.textContent='\uD074\uB9AC\uC5B4!';title.className='clear';
     det.textContent=`Stage ${currentStage} \uD074\uB9AC\uC5B4! \uB3CC \uC804\uBD80 \uC81C\uAC70!`;
     // \uACE8\uB4DC \uBCF4\uC0C1 = \uAE30\uBCF8 300 + \uB0A8\uC740 \uD134 \u00D7 5
-    const goldReward=300+Math.max(0,movesLeft)*5;
+    // \uB371 \uD0C0\uC785 \uBCF4\uB108\uC2A4 \uACE8\uB4DC \uBC30\uC728 \u2014 \uC9C0\uC5ED \uD0C0\uC785\uACFC \uAC19\uC740 \uD0C0\uC785 \uB9C8\uB9AC\uC218 (3/4/5/6 = 1.3/1.5/1.7/2.0)
+    const baseGold = 300 + Math.max(0, movesLeft) * 5;
+    const region = (typeof getRegionByStage === 'function') ? getRegionByStage(currentStage) : null;
+    const bonus = (region && typeof getDeckTypeBonus === 'function')
+      ? getDeckTypeBonus(region.type)
+      : { multiplier: 1.0, count: 0 };
+    const goldReward = Math.floor(baseGold * bonus.multiplier);
     addGold(goldReward);
-    sc.textContent=`\uD83E\uDE99 +${goldReward.toLocaleString()} \uACE8\uB4DC \uD68D\uB4DD!`;
+    // \uACE8\uB4DC + \uBCF4\uB108\uC2A4 + \uC7AC\uB8CC + \uB2E4\uC774\uC544 \uD569\uCCD0\uC11C \uD45C\uC2DC
+    let rewardHTML = `\uD83E\uDE99 +${goldReward.toLocaleString()} \uACE8\uB4DC \uD68D\uB4DD!`;
+    if(bonus.multiplier > 1.0){
+      rewardHTML += ` <span class="end-type-bonus">\u00D7${bonus.multiplier} \uD0C0\uC785 \uBCF4\uB108\uC2A4 (${bonus.count}/6)</span>`;
+    }
+    if(typeof _lastClearReward !== 'undefined' && _lastClearReward){
+      const matIcon = { basic:'\u{1F534}', super:'\u{1F535}', hyper:'\u{1F7E1}' }[_lastClearReward.type] || '\u{1F4E6}';
+      rewardHTML += `<br>${matIcon} ${_lastClearReward.name} +1`;
+    }
+    if(typeof _lastClearDiamond !== 'undefined' && _lastClearDiamond){
+      rewardHTML += `<br>\uD83D\uDC8E \uB2E4\uC774\uC544 +1`;
+    }
+    sc.innerHTML = rewardHTML;
     sc.classList.remove('hidden');
     // 방금 클리어한 스테이지 (해금 후 증가하기 전 값 보존)
     const clearedStage=currentStage;
@@ -173,6 +191,11 @@ function showEndScreen(cleared){
     icon.textContent='\uD83D\uDE22';title.textContent='\uC2E4\uD328...';title.className='fail';
     det.textContent=`\uB0A8\uC740 \uB3CC ${totalStones}\uAC1C / Move \uC18C\uC9C4`;
     sc.textContent=''; // \uC2E4\uD328 \uC2DC \uACE8\uB4DC \uC9C0\uAE09 \uC5C6\uC74C
+    // v0.6: \uD328\uBC30 \uC2DC \uD558\uD2B8 -1 (\uD074\uB9AC\uC5B4\uB294 \uC18C\uBE44 X)
+    if(typeof consumeHeart === 'function'){
+      consumeHeart();
+      if(typeof updateLobbyHeartUI === 'function') updateLobbyHeartUI();
+    }
   }
 
   // 최고 점수 갱신 체크
@@ -284,7 +307,14 @@ function setupUI(){
     startGame();
   });
   document.getElementById('stop-btn').addEventListener('click',()=>{if(playing){playSfx('btn_click');showConfirm();}});
-  document.getElementById('confirm-yes').addEventListener('click',()=>resetToStart());
+  document.getElementById('confirm-yes').addEventListener('click',()=>{
+    // v0.6: 게임 도중 나가기 = 하트 -1 (클리어 X, 패배는 showEndScreen에서 처리)
+    if(playing && typeof consumeHeart === 'function'){
+      consumeHeart();
+      if(typeof updateLobbyHeartUI === 'function') updateLobbyHeartUI();
+    }
+    resetToStart();
+  });
   document.getElementById('confirm-no').addEventListener('click',()=>hideConfirm());
   document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
   // DEV 즉시 클리어 버튼 (인게임 우상단, devUnlocked 시 노출)
@@ -592,7 +622,7 @@ function resizeGrid(){
 
 // ── 화면 전환 ──
 function showScreen(id){
-  ['main-screen','character-select-screen','nickname-screen','intro-screen','lobby-screen','skin-screen','dex-screen','bag-screen','encounter-screen','game-container'].forEach(s=>{
+  ['main-screen','character-select-screen','nickname-screen','intro-screen','lobby-screen','skin-screen','dex-screen','bag-screen','shop-screen','encounter-screen','game-container'].forEach(s=>{
     const el=document.getElementById(s);
     if(el) el.classList.add('hidden');
   });
@@ -685,6 +715,8 @@ function updateLobbyProfile(){
   updateLobbyStreakUI();
   updateLobbyNaturalBallUI();
   startNaturalBallTimer();
+  updateLobbyHeartUI();
+  startHeartTimer();
   updateLobbySkinBadge();
 }
 
@@ -707,7 +739,10 @@ const BAG_DATA = {
     { id:'master', iconClass:'bag-icon-master', name:'마스터볼', desc:'포획 확률 100%', modalDesc:'반드시 포획 성공하는 전설의 볼.', getCount: ()=>(typeof getBalls==='function' ? getBalls('master') : 0) },
   ],
   material: [
-    { id:'candy', iconClass:'bag-icon-candy', name:'사탕', desc:'진화에 사용되는 만능 재료', modalDesc:'모든 포켓몬 진화에 공통으로 쓰이는 재료.', getCount: ()=>(typeof getCandy==='function' ? getCandy() : 0) },
+    { id:'candy',   iconClass:'bag-icon-candy',     name:'사탕',         desc:'진화에 사용되는 만능 재료',    modalDesc:'모든 포켓몬 진화에 공통으로 쓰이는 재료.', getCount: ()=>(typeof getCandy==='function' ? getCandy() : 0) },
+    { id:'mat-basic', iconClass:'bag-icon-mat-basic', name:'기본볼 재료', desc:'5개 모아 기본볼로 합성',        modalDesc:'기본볼을 합성하는 데 필요한 재료. 5개 모이면 상점에서 합성.', getCount: ()=>(typeof getMaterial==='function' ? getMaterial('basic') : 0) },
+    { id:'mat-super', iconClass:'bag-icon-mat-super', name:'슈퍼볼 재료', desc:'5개 모아 슈퍼볼로 합성',        modalDesc:'슈퍼볼을 합성하는 데 필요한 재료. 5개 모이면 상점에서 합성.', getCount: ()=>(typeof getMaterial==='function' ? getMaterial('super') : 0) },
+    { id:'mat-hyper', iconClass:'bag-icon-mat-hyper', name:'하이퍼볼 재료', desc:'5개 모아 하이퍼볼로 합성',     modalDesc:'하이퍼볼을 합성하는 데 필요한 재료. 5개 모이면 상점에서 합성.', getCount: ()=>(typeof getMaterial==='function' ? getMaterial('hyper') : 0) },
   ],
   special: [
     { silhouette:true, label:'???', desc:'곧 등장!' },
@@ -858,6 +893,218 @@ function setupBagEvents(){
   });
 }
 
+// ── 상점 화면 (v0.6 신규) ──
+// 합성 탭: 재료 5 → 볼 1 (3종)
+// 골드 구매 탭: placeholder (후속 가격 밸런싱)
+// 톤: 도감/스킨/가방과 동일 (크림/옐로우)
+
+const SHOP_CRAFT_DATA = [
+  { type:'basic', iconClass:'shop-icon-basic', name:'기본볼 합성', desc:'기본볼 재료 5개 → 기본볼 1개' },
+  { type:'super', iconClass:'shop-icon-super', name:'슈퍼볼 합성', desc:'슈퍼볼 재료 5개 → 슈퍼볼 1개' },
+  { type:'hyper', iconClass:'shop-icon-hyper', name:'하이퍼볼 합성', desc:'하이퍼볼 재료 5개 → 하이퍼볼 1개' },
+];
+let _shopCurrentTab = 'craft';
+
+function openShopScreen(initialTab){
+  showScreen('shop-screen');
+  const targetTab = initialTab || _shopCurrentTab || 'craft';
+  _shopCurrentTab = targetTab;
+  setShopTab(targetTab, /*skipFade*/true);
+  updateShopGoldUI();
+}
+
+function updateShopGoldUI(){
+  const el = document.getElementById('shop-gold');
+  if(el && typeof currentGold !== 'undefined') el.textContent = `🪙 ${currentGold.toLocaleString()}`;
+}
+
+function setShopTab(tabId, skipFade){
+  _shopCurrentTab = tabId;
+  document.querySelectorAll('.shop-tab').forEach(t=>{
+    t.classList.toggle('is-active', t.dataset.shopTab === tabId);
+  });
+  const underline = document.getElementById('shop-tab-underline');
+  if(skipFade && underline){
+    underline.style.transition = 'none';
+    requestAnimationFrame(()=>{
+      positionShopTabUnderline(tabId);
+      requestAnimationFrame(()=>{ underline.style.transition = ''; });
+    });
+  } else {
+    requestAnimationFrame(()=>positionShopTabUnderline(tabId));
+  }
+  const content = document.getElementById('shop-content');
+  if(!content) return;
+  if(skipFade){
+    renderShopContent(tabId);
+    content.style.opacity = '1';
+  } else {
+    content.style.transition = 'opacity 200ms ease';
+    content.style.opacity = '0';
+    setTimeout(()=>{
+      renderShopContent(tabId);
+      content.style.opacity = '1';
+    }, 180);
+  }
+}
+
+function positionShopTabUnderline(tabId){
+  const tabs = document.getElementById('shop-tabs');
+  const active = tabs?.querySelector(`.shop-tab[data-shop-tab="${tabId}"]`);
+  const underline = document.getElementById('shop-tab-underline');
+  if(!active || !underline) return;
+  underline.style.left = `${active.offsetLeft}px`;
+  underline.style.width = `${active.offsetWidth}px`;
+}
+
+function renderShopContent(tabId){
+  const content = document.getElementById('shop-content');
+  if(!content) return;
+  content.innerHTML = '';
+  if(tabId === 'craft'){
+    renderShopCraftTab(content);
+  } else {
+    renderShopBuyTab(content);
+  }
+}
+
+function renderShopCraftTab(content){
+  const cost = (typeof CRAFT_COST !== 'undefined') ? CRAFT_COST : 5;
+  SHOP_CRAFT_DATA.forEach(it=>{
+    const have = (typeof getMaterial==='function') ? getMaterial(it.type) : 0;
+    const canCraft = have >= cost;
+    const card = document.createElement('div');
+    card.className = 'shop-card' + (canCraft ? '' : ' is-disabled');
+    card.dataset.craftType = it.type;
+    card.innerHTML = `
+      <div class="shop-card-icon ${it.iconClass}"></div>
+      <div class="shop-card-body">
+        <div class="shop-card-name">${it.name}</div>
+        <div class="shop-card-desc">${it.desc}</div>
+        <div class="shop-card-progress">
+          <div class="shop-progress-bar"><div class="shop-progress-fill" style="width:${Math.min(100, have/cost*100)}%"></div></div>
+          <span class="shop-progress-text">${have}/${cost}</span>
+        </div>
+      </div>
+      <button class="shop-craft-btn" type="button" ${canCraft ? '' : 'disabled'}>합성</button>
+    `;
+    const btn = card.querySelector('.shop-craft-btn');
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      if(typeof craftBall !== 'function') return;
+      const ok = craftBall(it.type);
+      if(ok){
+        if(typeof playSfx==='function') playSfx('select');
+        showShopToast(it.iconClass, `${it.name} 성공! 볼 +1`);
+        renderShopContent('craft'); // 재료/볼 카운트 갱신
+        if(typeof refreshBallButtons==='function') refreshBallButtons();
+        if(typeof updateLobbyNaturalBallUI==='function') updateLobbyNaturalBallUI();
+      } else {
+        if(typeof playSfx==='function') playSfx('btn_click');
+        showShopToast('shop-icon-warn', `재료가 부족합니다 (${have}/${cost})`);
+      }
+    });
+    content.appendChild(card);
+  });
+}
+
+function renderShopBuyTab(content){
+  // 더미 구매 — 다이아/사탕 (게임 사이클 검증용, 결제 X)
+  // 향후 실결제 도입 시 교체 (밸런싱 후속)
+  const items = [
+    {
+      id:'diamond',
+      iconHTML:'<div class="shop-buy-icon shop-buy-icon-diamond">💎</div>',
+      name:'다이아 +1',
+      desc:'프리미엄 재화 (더미: 결제 X)',
+      buy: ()=>{
+        if(typeof loadDiamond==='function' && typeof saveDiamond==='function'){
+          saveDiamond((loadDiamond()|0) + 1);
+          if(typeof updateLobbyDiamondUI==='function') updateLobbyDiamondUI();
+        }
+      },
+      getCount: ()=> (typeof loadDiamond==='function' ? loadDiamond() : 0),
+    },
+    {
+      id:'candy',
+      iconHTML:'<div class="shop-buy-icon shop-buy-icon-candy">🍬</div>',
+      name:'사탕 +10',
+      desc:'진화 재료 (더미: 결제 X)',
+      buy: ()=>{
+        if(typeof addCandy==='function') addCandy(10);
+      },
+      getCount: ()=> (typeof getCandy==='function' ? getCandy() : 0),
+    },
+    {
+      id:'ball-placeholder',
+      iconHTML:'<div class="shop-buy-icon shop-buy-icon-ball">🛒</div>',
+      name:'몬스터볼 (골드)',
+      desc:'가격 밸런싱 후 활성화 예정',
+      buy: null,
+      disabled: true,
+    },
+  ];
+  items.forEach(it=>{
+    const card = document.createElement('div');
+    card.className = 'shop-card shop-buy-card' + (it.disabled ? ' is-disabled' : '');
+    const haveText = (typeof it.getCount === 'function')
+      ? `<div class="shop-buy-have">보유 ${it.getCount()}</div>` : '';
+    card.innerHTML = `
+      ${it.iconHTML}
+      <div class="shop-card-body">
+        <div class="shop-card-name">${it.name}</div>
+        <div class="shop-card-desc">${it.desc}</div>
+        ${haveText}
+      </div>
+      <button class="shop-craft-btn shop-buy-btn" type="button" ${it.disabled?'disabled':''}>구매</button>
+    `;
+    const btn = card.querySelector('.shop-buy-btn');
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      if(it.disabled || !it.buy) return;
+      if(typeof playSfx==='function') playSfx('select');
+      it.buy();
+      showShopToast('shop-icon-warn', `${it.name} 획득!`);
+      // 카드 갱신 (보유 갯수 표시)
+      renderShopContent('buy');
+    });
+    content.appendChild(card);
+  });
+}
+
+function showShopToast(iconClass, text){
+  const toast = document.getElementById('shop-toast');
+  const iconEl = document.getElementById('shop-toast-icon');
+  const textEl = document.getElementById('shop-toast-text');
+  if(!toast) return;
+  if(iconEl) iconEl.className = 'shop-toast-icon ' + (iconClass || '');
+  if(textEl) textEl.textContent = text || '';
+  toast.classList.remove('hidden');
+  toast.classList.remove('show'); void toast.offsetWidth; // reflow
+  toast.classList.add('show');
+  clearTimeout(showShopToast._t);
+  showShopToast._t = setTimeout(()=>{
+    toast.classList.remove('show');
+    setTimeout(()=>toast.classList.add('hidden'), 250);
+  }, 1600);
+}
+
+function setupShopEvents(){
+  const backBtn = document.getElementById('shop-back-btn');
+  if(backBtn) backBtn.addEventListener('click', ()=>{
+    if(typeof playSfx==='function') playSfx('btn_click');
+    showScreen('lobby-screen');
+  });
+  document.querySelectorAll('.shop-tab').forEach(tab=>{
+    tab.addEventListener('click', ()=>{
+      const id = tab.dataset.shopTab;
+      if(id === _shopCurrentTab) return;
+      if(typeof playSfx==='function') playSfx('btn_click');
+      setShopTab(id);
+    });
+  });
+}
+
 // C-3 자연충전 카드 갱신 — basic 단일 풀 (자연 + 보상 통합)
 // 표시: "N/5" — N이 5 초과여도 "11/5" 그대로. timer는 N < 5 일 때만.
 function updateLobbyNaturalBallUI(){
@@ -889,6 +1136,117 @@ function startNaturalBallTimer(){
     const lobby=document.getElementById('lobby-screen');
     if(lobby && !lobby.classList.contains('hidden')) updateLobbyNaturalBallUI();
   }, 1000);
+}
+
+// ── 하트 카드 (v0.6) ── balls.js 자연충전 패턴 동일
+function updateLobbyHeartUI(){
+  const numEl=document.getElementById('lobby-heart-num');
+  const timerEl=document.getElementById('lobby-heart-timer');
+  const card=document.getElementById('lobby-heart-card');
+  if(!numEl||!timerEl||!card) return;
+  if(typeof getHeartCount!=='function') return;
+  const count=getHeartCount();
+  numEl.textContent=count;
+  if(count>=HEART_MAX){
+    card.classList.add('is-full');
+    timerEl.textContent='';
+  } else {
+    card.classList.remove('is-full');
+    const ms=getHeartNextChargeMs();
+    const sec=Math.max(0, Math.ceil(ms/1000));
+    const mm=Math.floor(sec/60);
+    const ss=sec%60;
+    timerEl.textContent=`+${mm}:${ss.toString().padStart(2,'0')}`;
+  }
+}
+let _heartTimer=null;
+function startHeartTimer(){
+  if(_heartTimer) return;
+  _heartTimer=setInterval(()=>{
+    const lobby=document.getElementById('lobby-screen');
+    if(lobby && !lobby.classList.contains('hidden')) updateLobbyHeartUI();
+    // 하트 부족 모달 활성 시 timer 같이 갱신
+    const lowOver=document.getElementById('lobby-low-hearts-overlay');
+    if(lowOver && !lowOver.classList.contains('hidden')) updateLowHeartsModalTimer();
+  }, 1000);
+}
+
+// 하트 부족 모달
+function showLowHeartsModal(){
+  const overlay=document.getElementById('lobby-low-hearts-overlay');
+  if(!overlay) return;
+  updateLowHeartsModalTimer();
+  // 보유 다이아 표시
+  const diaEl=document.getElementById('low-hearts-diamond');
+  const have=(typeof loadDiamond==='function') ? loadDiamond() : 0;
+  if(diaEl) diaEl.textContent=have;
+  // refill 버튼 — 항상 활성. 다이아 부족 시 클릭하면 상점으로 이동
+  const refillBtn=document.getElementById('low-hearts-refill');
+  if(refillBtn){
+    refillBtn.disabled = false;
+    refillBtn.classList.remove('disabled');
+    if(have < 1){
+      refillBtn.textContent = '💎 구매하러 가기';
+      refillBtn.classList.add('shortcut-to-shop');
+    } else {
+      refillBtn.textContent = '💎 1로 충전';
+      refillBtn.classList.remove('shortcut-to-shop');
+    }
+  }
+  overlay.classList.remove('hidden');
+  if(typeof playSfx==='function') playSfx('btn_click');
+}
+function hideLowHeartsModal(){
+  const overlay=document.getElementById('lobby-low-hearts-overlay');
+  if(overlay) overlay.classList.add('hidden');
+}
+function updateLowHeartsModalTimer(){
+  const timerEl=document.getElementById('low-hearts-timer');
+  if(!timerEl || typeof getHeartNextChargeMs!=='function') return;
+  const ms=getHeartNextChargeMs();
+  if(ms <= 0){
+    timerEl.textContent='Full!';
+    return;
+  }
+  const sec=Math.max(0, Math.ceil(ms/1000));
+  const mm=Math.floor(sec/60);
+  const ss=sec%60;
+  timerEl.textContent=`${mm}:${ss.toString().padStart(2,'0')}`;
+}
+
+function setupHeartEvents(){
+  const cancelBtn=document.getElementById('low-hearts-cancel');
+  const refillBtn=document.getElementById('low-hearts-refill');
+  const overlay=document.getElementById('lobby-low-hearts-overlay');
+  if(cancelBtn) cancelBtn.addEventListener('click', ()=>{
+    if(typeof playSfx==='function') playSfx('btn_click');
+    hideLowHeartsModal();
+  });
+  if(refillBtn) refillBtn.addEventListener('click', ()=>{
+    const have = (typeof loadDiamond==='function') ? loadDiamond() : 0;
+    // 다이아 부족 → 상점 buy 탭으로 이동
+    if(have < 1){
+      if(typeof playSfx==='function') playSfx('btn_click');
+      hideLowHeartsModal();
+      if(typeof openShopScreen==='function') openShopScreen('buy');
+      return;
+    }
+    // 충전 진행
+    if(typeof refillHeartsByDiamond !== 'function') return;
+    const result = refillHeartsByDiamond();
+    if(result.ok){
+      if(typeof playSfx==='function') playSfx('select');
+      hideLowHeartsModal();
+      if(typeof updateLobbyHeartUI==='function') updateLobbyHeartUI();
+      if(typeof updateLobbyDiamondUI==='function') updateLobbyDiamondUI();
+    } else {
+      if(typeof playSfx==='function') playSfx('btn_click');
+      console.log('[hearts] refill failed:', result.reason);
+    }
+  });
+  if(overlay) overlay.addEventListener('click', (e)=>{
+    if(e.target === overlay) hideLowHeartsModal();
+  });
 }
 
 function updateLobbyDiamondUI(){
@@ -1144,6 +1502,10 @@ function setupScreenNav(){
   });
   // 가방 화면 이벤트
   setupBagEvents();
+  // 상점 화면 이벤트
+  setupShopEvents();
+  // 하트 부족 모달 이벤트
+  setupHeartEvents();
   // 로비 하단 버튼
   document.querySelectorAll('.lobby-menu-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
@@ -1156,6 +1518,8 @@ function setupScreenNav(){
         showDexScreen();
       } else if(target==='bag'){
         openBagScreen();
+      } else if(target==='shop'){
+        openShopScreen();
       } else {
         document.getElementById('coming-soon-overlay').classList.remove('hidden');
       }
@@ -1165,9 +1529,17 @@ function setupScreenNav(){
   document.getElementById('coming-soon-ok').addEventListener('click',()=>{
     document.getElementById('coming-soon-overlay').classList.add('hidden');
   });
-  // 스테이지 버튼 → 게임 시작
+  // 스테이지 버튼 → 하트 검사 → 게임 시작 (소비는 게임 종료 시 — 패배/나가기만, 클리어 X)
   document.getElementById('lobby-stage-btn').addEventListener('click',()=>{
     if(currentStage>TOTAL_STAGES) return;
+    // v0.6: 하트 검사만 — 진입 시 소비 X
+    if(typeof getHeartCount === 'function'){
+      const hearts = getHeartCount();
+      if(hearts <= 0){
+        showLowHeartsModal();
+        return;
+      }
+    }
     playSfx('btn_click');
     showScreen('game-container');
     if(!playing) startGame();
@@ -1202,6 +1574,9 @@ function setupScreenNav(){
         // 조우/포획 (Stage C)
         'hexPuzzleBalls',           // 몬스터볼 인벤토리 (4종, basic 단일 풀)
         'hexPuzzleBasicChargeAt',   // C-3 basic 자연충전 chargeAt
+        'hexPuzzleMaterials',       // v0.6 재료 인벤토리 (3종 — basic/super/hyper)
+        'hexPuzzleHeart',           // v0.6 하트 (메인 입장권)
+        'hexPuzzleHeartChargeAt',   // v0.6 하트 자연충전 chargeAt
         'hexPuzzleNaturalBall',     // (deprecated) 옛 자연 풀 트랙 — 호환 청소
         'hexPuzzleFreeBasic',       // (deprecated) 옛 무료 휘발 트랙 — 호환 청소
         'hexPuzzleAutoFlee',        // 자동도망 ON/OFF
@@ -1233,11 +1608,57 @@ function setupScreenNav(){
 }
 
 // ── 스킨 화면 ──
+// 스킨 변경 dirty 처리 — 즉시 저장 X, 명시 저장 / 뒤로가기 시 confirm
+let _skinDirty = false;
+let _skinOriginalSlots = null; // 변경 전 백업 (폐기용)
+let _skinPendingBack = false;  // 뒤로가기 의도 추적 (confirm 후 처리)
+
 function renderSkinScreen(){
   skinData=loadSkinData();
+  // 변경 전 슬롯 백업 (폐기 시 복원)
+  _skinOriginalSlots = [...skinData.slots];
+  _skinDirty = false;
+  updateSkinSaveBtn();
   renderSkinSlots();
   skinEditingSlot=-1;
   document.getElementById('skin-collection-area').classList.add('hidden');
+}
+
+function updateSkinSaveBtn(){
+  const btn = document.getElementById('skin-save-btn');
+  if(!btn) return;
+  if(_skinDirty){
+    btn.classList.add('is-active');
+    btn.disabled = false;
+  } else {
+    btn.classList.remove('is-active');
+    btn.disabled = true;
+  }
+}
+
+function commitSkinChanges(){
+  saveSkinData(skinData.unlocked, skinData.slots);
+  _skinOriginalSlots = [...skinData.slots];
+  _skinDirty = false;
+  updateSkinSaveBtn();
+  if(typeof updateLobbySkinBadge==='function') updateLobbySkinBadge();
+}
+
+function discardSkinChanges(){
+  if(_skinOriginalSlots) skinData.slots = [..._skinOriginalSlots];
+  _skinDirty = false;
+  updateSkinSaveBtn();
+  renderSkinSlots();
+  renderSkinCollection();
+}
+
+function showSkinSaveModal(){
+  const overlay = document.getElementById('skin-save-overlay');
+  if(overlay) overlay.classList.remove('hidden');
+}
+function hideSkinSaveModal(){
+  const overlay = document.getElementById('skin-save-overlay');
+  if(overlay) overlay.classList.add('hidden');
 }
 
 function renderSkinSlots(){
@@ -1304,16 +1725,16 @@ function renderSkinCollection(){
         playSfx('select');
         // 신규 해금 레드닷 해제 (확인 처리)
         if(typeof clearSkinNew==='function') clearSkinNew(n);
-        // 이미 다른 슬롯에 장착된 경우 스왑
+        // 이미 다른 슬롯에 장착된 경우 스왑 (in-memory만, 저장은 명시 버튼)
         const otherSlot=skinData.slots.indexOf(n);
         if(otherSlot!==-1&&otherSlot!==skinEditingSlot){
           skinData.slots[otherSlot]=skinData.slots[skinEditingSlot];
         }
         skinData.slots[skinEditingSlot]=n;
-        saveSkinData(skinData.unlocked,skinData.slots);
+        _skinDirty = true;
+        updateSkinSaveBtn();
         renderSkinSlots();
         renderSkinCollection();
-        if(typeof updateLobbySkinBadge==='function') updateLobbySkinBadge();
       });
     }
     container.appendChild(item);
@@ -1321,7 +1742,46 @@ function renderSkinCollection(){
 }
 
 function setupSkinScreen(){
+  // 저장 버튼
+  const saveBtn = document.getElementById('skin-save-btn');
+  if(saveBtn) saveBtn.addEventListener('click',()=>{
+    if(saveBtn.disabled) return;
+    if(typeof playSfx==='function') playSfx('select');
+    commitSkinChanges();
+  });
+  // 저장 확인 모달 — 저장 / 폐기 / 취소
+  const confirmBtn = document.getElementById('skin-save-confirm');
+  const discardBtn = document.getElementById('skin-save-discard');
+  const closeBtn   = document.getElementById('skin-save-close');
+  const overlay    = document.getElementById('skin-save-overlay');
+  if(confirmBtn) confirmBtn.addEventListener('click',()=>{
+    if(typeof playSfx==='function') playSfx('select');
+    commitSkinChanges();
+    hideSkinSaveModal();
+    if(_skinPendingBack){ _skinPendingBack=false; showScreen('lobby-screen'); }
+  });
+  if(discardBtn) discardBtn.addEventListener('click',()=>{
+    if(typeof playSfx==='function') playSfx('btn_click');
+    discardSkinChanges();
+    hideSkinSaveModal();
+    if(_skinPendingBack){ _skinPendingBack=false; showScreen('lobby-screen'); }
+  });
+  // 우상단 ✕ = 취소 (모달만 닫고 스킨 화면 유지)
+  if(closeBtn) closeBtn.addEventListener('click',()=>{
+    if(typeof playSfx==='function') playSfx('btn_click');
+    _skinPendingBack=false;
+    hideSkinSaveModal();
+  });
+  if(overlay) overlay.addEventListener('click',(e)=>{
+    if(e.target === overlay){ _skinPendingBack=false; hideSkinSaveModal(); }
+  });
+
   document.getElementById('skin-back-btn').addEventListener('click',()=>{
+    if(_skinDirty){
+      _skinPendingBack = true;
+      showSkinSaveModal();
+      return;
+    }
     showScreen('lobby-screen');
   });
 }

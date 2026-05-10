@@ -102,14 +102,15 @@
           <span class="lobby-meta-icon">💎</span>
           <span id="lobby-diamond-num">0</span>
         </div>
-        <div class="lobby-meta lobby-meta-streak" aria-label="조우 천장">
-          <span class="lobby-meta-icon">⭐</span>
-          <span id="lobby-streak-num">0</span><span class="lobby-meta-sep">/5</span>
-        </div>
         <div class="lobby-meta lobby-meta-balls" aria-label="기본볼 자연충전" id="lobby-natural-card">
           <span class="lobby-meta-icon">🔴</span>
           <span id="lobby-natural-num">5</span><span class="lobby-meta-sep">/5</span>
           <span class="lobby-natural-timer" id="lobby-natural-timer"></span>
+        </div>
+        <div class="lobby-meta lobby-meta-heart" aria-label="하트 (메인 입장권)" id="lobby-heart-card">
+          <span class="lobby-meta-icon">❤️</span>
+          <span id="lobby-heart-num">5</span><span class="lobby-meta-sep">/5</span>
+          <span class="lobby-heart-timer" id="lobby-heart-timer"></span>
         </div>
       </div>
     </div>
@@ -117,7 +118,11 @@
       <div id="lobby-meadow" class="lobby-meadow"></div>
       <button id="lobby-auto-flee-btn" class="lobby-auto-flee-toggle" type="button" aria-label="자동 도망 토글">🎯 자동도망 OFF</button>
     </div>
-    <button id="lobby-stage-btn" class="lobby-adventure-btn" type="button">
+    <button id="lobby-stage-btn" class="lobby-adventure-btn lobby-meta-streak" type="button">
+      <span class="lobby-adventure-pity" id="lobby-adventure-pity" aria-label="조우 천장">
+        <span class="lobby-adventure-pity-icon">⭐</span>
+        <span id="lobby-streak-num">0</span><span class="lobby-adventure-pity-sep">/5</span>
+      </span>
       <span class="lobby-adventure-info">
         <span class="lobby-adventure-label">ADVENTURE START</span>
         <span class="lobby-adventure-level">LEVEL <span id="lobby-stage-num">1</span></span>
@@ -177,7 +182,22 @@
     <div class="skin-header">
       <button id="skin-back-btn" class="skin-nav-btn" type="button" aria-label="뒤로">←</button>
       <h2 class="skin-title">스킨</h2>
+      <button id="skin-save-btn" class="skin-save-btn" type="button" aria-label="저장">저장</button>
       <div id="skin-counter" class="skin-counter">0 / 151</div>
+    </div>
+
+    <!-- 스킨 변경 — 저장 확인 모달 (나가기 / 저장 2버튼 + 우상단 ✕로 취소) -->
+    <div id="skin-save-overlay" class="hidden">
+      <div id="skin-save-panel">
+        <button id="skin-save-close" class="skin-save-close" type="button" aria-label="닫기">✕</button>
+        <div class="skin-save-icon">🎨</div>
+        <h3 class="skin-save-title">변경사항을 저장할까요?</h3>
+        <p class="skin-save-desc">덱 슬롯이 변경됐어요.<br>저장하지 않으면 변경사항이 사라집니다.</p>
+        <div class="skin-save-actions">
+          <button id="skin-save-discard" class="skin-save-btn-action skin-save-discard" type="button">나가기</button>
+          <button id="skin-save-confirm" class="skin-save-btn-action skin-save-confirm" type="button">저장</button>
+        </div>
+      </div>
     </div>
     <div class="skin-hint">
       <span class="skin-hint-icon">🌿</span>
@@ -198,6 +218,61 @@
     <div id="coming-soon-panel">
       <div id="coming-soon-msg">준비 중입니다!</div>
       <button id="coming-soon-ok" class="confirm-btn no">확인</button>
+    </div>
+  </div>
+
+  <!-- ── 하트 부족 안내 모달 (로비 메인 입장 시) ── -->
+  <div id="lobby-low-hearts-overlay" class="hidden">
+    <div id="lobby-low-hearts-panel">
+      <div class="low-hearts-icon">❤️</div>
+      <h3 class="low-hearts-title">하트가 부족합니다</h3>
+      <p class="low-hearts-desc">
+        다음 충전까지 <span id="low-hearts-timer">10:00</span><br>
+        💎 다이아 <strong>1</strong>개로 즉시 풀 충전 가능
+      </p>
+      <div class="low-hearts-meta">
+        보유 다이아: <span id="low-hearts-diamond">0</span>
+      </div>
+      <div class="low-hearts-actions">
+        <button id="low-hearts-cancel" class="low-hearts-btn low-hearts-cancel" type="button">취소</button>
+        <button id="low-hearts-refill" class="low-hearts-btn low-hearts-refill" type="button">💎 1로 충전</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 볼 부족 안내 모달 (조우 화면 내부) ── -->
+  <div id="enc-low-balls-overlay" class="hidden">
+    <div id="enc-low-balls-panel">
+      <div class="enc-low-balls-icon">🛒</div>
+      <h3 class="enc-low-balls-title">볼이 부족합니다</h3>
+      <p class="enc-low-balls-desc"><span id="enc-low-balls-name">기본볼</span>이 다 떨어졌어요.<br>상점으로 이동하여 합성하시겠습니까?</p>
+      <div class="enc-low-balls-actions">
+        <button id="enc-low-balls-cancel" class="enc-low-balls-btn enc-low-balls-cancel" type="button">취소</button>
+        <button id="enc-low-balls-go" class="enc-low-balls-btn enc-low-balls-go" type="button">상점으로</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 상점 화면 (v0.6 신규) ── -->
+  <div id="shop-screen" class="hidden">
+    <header class="shop-header">
+      <button id="shop-back-btn" class="shop-back-btn" type="button" aria-label="뒤로가기">←</button>
+      <h2 class="shop-title">상점</h2>
+      <span class="shop-gold" id="shop-gold">🪙 0</span>
+    </header>
+
+    <nav class="shop-tabs" id="shop-tabs">
+      <button class="shop-tab is-active" data-shop-tab="craft" type="button">합성</button>
+      <button class="shop-tab" data-shop-tab="buy" type="button">골드 구매</button>
+      <span class="shop-tab-underline" id="shop-tab-underline" aria-hidden="true"></span>
+    </nav>
+
+    <div class="shop-content" id="shop-content"></div>
+
+    <!-- 합성 결과 토스트 -->
+    <div class="shop-toast hidden" id="shop-toast">
+      <span class="shop-toast-icon" id="shop-toast-icon"></span>
+      <span class="shop-toast-text" id="shop-toast-text"></span>
     </div>
   </div>
 
@@ -552,6 +627,8 @@
   <script src="dex.js"></script>
   <script src="pity.js"></script>
   <script src="balls.js"></script>
+  <script src="materials.js"></script>
+  <script src="hearts.js"></script>
   <script src="encounter.js"></script>
   <script src="lobby.js"></script>
   <script src="game.js"></script>

@@ -246,15 +246,56 @@ function checkGameEnd(){
   if(!playing) return;
   // 미션이 정의되어 있으면 모든 미션 클리어가 승리 조건
   if(hasMissionDefined()){
-    if(isMissionCleared()){playing=false;setTimeout(()=>showEndScreen(true),400);}
+    if(isMissionCleared()){onStageCleared();playing=false;setTimeout(()=>showEndScreen(true),400);}
     else if(movesLeft<=0){playing=false;setTimeout(()=>showEndScreen(false),400);}
   } else {
-    if(score>=stageTarget){playing=false;setTimeout(()=>showEndScreen(true),400);}
+    if(score>=stageTarget){onStageCleared();playing=false;setTimeout(()=>showEndScreen(true),400);}
     else if(movesLeft<=0){playing=false;setTimeout(()=>showEndScreen(false),400);}
   }
 }
-// 클리어 보상 — 골드 외 4종 재료(기본/슈퍼/하이퍼/마스터 합성용)는 다음 phase에서 추가 예정.
-// 무료 휘발 볼은 폐기됨.
+
+// 클리어 시 보상 — 재료 1개 무조건 드롭 (60/30/10%) + 다이아 5% 확률 1개
+// 골드는 ui.js showEndScreen에서 덱 보너스 적용 후 계산.
+// 클리어 화면 표시용 글로벌: _lastClearReward (재료) / _lastClearDiamond (boolean)
+let _lastClearReward = null;
+let _lastClearDiamond = false;
+const DIAMOND_DROP_RATE = 0.05; // 메인 클리어 5% 확률 1개
+
+function onStageCleared(){
+  _lastClearReward = null;
+  _lastClearDiamond = false;
+  if(typeof dropRandomMaterial === 'function'){
+    _lastClearReward = dropRandomMaterial();
+  }
+  // 다이아 5% 확률 +1
+  if(Math.random() < DIAMOND_DROP_RATE){
+    if(typeof loadDiamond === 'function' && typeof saveDiamond === 'function'){
+      const cur = loadDiamond();
+      saveDiamond(cur + 1);
+      _lastClearDiamond = true;
+    }
+  }
+}
+
+// 덱 타입 보너스 — 지역 타입과 같은 타입 마리수에 따라 골드 배율
+// 3 → 1.3 / 4 → 1.5 / 5 → 1.7 / 6 → 2.0
+function getDeckTypeBonus(regionType){
+  if(!regionType) return { multiplier: 1.0, count: 0 };
+  if(typeof skinData === 'undefined' || !skinData?.slots) return { multiplier: 1.0, count: 0 };
+  if(typeof MONSTER_TABLE_DATA === 'undefined' || !MONSTER_TABLE_DATA?.monsters) return { multiplier: 1.0, count: 0 };
+  const monsters = MONSTER_TABLE_DATA.monsters;
+  let count = 0;
+  for(const id of skinData.slots){
+    const m = monsters.find(x => x.id === id);
+    if(m && Array.isArray(m.types) && m.types.includes(regionType)) count++;
+  }
+  let mult = 1.0;
+  if(count >= 6) mult = 2.0;
+  else if(count >= 5) mult = 1.7;
+  else if(count >= 4) mult = 1.5;
+  else if(count >= 3) mult = 1.3;
+  return { multiplier: mult, count };
+}
 
 
 function resetToStart(){

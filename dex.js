@@ -315,6 +315,8 @@ function openDexDetail(id){
       r.innerHTML=`<span class="dex-detail-key">${k}</span><span class="dex-detail-val">${v}</span>`;
       info.appendChild(r);
     }
+    // 진화 섹션 (포획/진화 상태에서만)
+    renderEvolutionSection(id, info);
   }
 
   // 스킨으로 장착하기 — 포획/진화 상태에서만 노출
@@ -361,6 +363,140 @@ function openDexDetail(id){
 function closeDexDetail(){
   const overlay=document.getElementById('dex-detail-overlay');
   if(overlay) overlay.classList.add('hidden');
+}
+
+// ── 진화 (v0.6) ──
+// 사탕 N개 소비 → captureNow(targetId). 분기 진화는 사용자가 targetId 명시 호출.
+// 보너스 사탕 +1 (스펙 §4-7).
+// 반환: { ok, reason: 'no-evolution'|'no-candy'|'invalid-target'|null, newId }
+function evolveMonster(id, targetId){
+  const meta=(typeof getMonsterMeta==='function')?getMonsterMeta(id):null;
+  if(!meta || !meta.evolution) return { ok:false, reason:'no-evolution' };
+  const ev = meta.evolution;
+  // targetId 결정
+  let resolvedTarget;
+  if(ev.branching && Array.isArray(ev.branches) && ev.branches.length > 0){
+    if(!targetId || !ev.branches.includes(targetId)){
+      return { ok:false, reason:'invalid-target' };
+    }
+    resolvedTarget = targetId;
+  } else {
+    resolvedTarget = ev.evolves_to;
+  }
+  if(!resolvedTarget) return { ok:false, reason:'no-evolution' };
+
+  const cost = ev.candy_required | 0;
+  if(getCandy() < cost) return { ok:false, reason:'no-candy' };
+
+  // 사탕 차감
+  setCandy(getCandy() - cost);
+  // 진화체 captureNow (도감 등록 + 사탕 +2 자동) + 보너스 +1
+  captureNow(resolvedTarget);
+  setCandy(getCandy() + 1); // 진화 보너스
+  return { ok:true, reason:null, newId: resolvedTarget };
+}
+
+// 진화 가능 여부 + 비용 정보
+// 반환: { canEvolve, ev, cost, isBranching, branches, missing }
+function getEvolutionInfo(id){
+  const meta=(typeof getMonsterMeta==='function')?getMonsterMeta(id):null;
+  const result = { canEvolve:false, ev:null, cost:0, isBranching:false, branches:[], missing:0 };
+  if(!meta || !meta.evolution) return result;
+  result.ev = meta.evolution;
+  result.cost = meta.evolution.candy_required | 0;
+  result.isBranching = !!meta.evolution.branching;
+  result.branches = Array.isArray(meta.evolution.branches) ? meta.evolution.branches : [];
+  const have = getCandy();
+  result.canEvolve = have >= result.cost;
+  result.missing = Math.max(0, result.cost - have);
+  return result;
+}
+
+// 도감 모달에 진화 섹션 렌더 (info element 뒤에 동적 append)
+function renderEvolutionSection(id, container){
+  const info = getEvolutionInfo(id);
+  if(!info.ev) return; // 진화 없음 — 섹션 숨김
+  const wrap = document.createElement('div');
+  wrap.className = 'dex-detail-evolve';
+
+  if(info.isBranching){
+    // 분기 진화 (이브이 등) — 3 선택지
+    const title = document.createElement('div');
+    title.className = 'dex-detail-evolve-title';
+    title.innerHTML = `🌿 분기 진화 <span class="dex-detail-evolve-cost">사탕 ${info.cost}개</span>`;
+    wrap.appendChild(title);
+    const branchesWrap = document.createElement('div');
+    branchesWrap.className = 'dex-detail-evolve-branches';
+    for(const bId of info.branches){
+      const bMeta = (typeof getMonsterMeta==='function') ? getMonsterMeta(bId) : null;
+      const btn = document.createElement('button');
+      btn.className = 'dex-detail-evolve-branch';
+      btn.disabled = !info.canEvolve;
+      btn.innerHTML = `
+        <span class="dex-detail-evolve-branch-sprite" style="background-image:url('assets/dot/pokemon/${bId}.gif')"></span>
+        <span class="dex-detail-evolve-branch-name">${bMeta?bMeta.name_ko:'???'}</span>
+      `;
+      btn.addEventListener('click', ()=>{
+        if(btn.disabled) return;
+        const r = evolveMonster(id, bId);
+        if(r.ok){
+          if(typeof playSfx==='function') playSfx('select');
+          openDexDetail(r.newId); // 진화체 페이지로 이동
+          if(typeof renderDexScreen==='function') renderDexScreen();
+          if(typeof updateLobbySkinBadge==='function') updateLobbySkinBadge();
+        } else {
+          if(typeof playSfx==='function') playSfx('btn_click');
+        }
+      });
+      branchesWrap.appendChild(btn);
+    }
+    wrap.appendChild(branchesWrap);
+    if(!info.canEvolve){
+      const missing = document.createElement('div');
+      missing.className = 'dex-detail-evolve-missing';
+      missing.textContent = `사탕 ${info.missing}개 부족`;
+      wrap.appendChild(missing);
+    }
+  } else {
+    // 단순 진화
+    const targetId = info.ev.evolves_to;
+    const targetMeta = (typeof getMonsterMeta==='function') ? getMonsterMeta(targetId) : null;
+    const title = document.createElement('div');
+    title.className = 'dex-detail-evolve-title';
+    title.innerHTML = `🌿 진화 <span class="dex-detail-evolve-cost">사탕 ${info.cost}개</span>`;
+    wrap.appendChild(title);
+    const row = document.createElement('div');
+    row.className = 'dex-detail-evolve-row';
+    row.innerHTML = `
+      <div class="dex-detail-evolve-target">
+        <span class="dex-detail-evolve-target-sprite" style="background-image:url('assets/dot/pokemon/${targetId}.gif')"></span>
+        <span class="dex-detail-evolve-target-name">${targetMeta?targetMeta.name_ko:'???'}</span>
+      </div>
+      <button class="dex-detail-evolve-btn" type="button" ${info.canEvolve?'':'disabled'}>진화하기</button>
+    `;
+    wrap.appendChild(row);
+    const btn = row.querySelector('.dex-detail-evolve-btn');
+    btn.addEventListener('click', ()=>{
+      if(btn.disabled) return;
+      const r = evolveMonster(id);
+      if(r.ok){
+        if(typeof playSfx==='function') playSfx('select');
+        openDexDetail(r.newId);
+        if(typeof renderDexScreen==='function') renderDexScreen();
+        if(typeof updateLobbySkinBadge==='function') updateLobbySkinBadge();
+      } else {
+        if(typeof playSfx==='function') playSfx('btn_click');
+      }
+    });
+    if(!info.canEvolve){
+      const missing = document.createElement('div');
+      missing.className = 'dex-detail-evolve-missing';
+      missing.textContent = `사탕 ${info.missing}개 부족 (보유 ${getCandy()}/${info.cost})`;
+      wrap.appendChild(missing);
+    }
+  }
+
+  container.appendChild(wrap);
 }
 
 function setupDexScreen(){

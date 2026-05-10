@@ -287,6 +287,21 @@ function cycleBall(dir){
   if(typeof playSfx==='function') playSfx('btn_click');
 }
 
+// 볼 부족 안내 모달 — "상점으로 이동" / "취소"
+function showLowBallsModal(ballType){
+  const overlay = document.getElementById('enc-low-balls-overlay');
+  const nameEl = document.getElementById('enc-low-balls-name');
+  if(!overlay) return;
+  const names = (typeof BALL_NAMES!=='undefined') ? BALL_NAMES : {basic:'기본볼',super:'슈퍼볼',hyper:'하이퍼볼',master:'마스터볼'};
+  if(nameEl) nameEl.textContent = names[ballType] || '몬스터볼';
+  overlay.classList.remove('hidden');
+  if(typeof playSfx==='function') playSfx('btn_click');
+}
+function hideLowBallsModal(){
+  const overlay = document.getElementById('enc-low-balls-overlay');
+  if(overlay) overlay.classList.add('hidden');
+}
+
 // 셀렉터 큰 볼 + 이름 + 수량 + 난이도 + 던지기 버튼 활성/비활성 갱신
 // basic은 3-rail 합산 (natural + free + 일반 basic) — getBalls() 사용
 function refreshSelectedBall(){
@@ -329,12 +344,12 @@ function refreshSelectedBall(){
     if(lblEl)  lblEl.textContent  = diff.label;
   }
 
-  // 던지기 버튼 활성/비활성 + data-ball
+  // 던지기 버튼 — v0.6: 볼 부족(empty)이어도 활성화 유지. 클릭 시 상점 안내 모달이 처리.
   const throwBtn = document.getElementById('enc-throw-btn');
   if(throwBtn){
     const empty = (balls[t]|0) <= 0;
-    throwBtn.disabled = empty || _throwing;
-    throwBtn.classList.toggle('disabled', empty);
+    throwBtn.disabled = _throwing;
+    throwBtn.classList.toggle('disabled', empty); // 시각만 회색 (클릭은 받음 → 모달)
     throwBtn.dataset.ball = t;
   }
 }
@@ -439,6 +454,7 @@ async function playThrowAnimation(ballType, success){
 }
 
 // 포획 시도 — 볼 1개 소비 → 던지기 연출 → 결과 패널
+// 볼 부족 시: 상점 이동 안내 모달 (v0.6)
 async function tryCatchEncounter(ballType){
   if(!_pending) return;
   if(_throwing) return;
@@ -447,7 +463,7 @@ async function tryCatchEncounter(ballType){
     return;
   }
   if(getBalls(ballType) <= 0){
-    console.log(`[encounter] ${ballType} 부족`);
+    showLowBallsModal(ballType);
     return;
   }
 
@@ -472,9 +488,19 @@ async function tryCatchEncounter(ballType){
   await playThrowAnimation(ballType, success);
 
   if(success){
-    if(typeof captureNow==='function') captureNow(m.id);
-    console.log(`[encounter] 포획 성공 — #${m.id} ${m.name_ko} (${ballType})`);
-    showEncounterResult({ success: true, monster: m, ballType });
+    // 크기/무게 (v0.6) — 포획 시 랜덤 factor 0.7~1.3
+    // XXS: factor < 0.78 (하위 약 5%) / XXL: factor > 1.22 (상위 약 5%)
+    const factor = 0.7 + Math.random() * 0.6;
+    const baseH = m.height_m || 0;
+    const baseW = m.weight_kg || 0;
+    const height = Math.round(baseH * factor * 100) / 100;
+    const weight = Math.round(baseW * factor * 100) / 100;
+    let sizeTag = null;
+    if(factor < 0.78) sizeTag = 'XXS';
+    else if(factor > 1.22) sizeTag = 'XXL';
+    if(typeof captureNow==='function') captureNow(m.id, { height, weight });
+    console.log(`[encounter] 포획 성공 — #${m.id} ${m.name_ko} (${ballType}, ${height}m/${weight}kg${sizeTag?' '+sizeTag:''})`);
+    showEncounterResult({ success: true, monster: m, ballType, height, weight, sizeTag });
   } else {
     if(typeof incFailStack==='function') incFailStack(m.id);
     console.log(`[encounter] 포획 실패 — #${m.id} ${m.name_ko} (${ballType}, failStack→${failStack+1})`);
@@ -500,7 +526,17 @@ function showEncounterResult(result){
   if(titleEl) titleEl.textContent = result.success ? '잡았다!' : '앗! 도망쳤다!';
   if(detailEl){
     if(result.success){
-      detailEl.innerHTML = `#${String(result.monster.id).padStart(3,'0')} ${result.monster.name_ko}<br>도감 등록 + 사탕 +2`;
+      // XXS/XXL 라벨 + 크기 정보 (v0.6)
+      let sizeBadge = '';
+      if(result.sizeTag === 'XXS'){
+        sizeBadge = `<br><span class="enc-size-tag enc-size-xxs">⭐ XXS · 정말 작아!</span>`;
+      } else if(result.sizeTag === 'XXL'){
+        sizeBadge = `<br><span class="enc-size-tag enc-size-xxl">⭐ XXL · 정말 커!</span>`;
+      }
+      const sizeInfo = (result.height != null && result.weight != null)
+        ? `<br><span class="enc-size-info">${result.height}m · ${result.weight}kg</span>`
+        : '';
+      detailEl.innerHTML = `#${String(result.monster.id).padStart(3,'0')} ${result.monster.name_ko}<br>도감 등록 + 사탕 +2${sizeBadge}${sizeInfo}`;
     } else {
       detailEl.innerHTML = `다음 시도 +5% 보정<br>실패 스택이 누적됐어`;
     }
@@ -559,6 +595,33 @@ function setupEncounterScreen(){
   if(throwBtn) throwBtn.addEventListener('click', ()=>{
     if(throwBtn.disabled) return;
     tryCatchEncounter(getSelectedBall());
+  });
+
+  // 볼 부족 모달 — 취소 / 상점 이동
+  const lowCancel = document.getElementById('enc-low-balls-cancel');
+  const lowGo = document.getElementById('enc-low-balls-go');
+  if(lowCancel) lowCancel.addEventListener('click', ()=>{
+    if(typeof playSfx==='function') playSfx('btn_click');
+    hideLowBallsModal();
+  });
+  if(lowGo) lowGo.addEventListener('click', ()=>{
+    if(typeof playSfx==='function') playSfx('btn_click');
+    hideLowBallsModal();
+    // 조우 상태 정리: 자동 도망 처리 (도감엔 발견만 등록)
+    if(typeof fleeEncounter==='function'){
+      fleeEncounter();
+    } else if(typeof showScreen==='function'){
+      showScreen('lobby-screen');
+    }
+    // 상점 진입
+    if(typeof openShopScreen==='function'){
+      setTimeout(()=>openShopScreen(), 100);
+    }
+  });
+  // 바깥 영역 탭 → 닫기
+  const lowOverlay = document.getElementById('enc-low-balls-overlay');
+  if(lowOverlay) lowOverlay.addEventListener('click', (e)=>{
+    if(e.target === lowOverlay) hideLowBallsModal();
   });
 
   // 자동도망 v체크 — 변경 즉시 도망 + 영구 저장

@@ -81,6 +81,29 @@ let hintTimer=null, hintedCells=[];
 let isBusyRainbow=false;
 let isBusyNormal=false;
 
+// v2 Phase 1 — 흐름 카운터. busy/isBusyNormal을 derived state로 관리.
+// v1: busy = true 직접 set → 단일 흐름 가정. 두 흐름 동시 진행 시 한쪽 끝나면 busy=false → 다른 쪽 미진행으로 오인됨.
+// v2: _activeFlowCount 카운터. 흐름 시작 +1, 끝 -1. 0 도달 시에만 busy=false.
+let _activeFlowCount = 0;
+function _flowStart(){
+  _activeFlowCount++;
+  busy = true;
+  isBusyNormal = true;
+}
+function _flowEnd(){
+  _activeFlowCount = Math.max(0, _activeFlowCount - 1);
+  if(_activeFlowCount === 0){
+    busy = false;
+    isBusyNormal = false;
+  }
+}
+function _flowResetAll(){
+  // resetToStart / startGame에서 호출. 강제 모든 흐름 종료 상태로 초기화.
+  _activeFlowCount = 0;
+  busy = false;
+  isBusyNormal = false;
+}
+
 // ── 애니메이션 직렬화 큐 ──
 const animQueue=[];  // [{fn, ts}, ...]
 let animRunning=false;

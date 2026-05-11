@@ -422,8 +422,12 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
   // 이전: board=null → await delay → blockEls.remove() — 그 사이 ticker가 만든 새 element를 죽임
   // 이후: el 참조 캡쳐 → 즉시 blockEls=null → setTimeout으로 detached el만 remove
   //       (ticker가 새 element를 blockEls에 할당해도 보호됨)
+  // v2 Phase 1 — null-skip 가드: 다른 흐름이 이미 board=null 처리한 셀이면 자연 skip.
+  //   잔디 빈 셀 트리거(onBlockDestroyedAt)도 해당 흐름의 매치 영역에 한정해서 중복 호출 차단.
+  //   흐름 1개 시 동작 변화 없음 (board=null인 셀은 애초에 매치 영역에 없음).
   for(const [c,r] of allCells){
     if(mergeSet.has(`${c},${r}`)) continue;
+    if(board[c]?.[r] == null) continue; // 다른 흐름이 선처리한 셀
     const matchedEl = blockEls[c]?.[r];
     if(matchedEl){
       matchedEl.classList.add('matched');

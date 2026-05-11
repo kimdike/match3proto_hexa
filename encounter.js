@@ -259,11 +259,19 @@ function showEncounterScreen(){
   refreshSelectedBall();
 
   // 화면 전환 (클리어 화면 닫고 조우 화면 띄움)
+  // showScreen이 SCREEN_BGM 매핑으로 ingame/lobby-bgm → encounter-bgm 교체 처리
   if(typeof hideEndScreen==='function') hideEndScreen();
   if(typeof showScreen==='function') showScreen('encounter-screen');
 
-  // 임시 띠로리 (sfx_select 재사용, 후속에서 sfx_wild_encounter로 교체)
-  if(typeof playSfx==='function') playSfx('select');
+  // 띠로리 SFX — assets/sfx/sfx_wild_encounter.wav
+  // 자산 도착 전까지 sfx_select 폴백으로 청각 신호는 유지
+  if(typeof playSfx==='function'){
+    if(typeof hasSfx==='function' && hasSfx('wild_encounter')){
+      playSfx('wild_encounter');
+    } else {
+      playSfx('select'); // 폴백 — 자산 도착 후 자동으로 wild_encounter 분기 사용
+    }
+  }
 }
 
 // 볼 잔여 카운트 갱신 (개발자 패널 + 조우 화면 셀렉터 양쪽 동기화)

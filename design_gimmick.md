@@ -1,4 +1,4 @@
-# 헥사 3매치 퍼즐 — 기믹 기획서 v0.1
+# 헥사 3매치 퍼즐 — 기믹 기획서 v0.3
 
 > 본 문서는 기믹 단독 스펙 관리용. design_coregame.md에서 분리.
 > 매치/특수블록/충전 룰은 design_coregame.md 11/12/17/18/26/27 섹션과 호환.
@@ -6,6 +6,18 @@
 ---
 
 ## 📋 변경 이력
+
+### v0.3 — 2026.05.11
+- **상자 (Crate) Phase 2 구현 완료** (§4)
+  - 3단계 고정형 + 단계 0 도달 시 인접 6셀 폭발 트리거
+  - 폭발 시 인접 기믹 단계 -1 / 인접 일반 블록 matched 제거 (점수 X) / 인접 잔디 깎임
+  - 폭발 연쇄: `triggerCrateExplosion` 내부 `exploded` Set 패턴으로 무한 연쇄 방지
+- **`hitStone` dispatcher 일반화**: 호출 사이트에서 cell이 crate면 `hitCrate`로 자동 라우팅 → 30+ 호출처 마이그레이션 없이도 모든 효과(줄볼/폭탄/타겟볼/무지개/교차 10종)가 상자에 일관 작동
+- **special.js + game.js 타격 가드 일반화**: `?.type==='stone'` → `gimmick?.[c]?.[r]` (어떤 기믹이든 hit). 부록 G 체크리스트 10경로 모두 stone+crate 양쪽에 통과
+- **CSS-only 상자 비주얼** (placeholder): `crate-3/2/1` (브라운+빗금 / 베이지+빗금 / 외곽선만). 향후 PNG 자산 교체 가능
+- **상자 폭발 시각 효과**: `crate-boom` 0.4s 확대+밝기+drop-shadow 페이드
+- **맵 에디터 상자 도구 3종 + 미션 type 등록 + 자동 sync** (단수형/복수형 매핑 fix 포함)
+- **인게임 배치 패널 상자 버튼 3종** 추가
 
 ### v0.2 — 2026.05.10
 - **미션 모델 D 확정**: stage_maps의 `missions` 배열이 진실의 원천 (HUD + 타겟볼 우선순위 통합)
@@ -419,9 +431,10 @@ function checkKeysReachedBottom(){
 - `onBlockDestroyedAt` 콜백 추가 (잔디 트리거용)
 - 잔디 (Grass) 구현 — 단계 시스템 + 매칭 카운트
 
-### Phase 2 — 폭발 시스템 (1세션)
+### Phase 2 — 폭발 시스템 (1세션) ✅ 완료 (2026.05.11)
 - 상자 (Crate) 3단계 + 폭발 메카닉
-- `triggerCrateExplosion` 인접 6셀 처리 + 연쇄
+- `triggerCrateExplosion` 인접 6셀 처리 + `exploded` Set 연쇄 차단
+- `hitStone` dispatcher가 crate cell 자동 라우팅 → 호출처 마이그레이션 부담 0
 
 ### Phase 3 — 블록 부착 (1세션)
 - 얼음 (Ice) 2단계 + swap·매칭 차단 + 해방 룰
@@ -479,18 +492,24 @@ function checkKeysReachedBottom(){
 
 새 기믹 도입 시 모든 트리거 경로에서 일관 동작하는지 점검. 항목별로 체크.
 
-| # | 트리거 경로 | 코드 위치 | 돌 (단계형) | 잔디 (그 셀형) |
-|---|---|---|---|---|
-| 1 | 인접 매칭 단계 -1 | game.js processMatchStep | ✅ | ❌ (잔디는 자기 셀만) |
-| 2 | 자기 셀 매치로 단계 -1 | game.js 매치 제거 루프 → onBlockDestroyedAt | — | ✅ |
-| 3 | 줄볼 라인 효과 범위 | special.js stripe + game.js stripeQueue | ✅ | ✅ (v0.2 hook) |
-| 4 | 폭탄 7칸/19칸 폭발 | special.js bomb + game.js bombQueue | ✅ | ✅ (v0.2 hook) |
-| 5 | 타겟볼 4칸 area 타격 | game.js area 루프 | ✅ | ✅ |
-| 6 | 타겟볼 발사체 도착 | game.js fireTargetProjectile + special.js | ✅ | ✅ (빈 셀 예외 포함) |
-| 7 | 무지개 색 매칭 | game.js rainbow → allCellSet | ✅ | ✅ (v0.2 hook) |
-| 8 | 무지개 단독 발동 | special.js activateRainbow | ✅ | ✅ (v0.2 hook) |
-| 9 | 특수블록 생성 위치 인접 | game.js merge 직후 | ✅ | ❌ (잔디는 인접 무시) |
-| 10 | 교차 효과 중첩 | special.js handleCrossEffect 모든 분기 | ✅ | ✅ (v0.2 hook) |
+| # | 트리거 경로 | 코드 위치 | 돌 (단계형) | 잔디 (그 셀형) | 상자 (단계형+폭발) |
+|---|---|---|---|---|---|
+| 1 | 인접 매칭 단계 -1 | game.js processMatchStep | ✅ | ❌ (잔디는 자기 셀만) | ✅ (v0.3, 가드 일반화) |
+| 2 | 자기 셀 매치로 단계 -1 | game.js 매치 제거 루프 → onBlockDestroyedAt | — | ✅ | — (상자는 자기셀 매치 불가, 블록 X) |
+| 3 | 줄볼 라인 효과 범위 | special.js stripe + game.js stripeQueue | ✅ | ✅ (v0.2 hook) | ✅ (v0.3) |
+| 4 | 폭탄 7칸/19칸 폭발 | special.js bomb + game.js bombQueue | ✅ | ✅ (v0.2 hook) | ✅ (v0.3) |
+| 5 | 타겟볼 4칸 area 타격 | game.js area 루프 | ✅ | ✅ | ✅ (v0.3) |
+| 6 | 타겟볼 발사체 도착 | game.js fireTargetProjectile + special.js | ✅ | ✅ (빈 셀 예외 포함) | ✅ (v0.3, isStone:true 라우팅) |
+| 7 | 무지개 색 매칭 | game.js rainbow → allCellSet | ✅ | ✅ (v0.2 hook) | ✅ (v0.3) |
+| 8 | 무지개 단독 발동 | special.js activateRainbow | ✅ | ✅ (v0.2 hook) | ✅ (v0.3) |
+| 9 | 특수블록 생성 위치 인접 | game.js merge 직후 | ✅ | ❌ (잔디는 인접 무시) | ✅ (v0.3) |
+| 10 | 교차 효과 중첩 | special.js handleCrossEffect 모든 분기 | ✅ | ✅ (v0.2 hook) | ✅ (v0.3) |
+
+**상자 전용 추가 경로 (v0.3 신설)**
+| # | 경로 | 동작 |
+|---|---|---|
+| 11 | 단계 0 도달 시 폭발 | `triggerCrateExplosion(c,r,exploded)` — 인접 6셀 단계 -1 (기믹) / matched 제거 (블록) / 잔디 깎임 |
+| 12 | 연쇄 폭발 방지 | `exploded` Set 공유, 같은 cell 중복 폭발 차단 |
 
 **구현 핵심**:
 - 단계형 기믹(돌/상자/얼음): `hitGimmick(c,r)` 호출 (board.js dispatcher)

@@ -94,8 +94,19 @@ const CFG = {
   score3match: 300, score4match: 500, score5match: 800,
   combo2bonus: 500, combo3bonus: 1000, combo4bonus: 2000,
   blockScale: 1.1,
+  // 타겟볼 미션 가중치 (1~100). 신규 기믹은 TARGET_WEIGHT_DEFAULT(50) 자동 사용.
+  // type 단위 가중치 — 후보가 있는 type 중 weight 비례 random 선택 (후보 수 무관).
+  targetWeights: { stones: 50, grass: 30, crates: 50 },
 };
-const CFG_DEFAULTS = {...CFG};
+const CFG_DEFAULTS = {...CFG, targetWeights:{...CFG.targetWeights}};
+const TARGET_WEIGHT_DEFAULT = 50;
+function getTargetWeight(type){
+  if(CFG.targetWeights && Object.prototype.hasOwnProperty.call(CFG.targetWeights, type)){
+    const v = CFG.targetWeights[type] | 0;
+    return Math.max(1, Math.min(100, v));
+  }
+  return TARGET_WEIGHT_DEFAULT;
+}
 const CFG_META = [
   {key:'gravityTransition',label:'gravity transition',desc:'매치 후 블록이 아래로 떨어지는 애니메이션 시간. 낮을수록 빠르게 착지 (권장: 0.1s ~ 0.5s)',unit:'s',step:0.05,group:'speed'},
   {key:'gravityIterDelay',label:'gravity iter delay',desc:'블록이 여러 칸 떨어질 때 단계 사이 페이싱(iter 사이 대기). transition보다 작으면 블록이 점프하듯 빠르게 보임 (권장: 80ms ~ 150ms)',unit:'ms',step:10,group:'speed'},

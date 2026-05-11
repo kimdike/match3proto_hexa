@@ -3,6 +3,15 @@
 ## 🔥 진행 중 / 남은 작업
 
 ### 다음 세션 리마인드
+- [ ] **🔥 실시간 매칭 v2 — 진정한 동시 진행 (브랜치: `refactor/realtime-fill-ticker` 유지하며 디벨롭)**
+      - 현재 구현: 입력 큐(`animQueue`) buffer + 순차 실행 (입력은 받아지나 처리는 sequential)
+      - 목표: 두 매치가 시각적으로 겹쳐서 동시 진행 (로얄매치 스타일)
+      - 추정 공수: 12~16시간 = 3~5 세션
+      - **Phase 1** (5~7h): 매치 처리 step 분할 + 큐 다중 실행 (lock 없이, 자연 합쳐짐 가정) — `enqueueAnim`/`drainAnimQueue` 재설계, `processMatchStep` step 단위로 쪼개기
+      - **Phase 2** (5~7h): 영역 lock 시스템 (셀별 또는 영역별) + 시각 충돌 처리 (matched anim 겹침, 폭발+줄볼 겹침 등)
+      - **Phase 3** (3~4h): 무지개 잠금 재정의 (다중 callback 환경) + 폭발 ↔ 매치 교차 처리 + 광범위 검증
+      - **작업 시작 시**: 먼저 `DESIGN_realtime_parallel.md` 설계 문서 작성 + 사용자 검토 → 코드
+      - 위험: race condition 비결정성, 매치/특수/폭발/잔디/도감/미션/천장 전 시스템 회귀 가능성
 - [ ] assets 폴더 구조 정리 (이미지/오디오/특수블록 카테고리별 분류)
 - [ ] 개발자 모드 패널 크기 축소 검토
       (현재 패널이 너무 커서 배치 공간 부족,
@@ -27,7 +36,7 @@
 - [x] **맵 에디터 미션 설정 UI + 자동 sync** — count = 보드 배치 갯수 자동 (readonly), type 순서만 사용자 결정 (2026.05.10)
 - [x] **잔디 도구 + 잔디 셀 렌더링** (map_editor.html) (2026.05.10)
 - [x] **design_gimmick.md v0.2** — 부록 G 트리거 체크리스트, 부록 H 우선순위 룰 (2026.05.10)
-- [ ] **상자(Crate) Phase 2** — 3단계 + 인접 6셀 폭발 (design_gimmick.md §4)
+- [x] **상자(Crate) Phase 2** — 3단계 + 인접 6셀 폭발 + `triggerCrateExplosion`/`drainCrateExplosions` (2026.05.11, `refactor/realtime-fill-ticker` 브랜치)
 - [ ] **얼음(Ice) Phase 3** — 2단계 + swap·매칭 차단 + 해방 (§3)
 - [ ] **열쇠(Key) Phase 4** — 무색 블록형 + 최하단 도달 제거 (§5)
 - [ ] **잔디 + 위 기믹 (above 조합)** — 잔디 셀 위에 돌/상자 올라가는 케이스 (Phase 1에서 미룸)

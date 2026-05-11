@@ -70,56 +70,119 @@ function computeDiagonalFill(){
   return moves;
 }
 
-// gravity + diagonal: 단계 간 짧게 겹쳐 "폭포처럼 흐르는" 연출
-// gravity → 짧은 시차 → diagonal 순서로 "직선 낙하 후 꺾여서 흘러들어감" 느낌
-async function applyGravity(){
-  let anyMoved=false;
-  for(let i=0;i<30;i++){
-    const moves=computeGravity();
-    const diagMoves=computeDiagonalFill();
-    if(moves.length===0&&diagMoves.length===0) break;
-    animateGravityDOM(moves);
-    if(diagMoves.length>0){
-      if(moves.length>0) await skippableDelay(CFG.gravityTransition*1000); // 직선 낙하 완전히 착지 후 대각 시작
-      animateDiagonalDOM(diagMoves);
-    }
-    anyMoved=true;
-    await skippableDelay(CFG.gravityIterDelay); // iter 사이 페이싱 (블록 여러 칸 낙하 시 단계 표현)
+// ── ⚡ 실시간 충전 ticker (코어 개편 — refactor/realtime-fill-ticker) ──
+// 이전: 효과 → board null → await applyGravity (30 iter 루프) → await fillEmpty → 매치 검사
+//       → "끊김": 폭발/효과 도중에는 충전이 strict await로 블로킹
+// 이후: 게임 시작 시 ticker 가동 → 매 50ms 빈 셀 검사 → 있으면 1 step compute+animate
+//       → 효과 코드는 board를 변경만 → ticker가 자동으로 다음 frame에 충전 시작
+//       → 매치 검사는 await waitForSettle()로 안정화 대기
+let _tickerActive=false;
+let _tickerPaused=false;  // 일시 정지 (효과 처리 중 race 방지)
+let _boardSettled=true;
+let _settleWaiters=[];
+let _tickerHandle=null;
+const _TICK_IDLE_MS=50;   // 빈 셀 없을 때 체크 간격 (대기 모드)
+
+// 효과 처리(매치 제거 / 특수 발동 / 교차 효과)의 await delay 동안 ticker 일시 정지.
+// 이 시기에 board=null 되었지만 element는 matched 애니메이션 중. ticker가 끼어들면
+// fill로 새 element 생성 → 효과 종료 시 .remove()가 새 element를 죽임 → 빈 셀 발생.
+// pause로 그 race 차단.
+function pauseTicker(){ _tickerPaused=true; }
+function resumeTicker(){ _tickerPaused=false; }
+
+function startGravityTicker(){
+  if(_tickerActive) return;
+  _tickerActive=true;
+  _boardSettled=true;
+  _settleWaiters=[];
+  _gravityTickerLoop();
+}
+
+function stopGravityTicker(){
+  _tickerActive=false;
+  if(_tickerHandle){ clearTimeout(_tickerHandle); _tickerHandle=null; }
+  // pending waiter 모두 resolve해서 hang 방지
+  const ws=_settleWaiters.splice(0);
+  ws.forEach(r=>r());
+}
+
+// 효과 코드가 board를 변경한 직후 명시적으로 호출 가능. waitForSettle도 자동 처리.
+function markBoardDirty(){
+  _boardSettled=false;
+}
+
+// 보드 안정화(빈 셀 0 + 변화 없음)까지 대기. 매치 검사 직전에 호출.
+// settled 후 짧은 buffer 대기 — 마지막 transition이 시각적으로 완료될 시간 확보
+async function waitForSettle(){
+  // 직전에 board가 변경됐을 가능성 → 강제 dirty로 ticker가 다음 tick에 다시 확인하게 함
+  _boardSettled=false;
+  // ticker가 idle 대기 중(50ms)이면 즉시 깨우기 — 지연 최소화
+  if(_tickerActive && _tickerHandle){
+    clearTimeout(_tickerHandle);
+    _tickerHandle=setTimeout(_gravityTickerLoop, 0);
   }
-  if(anyMoved){
-    await skippableDelay(CFG.gravitySettleDelay); // 루프 종료 후 안정화 (다음 매치 검사 전 호흡)
-    refreshBlockElsCoordinates();
+  await new Promise(resolve=>{
+    if(!_tickerActive){
+      resolve(); return;
+    }
+    _settleWaiters.push(resolve);
+  });
+  // 시각 동기화 buffer — settled 시점에 마지막 transition이 95% 진행됐으므로 잔여분 대기
+  // 매치 검사가 시각적으로 모든 블록이 안착한 후에 시작되도록 보장.
+  if(_tickerActive){
+    const buf=Math.max(20, Math.min(80, (CFG.gravitySettleDelay||60)*0.4));
+    await new Promise(r=>setTimeout(r, buf));
   }
 }
 
-// 상단 충전 + 낙하 + 대각 충전을 매 iter에 동시 트리거 (폭포 연출)
-// 서브루프 제거: 한 반복에서 computeFill/computeGravity/computeDiagonalFill
-// 세 계산을 모두 수행하고, 대응 애니메이션을 동시에 시작 → 블록이 끊김 없이 흘러내림
-async function fillEmpty(){
-  let anyActivity=false;
-  let i;
-  for(i=0;i<30;i++){
-    const fills=computeFill();
-    const moves=computeGravity();
-    const diagMoves=computeDiagonalFill();
-    if(fills.length===0 && moves.length===0 && diagMoves.length===0){
-      break;
-    }
-    // fill + gravity는 동시 (위에서 사출 + 직선 낙하), diagonal은 직선 착지 후 시작 (꺾이는 느낌)
-    if(fills.length>0) animateFillDOM(fills);
-    if(moves.length>0) animateGravityDOM(moves);
-    if(diagMoves.length>0){
-      if(moves.length>0) await skippableDelay(CFG.gravityTransition*1000); // 직선 낙하 완전히 착지 후 대각 시작
-      animateDiagonalDOM(diagMoves);
-    }
-    anyActivity=true;
-    await skippableDelay(CFG.gravityIterDelay); // iter 사이 페이싱 (충전 루프 단계 표현)
+function _gravityTickerLoop(){
+  if(!_tickerActive){ _tickerHandle=null; return; }
+  // 일시 정지 중이면 idle 대기만 (효과 처리 중)
+  if(_tickerPaused){
+    _tickerHandle=setTimeout(_gravityTickerLoop, _TICK_IDLE_MS);
+    return;
   }
-  if(anyActivity){
-    await skippableDelay(CFG.gravitySettleDelay); // 루프 종료 후 안정화 (다음 매치 검사 전 호흡)
-    refreshBlockElsCoordinates();
+  // 1 step compute (board 직접 수정)
+  const moves=computeGravity();
+  const diagMoves=computeDiagonalFill();
+  const fills=computeFill();
+  const changed=(moves.length>0 || diagMoves.length>0 || fills.length>0);
+
+  if(changed){
+    _boardSettled=false;
+    // 애니메이션 (CSS transition은 비동기로 계속 진행)
+    if(moves.length>0) animateGravityDOM(moves);
+    if(diagMoves.length>0) animateDiagonalDOM(diagMoves);
+    if(fills.length>0) animateFillDOM(fills);
+    // 변화 있을 때 — transition 시간 기반 delay (시각 race 방지)
+    // 다음 step이 transition 완료 시점에 시작 → 끊김 X, 빈 셀 시각 X
+    const transMs = Math.max(
+      (CFG.gravityTransition||0.15)*1000,
+      (CFG.fillTransition||0.18)*1000,
+      (CFG.diagTransition||0.075)*1000
+    );
+    // 사용자 인스펙터(gravityIterDelay)와 transition 시간 중 큰 값 사용
+    const delayMs=Math.max(transMs*0.95, CFG.gravityIterDelay||70);
+    _tickerHandle=setTimeout(_gravityTickerLoop, delayMs);
+  } else {
+    // 변화 없음 → 안정화
+    if(!_boardSettled){
+      _boardSettled=true;
+      refreshBlockElsCoordinates();
+      // settle 대기자 모두 resolve
+      const ws=_settleWaiters.splice(0);
+      ws.forEach(r=>r());
+    }
+    // 변화 없을 땐 idle 대기 (CPU 절약)
+    _tickerHandle=setTimeout(_gravityTickerLoop, _TICK_IDLE_MS);
   }
 }
+
+// ── 호환 wrapper (기존 호출처는 변경 없이 동작) ──
+// 기존 코드: await applyGravity(); await fillEmpty();
+// 새 모델: 둘 다 waitForSettle alias — ticker가 알아서 처리
+async function applyGravity(){ return waitForSettle(); }
+async function fillEmpty(){ return waitForSettle(); }
 
 // 애니메이션 DOM 조작만 (await 없음)
 // 모든 좌표 할당은 blockScale 보정값(adj)만큼 좌상단으로 당겨 셀 중앙 정렬 유지

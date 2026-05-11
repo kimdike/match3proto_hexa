@@ -227,6 +227,51 @@
         #2c5a2c;
     }
 
+    /* 상자 (CSS-only placeholder, 향후 PNG 자산 교체 가능) */
+    .crate-tile {
+      position: absolute;
+      z-index: 1;
+      pointer-events: none;
+      clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+      border-radius: 6px;
+    }
+    .crate-tile.crate-3 {
+      background-color: #a78050;
+      background-image:
+        repeating-linear-gradient(45deg, rgba(0,0,0,0.32) 0 3px, transparent 3px 8px),
+        repeating-linear-gradient(-45deg, rgba(0,0,0,0.18) 0 2px, transparent 2px 7px);
+      border: 2px solid #6a4d24;
+    }
+    .crate-tile.crate-2 {
+      background-color: #b89366;
+      background-image: repeating-linear-gradient(45deg, rgba(0,0,0,0.20) 0 2px, transparent 2px 9px);
+      border: 2px solid #7a5a30;
+    }
+    .crate-tile.crate-1 {
+      background-color: transparent;
+      border: 2.5px dashed #7a5a30;
+      background-image: repeating-linear-gradient(45deg, rgba(122, 90, 48, 0.18) 0 2px, transparent 2px 12px);
+    }
+    .tool-btn .crate-icon {
+      display: inline-block;
+      width: 24px; height: 24px;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    .tool-btn .crate-icon.crate-3 {
+      background-color: #a78050;
+      background-image: repeating-linear-gradient(45deg, rgba(0,0,0,0.32) 0 2px, transparent 2px 6px);
+      border: 2px solid #6a4d24;
+    }
+    .tool-btn .crate-icon.crate-2 {
+      background-color: #b89366;
+      border: 2px solid #7a5a30;
+    }
+    .tool-btn .crate-icon.crate-1 {
+      background-color: transparent;
+      border: 2px dashed #7a5a30;
+    }
+
     /* ── 미션 에디터 ── */
     .missions-editor {
       display: flex;
@@ -436,6 +481,15 @@
       <button class="tool-btn" data-tool="grass" data-level="2">
         <span class="grass-icon grass-2"></span> 잔디 2
       </button>
+      <button class="tool-btn" data-tool="crate" data-level="1">
+        <span class="crate-icon crate-1"></span> 상자 1
+      </button>
+      <button class="tool-btn" data-tool="crate" data-level="2">
+        <span class="crate-icon crate-2"></span> 상자 2
+      </button>
+      <button class="tool-btn" data-tool="crate" data-level="3">
+        <span class="crate-icon crate-3"></span> 상자 3
+      </button>
       <button class="tool-btn eraser" data-tool="eraser">✕ 지우기</button>
     </div>
 
@@ -503,8 +557,8 @@ function createDefaultStage() {
 const MISSION_TYPES = [
   { val: 'stones', label: '돌' },
   { val: 'grass',  label: '잔디' },
+  { val: 'crates', label: '상자' },
   // { val: 'ice',    label: '얼음' },
-  // { val: 'crates', label: '상자' },
   // { val: 'keys',   label: '열쇠' },
 ];
 const MAX_MISSIONS = 4;
@@ -675,13 +729,21 @@ function renderCell(container, col, row) {
     label.textContent = `${col},${row}`;
   }
 
-  // 기믹 (normal 셀만): stone=이미지 / grass=CSS 타일 / 향후 crate/ice 분기 추가
+  // 기믹 (normal 셀만): stone=이미지 / grass·crate=CSS 타일 / 향후 ice 분기 추가
   const gimmick = working.gimmicks[key];
   if (gimmick && type === 'normal') {
     cell.classList.add('has-gimmick');
     if (gimmick.type === 'grass') {
       const tile = document.createElement('div');
       tile.className = `grass-tile grass-${gimmick.level}`;
+      tile.style.left = `${pos.x}px`;
+      tile.style.top = `${pos.y}px`;
+      tile.style.width = `${HEX_W}px`;
+      tile.style.height = `${HEX_H}px`;
+      container.appendChild(tile);
+    } else if (gimmick.type === 'crate') {
+      const tile = document.createElement('div');
+      tile.className = `crate-tile crate-${gimmick.level}`;
       tile.style.left = `${pos.x}px`;
       tile.style.top = `${pos.y}px`;
       tile.style.width = `${HEX_W}px`;
@@ -741,7 +803,7 @@ function onCellClick(col, row) {
       }
       markDirty();
     }
-  } else if (tool === 'stone' || tool === 'grass') {
+  } else if (tool === 'stone' || tool === 'grass' || tool === 'crate') {
     if (row >= 0 && getCellType(col, row) === 'normal') {
       working.gimmicks[key] = { col, row, type: tool, level: currentTool.level };
       markDirty();
@@ -791,10 +853,20 @@ function updateSettingsUI() {
 // ── 미션 에디터 ──
 // 미션 count는 보드 배치 갯수와 자동 동기화 (readonly 표시)
 // 사용자는 type 순서만 결정 (= 타겟볼 우선순위), count는 항상 보드 = 진실
-function countTypeOnBoard(type) {
+// 미션 type(복수형) → 기믹 type(단수형) 매핑
+//   stones → stone / grass → grass / crates → crate / ice → ice / keys → key
+function getMissionGimmickType(missionType) {
+  if (missionType === 'stones') return 'stone';
+  if (missionType === 'crates') return 'crate';
+  if (missionType === 'keys')   return 'key';
+  return missionType; // grass / ice 는 그대로
+}
+
+function countTypeOnBoard(missionType) {
+  const target = getMissionGimmickType(missionType);
   let cnt = 0;
   for (const g of Object.values(working.gimmicks)) {
-    if (g && g.type === type) cnt++;
+    if (g && g.type === target) cnt++;
   }
   return cnt;
 }

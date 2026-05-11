@@ -5,6 +5,81 @@
 
 ---
 
+## 2026.05.11 (20일차) — Crate Phase 2 + 코어 개편(Ticker) + 실시간 매칭 입력 큐
+
+브랜치: `refactor/realtime-fill-ticker` (main 미머지, 다음 세션에서 실시간 매칭 v2 디벨롭 예정)
+
+### 묶음 1 — Crate Phase 2 + 잔여 정리 (오전)
+- **클리어 화면 미발견 N마리** (`ui.js`): 지역 monster pool − captured 카운트 라인 추가. 도감 완성 시 별도 황금 배지(`end-undiscovered.is-complete`)
+- **상자(Crate) 기믹 Phase 2** (`board.js`/`special.js`/`map_editor.html`/`index.html`/CSS):
+  - 3단계 고정형 + 단계 0 도달 시 인접 6셀 폭발
+  - `hitStone` dispatcher 일반화 — cell이 crate면 `hitCrate`로 자동 라우팅 → special.js 30+ 호출처 마이그레이션 부담 0
+  - 가드 `?.type==='stone'` → `?.[Y]` replace_all 일반화 → 모든 효과(줄볼/폭탄/타겟/무지개/교차 10종)가 crate에 일관 작동
+  - CSS-only 3단계 비주얼 (placeholder) + boom 애니메이션
+  - 맵 에디터 도구 + missions type + 단수/복수 매핑 fix
+- **docs 이전** (`design_coregame.md` §26~27 → `design_gimmick.md`): 돌 기믹 + 미션 시스템 디테일은 design_gimmick으로, 코어 문서는 포인터만
+- **조우 BGM swap 자리** (`index.html` + `ui.js` + `encounter.js`): `encounter-bgm` audio element + SCREEN_BGM 매핑 + `wild_encounter` SFX placeholder + `hasSfx` helper + 'select' 폴백
+
+### 묶음 2 — Crate 폭발 race fix + 순차 폭발 + 가중치 시스템 (오후)
+- **폭발 셀 충전 race fix** (`board.js`): setTimeout closure에 element 참조 캡쳐 → 같은 element일 때만 remove. gravity가 새로 생성한 element는 보호됨
+- **상자 순차 폭발**: `pendingCrateExplosions` 큐 + `drainCrateExplosions()` async 드레인. hitCrate level 0 도달 시 큐 push만 (visual + 인접 처리는 drain pop에서). 각 폭발 사이 boom delay + applyGravity + fillEmpty + 호흡
+- **타겟볼 가중치 시스템** (`config.js`/`special.js`/`ui.js`):
+  - `CFG.targetWeights = {stones:50, grass:30, crates:50}` (1~100 정수, 기본 디폴트 50)
+  - `getTargetBallTarget` weighted random — 후보 남은 type 중 weight 비례 (후보 수 무관)
+  - 인스펙터 "🎯 타겟 가중치" 섹션 신설
+
+### 묶음 3 — 코어 개편: 실시간 충전 ticker (저녁)
+사용자 피드백: "1번 폭발 → 충전 → 2번 폭발 흐름이 끊겨 보임". 폭발 도중에도 충전이 진행되길 원함.
+
+- **gravity.js Ticker 시스템 신설**:
+  - 기존 batch 모델(`await applyGravity(); await fillEmpty();`) → ticker 모델
+  - `startGravityTicker` / `stopGravityTicker` / `markBoardDirty` / `waitForSettle` API
+  - 게임 시작 시 ticker 가동(`startGame`), 종료 시 정지(`resetToStart`)
+  - 매 50ms 빈 셀 검사 → 발견 시 1 step compute + animate → settled 신호 시 `settleWaiters` resolve
+  - 효과 코드는 `board[c][r]=null`만 설정 → ticker가 자동 충전
+  - 기존 `applyGravity` / `fillEmpty`는 `waitForSettle` alias로 호환 유지
+- **시각 race 완화**:
+  - Ticker delay를 transition 시간 기반 자동 산출 (`max(transition*0.95, gravityIterDelay)`)
+  - `waitForSettle` 후 20~80ms buffer (마지막 transition 시각 동기화)
+  - 폭발 stagger 150→220ms
+
+### 묶음 4 — 매치 race fix + 실시간 매칭 입력 큐 (밤)
+Ticker 모델 후 사용자 보고: "스왑하면 매칭은 잘 되는데 충전 시 빈 칸 발생".
+
+진단: game.js 매치 제거 패턴 `board[c][r]=null → await delay(matchedDelay) → blockEls.remove()` 안에서 await delay 동안 ticker가 끼어들어 fill로 새 element 생성 → 후속 remove()가 새 element를 죽임 → 빈 칸 발생.
+
+- **`delay()` ticker pause 자동 적용** (`game.js`): `await delay()` 동안 ticker 일시 정지 → 효과 처리 중 race 차단. 17곳의 `await delay(matchedDelay/specialActivateDelay/crossEffectDelay)` 자동 안전
+- **`bgDelay()` 신설**: ticker pause 안 하는 버전. `drainCrateExplosions` 폭발 stagger에서 사용 (폭발 도중 충전은 계속 진행)
+- **매치 제거 패턴 element snapshot 적용** (`game.js`): 타겟볼 area + 도착 처리도 snapshot 패턴으로 fix
+- **실시간 매칭 입력 큐** (`game.js`):
+  - 사용자 규칙: 일반/특수 진행 중 다른 입력 가능, 무지개만 잠금
+  - 클릭 핸들러 `!busy` 차단 제거 (`main.js`) — `isBusyRainbow`만 체크
+  - `enqueueAnim` throttle 100ms + 큐 max 2 — 매크로 방지
+  - 처리 속도는 압축 X — 매치/연쇄는 평소 속도로 차분히 진행 (구경 가능)
+  - 입력은 큐에 buffer → 첫 매치 끝나면 자동으로 다음 처리
+
+### 사용자 피드백 사이클 — 큰 그림 정리
+1. 폭발 동시 충전 원함 → ticker 모델 도입
+2. 충전 빨라서 빈 칸 발생 → tick rate transition 기반 자동 산출 + 시각 buffer
+3. 매치 race 발생 → delay() ticker pause 자동 적용 + element snapshot
+4. 실시간 매칭 안 됨 → 클릭 핸들러 `!busy` 차단 제거 + 큐 throttle/max
+5. 실시간 매칭에 속도 압축은 잘못된 설계 → `_scaleDelay` 제거, 매치 효과는 평소 속도
+
+### 💡 오늘의 교훈
+1. **Batch → Ticker 모델 전환의 race trap**: 기존 batch 코드의 `board=null → await → remove` 패턴은 ticker 모델에서 race vulnerable. 매번 element snapshot으로 안전화 필요. 광범위 영향.
+2. **호환 wrapper 패턴의 강력함**: `applyGravity`/`fillEmpty`를 `waitForSettle` alias로 유지 → 17곳의 호출처 코드 무변경. 마이그레이션 부담 0.
+3. **사용자 의도 확인의 중요성**: "실시간 매칭"을 응답성 우선으로 해석해 `_scaleDelay` 압축 도입 → 사용자가 "압축 필요 X, 입력 받아주기만 하면 됨"이라 정정. 설계 전에 사용자 의도 명확화 + 비유로 설명하면 오해 줄임.
+4. **dispatcher 패턴으로 마이그레이션 회피**: `hitStone(col,row)`을 내부 dispatcher로 만들어 cell이 crate면 `hitCrate` 자동 라우팅 → special.js 30+ 호출처 무변경. 단일 진입점 수정의 강력함.
+5. **풀스택 변경 시 단계적 검증**: 코어 개편 → fix → fix → fix 사이클이 짧게 반복됨. 단계마다 사용자 검증 + 추가 fix 회로가 안정적.
+
+### 다음 세션 계획
+- 현재 브랜치 `refactor/realtime-fill-ticker` 유지하며 디벨롭 (main 미머지)
+- 실시간 매칭 v2 — 진정한 동시 진행 (12~16h, 3~5 세션)
+- 단계: 설계 문서 → Phase 1 → Phase 2 → Phase 3
+- 위험성 인지: race condition 비결정성 + 전 시스템 회귀 가능성
+
+---
+
 ## 2026.05.10 (19일차 마지막+) — 사용자 피드백 4종 fix
 
 세 묶음 통합 후 사용자 검증 + 후속 피드백 반영.

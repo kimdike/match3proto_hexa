@@ -14,6 +14,8 @@ let entranceCols=new Set(); // 사출구가 있는 컬럼 (블록 충전 대상)
 
 let totalStones=0;   // 남은 돌 총 개수
 let initialStones=0; // 시작 시 돌 총 개수 (승리조건 판별용)
+let totalCrates=0;   // 남은 상자 총 개수
+let initialCrates=0; // 시작 시 상자 총 개수
 
 // tile[col][row] = { type:'grass', level:1|2 } | null  (타일형 — 셀 바닥, 위에 블록 공존)
 // gimmick과 별개 레이어. 중력 영향 X, 매칭 X. 그 셀에서 블록이 매칭으로 제거될 때 단계 -1.
@@ -184,6 +186,7 @@ function clearAllBlocks(){
   container.querySelectorAll('.hex-block,.gimmick-el,.gimmick-tile,.score-popup,.stripe-beam,.bomb-explosion,.target-projectile').forEach(e=>e.remove());
   for(let col=0;col<COLS_PATTERN.length;col++){blockEls[col]=[];board[col]=[];gimmick[col]=[];gimmickEls[col]=[];tile[col]=[];tileEls[col]=[];}
   totalStones=0;initialStones=0;
+  totalCrates=0;initialCrates=0;
   totalGrass=0;initialGrass=0;
   currentMissions=[];
   dragState=null;
@@ -198,10 +201,16 @@ function createGimmickEl(col,row,g){
   el.className='gimmick-el';
   el.style.left=`${pos.x}px`;el.style.top=`${pos.y}px`;
   el.style.width=`${HEX_W}px`;el.style.height=`${HEX_H}px`;
-  el.style.backgroundImage=`url(assets/gimmick/stone_${g.level}.png)`;
-  el.style.backgroundSize='contain';
-  el.style.backgroundPosition='center';
-  el.style.backgroundRepeat='no-repeat';
+  if(g.type==='crate'){
+    // 상자: CSS-only 비주얼 (placeholder, 향후 PNG 자산 교체 가능)
+    el.classList.add('crate-el',`crate-${g.level}`);
+  } else {
+    // 돌: PNG 자산
+    el.style.backgroundImage=`url(assets/gimmick/stone_${g.level}.png)`;
+    el.style.backgroundSize='contain';
+    el.style.backgroundPosition='center';
+    el.style.backgroundRepeat='no-repeat';
+  }
   return el;
 }
 
@@ -235,7 +244,10 @@ function removeGimmickEl(col,row){
 
 function hitStone(col,row){
   const g=gimmick[col]?.[row];
-  if(!g||g.type!=='stone') return;
+  if(!g) return;
+  // Phase 2 dispatcher: 상자는 hitCrate로 라우팅. 호출처 마이그레이션 부담 감소.
+  if(g.type==='crate'){ hitCrate(col,row); return; }
+  if(g.type!=='stone') return;
   g.level--;
   if(g.level<=0){
     if(typeof playSfx==='function') playSfx('stone_break');
@@ -288,22 +300,150 @@ function getRandomStonePos(excludeSet){
   return cands.length?cands[Math.floor(Math.random()*cands.length)]:null;
 }
 
+// ── 상자 (고정형, 3단계, 0 도달 시 인접 6셀 폭발) ──
+function placeCrate(col,row,level){
+  if(!isValid(col,row)) return;
+  if(board[col][row]){ board[col][row]=null; if(blockEls[col][row]){blockEls[col][row].remove();blockEls[col][row]=null;} }
+  removeGimmickEl(col,row);
+  gimmick[col][row]={type:'crate',level};
+  totalCrates++;
+  const container=document.getElementById('grid-container');
+  const el=createGimmickEl(col,row,gimmick[col][row]);
+  if(el){container.appendChild(el);gimmickEls[col][row]=el;}
+  updateMissionUI();
+}
+
+// 폭발 큐 — 순차 처리용 (1번 폭발 → 충전 → 2번 폭발 → 충전 ...)
+// 각 항목: { col, row, exploded:Set } — drainCrateExplosions에서 1개씩 pop
+const pendingCrateExplosions=[];
+
+// hitCrate — 외부(매치/특수효과)에서 호출. level 0 도달 시 큐 push만 (실제 폭발은 drain).
+function hitCrate(col,row,exploded){
+  const g=gimmick[col]?.[row];
+  if(!g||g.type!=='crate') return;
+  g.level--;
+  if(g.level<=0){
+    // 큐에 push만 — 시각 boom + 데이터 클리어 + 인접 처리는 drainCrateExplosions에서 순차 처리
+    pendingCrateExplosions.push({col,row,exploded: exploded || new Set()});
+  } else {
+    if(typeof playSfx==='function') playSfx('stone_hit');
+    if(gimmickEls[col][row]){
+      const el=gimmickEls[col][row];
+      el.classList.remove('crate-3','crate-2','crate-1');
+      el.classList.add(`crate-${g.level}`,'crate-hit');
+      setTimeout(()=>el?.classList.remove('crate-hit'),300);
+    }
+    updateMissionUI();
+  }
+}
+
+// 한 폭발의 인접 6셀 처리 (sync) — 인접 crate 발견 시 큐에 더 push 가능 (drain 흡수)
+function processCrateExplosionAt(col,row,exploded){
+  exploded.add(`${col},${row}`);
+  const nbrs=getNeighbors(col,row);
+  for(const [nc,nr] of nbrs){
+    const key=`${nc},${nr}`;
+    const ng=gimmick[nc]?.[nr];
+    if(ng){
+      if(ng.type==='crate'){
+        if(exploded.has(key)) continue;
+        // 인접 crate: 단계 -1 (level 0 도달 시 큐에 push, 시각 갱신은 drain에서)
+        ng.level--;
+        if(ng.level<=0){
+          pendingCrateExplosions.push({col:nc,row:nr,exploded});
+        } else if(gimmickEls[nc]?.[nr]){
+          const e=gimmickEls[nc][nr];
+          e.classList.remove('crate-3','crate-2','crate-1');
+          e.classList.add(`crate-${ng.level}`,'crate-hit');
+          setTimeout(()=>e?.classList.remove('crate-hit'),300);
+        }
+      } else if(ng.type==='stone'){
+        hitStone(nc,nr);
+      }
+    } else if(board[nc]?.[nr]){
+      // 일반 블록: matched 클래스 + null (점수 X)
+      // ⚠️ closure로 element 참조 캡쳐 — gravity가 새 element를 그 자리에 만들 수 있음.
+      const targetEl = blockEls[nc]?.[nr];
+      if(targetEl){
+        targetEl.classList.add('matched');
+        setTimeout(()=>{
+          if(blockEls[nc]?.[nr] === targetEl){
+            targetEl.remove();
+            blockEls[nc][nr]=null;
+          } else {
+            targetEl.remove();
+          }
+        },280);
+      }
+      onBlockDestroyedAt(nc,nr);
+      board[nc][nr]=null;
+    }
+  }
+}
+
+// drainCrateExplosions — 큐를 1개씩 pop. 각 폭발은 short stagger만 두고, 충전은 ticker가 백그라운드 진행.
+// 새 폭발이 큐에 추가되면 루프가 자동 흡수.
+// ⚡ 코어 개편 후: 폭발 사이 await applyGravity/fillEmpty 폐기 → ticker가 알아서 충전.
+//    체감 효과: 폭발 1→짧은 stagger→폭발 2 (충전은 그 동안 백그라운드 진행 → 끊김 없음)
+async function drainCrateExplosions(){
+  while(pendingCrateExplosions.length>0){
+    const {col,row,exploded} = pendingCrateExplosions.shift();
+    // 중복 push 가드 (이미 다른 pop으로 처리된 cell)
+    if(!gimmick[col]?.[row] || gimmick[col][row].type!=='crate') continue;
+    // 폭발 visual + 데이터 클리어
+    if(typeof playSfx==='function') playSfx('stone_break');
+    const el=gimmickEls[col]?.[row];
+    if(el){
+      el.classList.add('crate-boom');
+      setTimeout(()=>el.remove(), 420);
+    }
+    gimmick[col][row]=null;
+    gimmickEls[col][row]=null;
+    totalCrates--;
+    decrementMission('crates');
+    updateMissionUI();
+    // 인접 6셀 처리 (인접 crate가 level 0 도달 시 큐에 push됨 — 다음 pop이 흡수)
+    processCrateExplosionAt(col,row,exploded);
+    // 보드 변경 신호 → ticker가 다음 tick에 충전 시작 (백그라운드)
+    if(typeof markBoardDirty==='function') markBoardDirty();
+    // 다음 폭발까지 stagger — bgDelay 사용 (ticker 계속 동작 = 폭발 중 충전 진행)
+    await bgDelay(220);
+  }
+  // 모든 폭발 처리 후 보드 안정화 대기 (다음 매치 검사 전)
+  if(typeof waitForSettle==='function') await waitForSettle();
+}
+
+// Legacy alias (외부 호환) — 이제는 큐에 push만 (sync 보장 위해 즉시 처리 X)
+function triggerCrateExplosion(col,row,exploded){
+  pendingCrateExplosions.push({col,row,exploded: exploded || new Set()});
+}
+
+function countCrates(){
+  let cnt=0;
+  for(let col=0;col<COLS_PATTERN.length;col++)
+    for(let row=0;row<(gimmick[col]?.length||0);row++)
+      if(gimmick[col][row]?.type==='crate') cnt++;
+  return cnt;
+}
+function hasCrates(){ return initialCrates>0; }
+
 // ── 일반화 dispatcher (Phase 1: 외부 호출은 hitStone/placeStone 그대로 유지) ──
-// 향후 crate/ice 추가 시 hitGimmick 분기에 case 추가하고 호출처를 점진 이행.
+// 향후 ice 추가 시 hitGimmick 분기에 case 추가.
 function hitGimmick(col,row){
   const g=gimmick[col]?.[row];
   if(!g) return;
   switch(g.type){
     case 'stone': hitStone(col,row); break;
-    // 향후: case 'crate': hitCrate(col,row); break;
-    //       case 'ice':   hitIce(col,row);   break;
+    case 'crate': hitCrate(col,row); break;
+    // 향후: case 'ice':   hitIce(col,row);   break;
   }
 }
 function destroyGimmick(col,row){ removeGimmickEl(col,row); }
 function placeGimmick(col,row,type,level){
   if(type==='grass') return placeGrass(col,row,level);
   if(type==='stone') return placeStone(col,row,level);
-  // 향후: crate/ice/key
+  if(type==='crate') return placeCrate(col,row,level);
+  // 향후: ice/key
 }
 
 // ── 잔디 (타일형) ──
@@ -404,13 +544,15 @@ function loadStageMissions(stageNum){
   // fallback: 보드 배치 자동 카운트
   if(totalStones>0) currentMissions.push({type:'stones', count:totalStones, initial:totalStones});
   if(totalGrass>0)  currentMissions.push({type:'grass',  count:totalGrass,  initial:totalGrass});
+  if(totalCrates>0) currentMissions.push({type:'crates', count:totalCrates, initial:totalCrates});
 }
 
 // 미션 type별 보드 배치 갯수 (자동 sync용)
 function countMissionType(type){
   if(type==='stones') return countStones();
   if(type==='grass')  return countGrass();
-  // 향후: ice / crates / keys
+  if(type==='crates') return countCrates();
+  // 향후: ice / keys
   return 0;
 }
 
@@ -446,7 +588,15 @@ function collectMissionCells(type, excludeSet){
         if(t?.type==='grass' && !blocked(c,r))
           result.push({pos:[c,r], isStone:false, isGrass:true, level:t.level||0, missionType:'grass'});
       }
+  } else if(type==='crates'){
+    // 상자는 단계형 고정 기믹 — 셀 자체 타격 (isStone:true 플래그로 hitGimmick 분기 라우팅)
+    for(let c=0;c<COLS_PATTERN.length;c++)
+      for(let r=0;r<(gimmick[c]?.length||0);r++){
+        const g=gimmick[c][r];
+        if(g?.type==='crate' && !blocked(c,r))
+          result.push({pos:[c,r], isStone:true, isCrate:true, level:g.level||0, missionType:'crates'});
+      }
   }
-  // 향후: case 'crates': case 'ice': case 'keys'
+  // 향후: case 'ice': case 'keys'
   return result;
 }

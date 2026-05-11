@@ -4,10 +4,6 @@ var STAGE_MAPS_DATA = {
       "stage": 1,
       "colorTypes": 5,
       "moves": 30,
-      "missions": [
-        { "type": "grass",  "count": 2 },
-        { "type": "stones", "count": 4 }
-      ],
       "cells": [
         {
           "col": 0,
@@ -92,112 +88,124 @@ var STAGE_MAPS_DATA = {
       ],
       "gimmicks": [
         {
+          "col": 2,
+          "row": 6,
+          "type": "crate",
+          "level": 1
+        },
+        {
+          "col": 2,
+          "row": 7,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 2,
+          "row": 8,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 3,
+          "row": 7,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 3,
+          "row": 6,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 3,
+          "row": 5,
+          "type": "stone",
+          "level": 3
+        },
+        {
           "col": 4,
-          "row": 4,
+          "row": 5,
+          "type": "crate",
+          "level": 1
+        },
+        {
+          "col": 4,
+          "row": 6,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 4,
+          "row": 7,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 4,
+          "row": 8,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 5,
+          "row": 7,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 5,
+          "row": 6,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 5,
+          "row": 5,
+          "type": "stone",
+          "level": 3
+        },
+        {
+          "col": 6,
+          "row": 6,
+          "type": "crate",
+          "level": 1
+        },
+        {
+          "col": 6,
+          "row": 7,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 6,
+          "row": 8,
+          "type": "stone",
+          "level": 1
+        },
+        {
+          "col": 0,
+          "row": 8,
           "type": "grass",
           "level": 2
         },
         {
-          "col": 5,
-          "row": 4,
+          "col": 8,
+          "row": 8,
           "type": "grass",
-          "level": 1
+          "level": 2
         },
         {
-          "col": 2,
-          "row": 6,
-          "type": "stone",
-          "level": 1
+          "col": 0,
+          "row": 0,
+          "type": "grass",
+          "level": 2
         },
         {
-          "col": 2,
-          "row": 7,
-          "type": "stone",
-          "level": 1
-        },
-        {
-          "col": 2,
-          "row": 8,
-          "type": "stone",
-          "level": 1
-        },
-        {
-          "col": 3,
-          "row": 7,
-          "type": "stone",
-          "level": 1
-        },
-        {
-          "col": 3,
-          "row": 6,
-          "type": "stone",
-          "level": 1
-        },
-        {
-          "col": 3,
-          "row": 5,
-          "type": "stone",
-          "level": 1
-        },
-        {
-          "col": 4,
-          "row": 5,
-          "type": "stone",
-          "level": 1
-        },
-        {
-          "col": 4,
-          "row": 6,
-          "type": "stone",
-          "level": 1
-        },
-        {
-          "col": 4,
-          "row": 7,
-          "type": "stone",
-          "level": 1
-        },
-        {
-          "col": 4,
-          "row": 8,
-          "type": "stone",
-          "level": 1
-        },
-        {
-          "col": 5,
-          "row": 7,
-          "type": "stone",
-          "level": 1
-        },
-        {
-          "col": 5,
-          "row": 6,
-          "type": "stone",
-          "level": 1
-        },
-        {
-          "col": 5,
-          "row": 5,
-          "type": "stone",
-          "level": 1
-        },
-        {
-          "col": 6,
-          "row": 6,
-          "type": "stone",
-          "level": 1
-        },
-        {
-          "col": 6,
-          "row": 7,
-          "type": "stone",
-          "level": 1
-        },
-        {
-          "col": 6,
-          "row": 8,
-          "type": "stone",
-          "level": 1
+          "col": 8,
+          "row": 0,
+          "type": "grass",
+          "level": 2
         }
       ]
     },
@@ -839,7 +847,7 @@ var STAGE_MAPS_DATA = {
     },
     {
       "stage": 6,
-      "colorTypes": 6,
+      "colorTypes": 7,
       "moves": 30,
       "cells": [
         {
@@ -1073,7 +1081,7 @@ var STAGE_MAPS_DATA = {
     },
     {
       "stage": 8,
-      "colorTypes": 6,
+      "colorTypes": 7,
       "moves": 30,
       "cells": [
         {

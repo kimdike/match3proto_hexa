@@ -86,8 +86,19 @@ const animQueue=[];  // [{fn, ts}, ...]
 let animRunning=false;
 let skipDelay=false; // true면 delay()가 즉시 resolve → 연출 빠르게 감기
 
+// 매크로 방지 — 너무 빠른 입력 차단 (인간 손가락 클릭/스왑 평균 간격 약 150~300ms)
+const ANIM_THROTTLE_MS = 100;  // 마지막 입력 후 100ms 이내 추가 입력 무시
+const ANIM_QUEUE_MAX   = 2;    // 큐 최대 길이 (현재 진행 + 다음 1개 buffer)
+let _lastEnqueueTs = 0;
+
 function enqueueAnim(asyncFn){
-  animQueue.push({fn:asyncFn, ts:Date.now()});
+  const now = Date.now();
+  // Throttle — 매크로 방지
+  if(now - _lastEnqueueTs < ANIM_THROTTLE_MS) return;
+  _lastEnqueueTs = now;
+  animQueue.push({fn:asyncFn, ts:now});
+  // 큐 길이 제한 — 너무 많이 쌓이면 가장 오래된 것 버림
+  while(animQueue.length > ANIM_QUEUE_MAX) animQueue.shift();
   if(animRunning) skipDelay=true;
   if(!animRunning) drainAnimQueue();
 }
@@ -112,7 +123,22 @@ async function drainAnimQueue(){
 // getMostFrequentColor는 special.js로 이동
 // 그리드/인접 함수(isValid/isLongCol/getCellPos/getBlockPos/getNeighbors/isAdjacent)는 grid.js로 이동
 let gameSpeed=1; // 게임 배속 (0.5~5x)
-function delay(ms){ return new Promise(r=>setTimeout(r, Math.round(ms/gameSpeed))); }
+// delay() — ticker race fix용. await delay 동안 gravity ticker 일시 정지.
+// matched / specialActivate / crossEffect delay에서 board=null → await → remove 패턴을 안전하게 만듦.
+// (ticker가 빈 셀에 새 element를 만들어 .remove() 호출이 새 element 죽이는 race 방지)
+// 시간 압축 X — 매치 효과는 항상 평소 속도. 실시간 매칭은 입력 큐(animQueue)로만 제공.
+function delay(ms){
+  if(typeof pauseTicker==='function') pauseTicker();
+  return new Promise(r=>{
+    setTimeout(()=>{
+      if(typeof resumeTicker==='function') resumeTicker();
+      r();
+    }, Math.round(ms/gameSpeed));
+  });
+}
+// bgDelay() — 비-블로킹 대기. ticker는 계속 동작 (백그라운드 충전 진행).
+// 사용처: drainCrateExplosions 폭발 사이 stagger — 폭발 도중 ticker가 충전하길 원함.
+function bgDelay(ms){ return new Promise(r=>setTimeout(r, Math.round(ms/gameSpeed))); }
 function skippableDelay(ms){ return new Promise(r=>setTimeout(r, skipDelay?0:Math.round(ms/gameSpeed))); }
 function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
 
@@ -222,7 +248,7 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
       showStripeBeam(s.col,s.row,s.dir);
       for(const [sc,sr] of getStripeLine(s.col,s.row,s.dir)){
         // 돌 기믹 직접 타격
-        if(gimmick[sc]?.[sr]?.type==='stone'){ const sk=`${sc},${sr}`; if(!hitStones.has(sk)){hitStones.add(sk);hitStone(sc,sr);} continue; }
+        if(gimmick[sc]?.[sr]){ const sk=`${sc},${sr}`; if(!hitStones.has(sk)){hitStones.add(sk);hitGimmick(sc,sr);} continue; }
         if(board[sc][sr]===null) continue;
         const k=`${sc},${sr}`;
         if(!extraCells.has(k)){extraCells.add(k);changed=true;}
@@ -243,7 +269,7 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
       showBombExplosion(b.col,b.row);
       for(const [nc,nr] of getNeighbors(b.col,b.row)){
         // 돌 기믹 직접 타격
-        if(gimmick[nc]?.[nr]?.type==='stone'){ const sk=`${nc},${nr}`; if(!hitStones.has(sk)){hitStones.add(sk);hitStone(nc,nr);} continue; }
+        if(gimmick[nc]?.[nr]){ const sk=`${nc},${nr}`; if(!hitStones.has(sk)){hitStones.add(sk);hitGimmick(nc,nr);} continue; }
         if(board[nc][nr]===null) continue;
         const k=`${nc},${nr}`;
         if(!extraCells.has(k)){extraCells.add(k);changed=true;}
@@ -294,9 +320,9 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
   }
   for(const [c,r] of matchCellsForStoneHit){
     for(const [nc,nr] of getNeighbors(c,r)){
-      if(gimmick[nc]?.[nr]?.type==='stone'){
+      if(gimmick[nc]?.[nr]){
         const sk=`${nc},${nr}`;
-        if(!hitStones.has(sk)){ hitStones.add(sk); hitStone(nc,nr); }
+        if(!hitStones.has(sk)){ hitStones.add(sk); hitGimmick(nc,nr); }
       }
     }
   }
@@ -356,9 +382,9 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
     container.appendChild(newEl);blockEls[sc][sr]=newEl;
     // 특수블록 생성 시 인접 기믹 타격
     for(const [nc,nr] of getNeighbors(sc,sr)){
-      if(gimmick[nc]?.[nr]?.type==='stone'){
+      if(gimmick[nc]?.[nr]){
         const sk=`${nc},${nr}`;
-        if(!hitStones.has(sk)){ hitStones.add(sk); hitStone(nc,nr); }
+        if(!hitStones.has(sk)){ hitStones.add(sk); hitGimmick(nc,nr); }
       }
     }
     await delay(CFG.mergeDelay);
@@ -369,17 +395,22 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
   if(typeof playSfx==='function'&&allCells.some(([c,r])=>!mergeSet.has(`${c},${r}`))){
     playSfx('match_pop');
   }
+  // ⚡ Ticker 모델 호환 패턴 — element reference snapshot으로 race 방지
+  // 이전: board=null → await delay → blockEls.remove() — 그 사이 ticker가 만든 새 element를 죽임
+  // 이후: el 참조 캡쳐 → 즉시 blockEls=null → setTimeout으로 detached el만 remove
+  //       (ticker가 새 element를 blockEls에 할당해도 보호됨)
   for(const [c,r] of allCells){
     if(mergeSet.has(`${c},${r}`)) continue;
-    if(blockEls[c][r]) blockEls[c][r].classList.add('matched');
+    const matchedEl = blockEls[c]?.[r];
+    if(matchedEl){
+      matchedEl.classList.add('matched');
+      setTimeout(()=>{ if(matchedEl.parentNode) matchedEl.remove(); }, CFG.matchedDelay);
+      blockEls[c][r]=null; // 즉시 분리 — ticker가 새 element 할당해도 영향 X
+    }
     onBlockDestroyedAt(c,r);
     board[c][r]=null;
   }
-  await delay(CFG.matchedDelay);
-  for(const [c,r] of allCells){
-    if(mergeSet.has(`${c},${r}`)) continue;
-    if(blockEls[c][r]){blockEls[c][r].remove();blockEls[c][r]=null;}
-  }
+  await delay(CFG.matchedDelay); // 호흡 유지 (다음 단계 전 안정화)
 
   // 6c) 타겟볼 발동 (2스텝: 범위 즉시 제거 → 타겟볼 1개 발사)
   if(actTargets.length>0){
@@ -387,24 +418,26 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
     for(const t of actTargets){
       // 스텝1: 범위 4칸 즉시 제거
       const areaCells=getTargetAreaCells(t.col,t.row,null);
+      // ⚡ Ticker race fix — element snapshot + 즉시 분리
       for(const [ac,ar] of areaCells){
         if(ac===t.col&&ar===t.row) continue;
         targetExclude.add(`${ac},${ar}`);
-        if(gimmick[ac]?.[ar]?.type==='stone'){
+        if(gimmick[ac]?.[ar]){
           const sk=`${ac},${ar}`;
-          if(!hitStones.has(sk)){ hitStones.add(sk); hitStone(ac,ar); }
+          if(!hitStones.has(sk)){ hitStones.add(sk); hitGimmick(ac,ar); }
         } else if(board[ac]?.[ar]!==null){
-          if(blockEls[ac][ar]) blockEls[ac][ar].classList.add('matched');
+          const matchedEl = blockEls[ac]?.[ar];
+          if(matchedEl){
+            matchedEl.classList.add('matched');
+            setTimeout(()=>{ if(matchedEl.parentNode) matchedEl.remove(); }, CFG.specialActivateDelay);
+            blockEls[ac][ar]=null; // 즉시 분리
+          }
           onBlockDestroyedAt(ac,ar);
           board[ac][ar]=null;
           score+=100;updateScoreUI();
         }
       }
       await delay(CFG.specialActivateDelay);
-      for(const [ac,ar] of areaCells){
-        if(ac===t.col&&ar===t.row) continue;
-        if(blockEls[ac]?.[ar]){blockEls[ac][ar].remove();blockEls[ac][ar]=null;}
-      }
       // 스텝2: 타겟볼 1개 발사 (기믹 우선 → 랜덤)
       const hit=getTargetBallTarget(targetExclude);
       if(hit){
@@ -412,21 +445,29 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
         targetExclude.add(`${rc},${rr}`);
         await fireTargetProjectile(t.col,t.row,rc,rr,null);
         if(hit.isStone){
-          hitStone(rc,rr);
+          hitGimmick(rc,rr);
         } else {
           // 잔디 트리거 (빈 셀이어도 — 잔디 빈 셀 예외)
           onBlockDestroyedAt(rc,rr);
           if(board[rc]?.[rr]){
-            if(blockEls[rc][rr]) blockEls[rc][rr].classList.add('matched');
+            // ⚡ Ticker race fix — element snapshot
+            const arrivedEl = blockEls[rc]?.[rr];
+            if(arrivedEl){
+              arrivedEl.classList.add('matched');
+              setTimeout(()=>{ if(arrivedEl.parentNode) arrivedEl.remove(); }, CFG.specialActivateDelay);
+              blockEls[rc][rr]=null;
+            }
             board[rc][rr]=null;
             score+=100;updateScoreUI();
             await delay(CFG.specialActivateDelay);
-            if(blockEls[rc][rr]){blockEls[rc][rr].remove();blockEls[rc][rr]=null;}
           }
         }
       }
     }
   }
+
+  // 상자 폭발 순차 드레인 — 큐에 쌓인 폭발을 1개씩 처리 (충전 사이 끼움)
+  if(typeof drainCrateExplosions==='function') await drainCrateExplosions();
 }
 
 function swapBoard(c1,r1,c2,r2){[board[c1][r1],board[c2][r2]]=[board[c2][r2],board[c1][r1]];}

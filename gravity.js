@@ -77,7 +77,10 @@ function computeDiagonalFill(){
 //       → 효과 코드는 board를 변경만 → ticker가 자동으로 다음 frame에 충전 시작
 //       → 매치 검사는 await waitForSettle()로 안정화 대기
 let _tickerActive=false;
-let _tickerPaused=false;  // 일시 정지 (효과 처리 중 race 방지)
+// v2 Phase 1 — 카운터로 변경. 두 흐름이 동시에 pause/resume 호출해도 안전.
+// boolean이었을 때: A pause → B pause → A resume(false) → B 아직 await인데 ticker 재가동 → race
+// counter: A pause(+1) → B pause(+1)=2 → A resume(-1)=1 → B resume(-1)=0 → 그제서야 재가동
+let _tickerPauseCount=0;
 let _boardSettled=true;
 let _settleWaiters=[];
 let _tickerHandle=null;
@@ -87,12 +90,13 @@ const _TICK_IDLE_MS=50;   // 빈 셀 없을 때 체크 간격 (대기 모드)
 // 이 시기에 board=null 되었지만 element는 matched 애니메이션 중. ticker가 끼어들면
 // fill로 새 element 생성 → 효과 종료 시 .remove()가 새 element를 죽임 → 빈 셀 발생.
 // pause로 그 race 차단.
-function pauseTicker(){ _tickerPaused=true; }
-function resumeTicker(){ _tickerPaused=false; }
+function pauseTicker(){ _tickerPauseCount++; }
+function resumeTicker(){ if(_tickerPauseCount>0) _tickerPauseCount--; }
 
 function startGravityTicker(){
   if(_tickerActive) return;
   _tickerActive=true;
+  _tickerPauseCount=0; // 안전망 — 이전 게임의 잔여 pause 카운터 클리어
   _boardSettled=true;
   _settleWaiters=[];
   _gravityTickerLoop();
@@ -100,6 +104,7 @@ function startGravityTicker(){
 
 function stopGravityTicker(){
   _tickerActive=false;
+  _tickerPauseCount=0; // 안전망 — pause 카운터 클리어 (다음 startGame에서 깨끗하게)
   if(_tickerHandle){ clearTimeout(_tickerHandle); _tickerHandle=null; }
   // pending waiter 모두 resolve해서 hang 방지
   const ws=_settleWaiters.splice(0);
@@ -138,7 +143,7 @@ async function waitForSettle(){
 function _gravityTickerLoop(){
   if(!_tickerActive){ _tickerHandle=null; return; }
   // 일시 정지 중이면 idle 대기만 (효과 처리 중)
-  if(_tickerPaused){
+  if(_tickerPauseCount>0){
     _tickerHandle=setTimeout(_gravityTickerLoop, _TICK_IDLE_MS);
     return;
   }

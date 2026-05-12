@@ -3,24 +3,42 @@
 // 특수블록 연출(beam/explosion/projectile), 낙하/충전 애니메이션은 이미 special.js/gravity.js에 있음
 // 여기서는 블록 swap, 점수/콤보 팝업, 힌트 표시 같은 일반 DOM 트랜지션만 담당
 
-// ── 블록 swap 애니메이션 ──
+// ── 블록 swap 애니메이션 (Phase 2 atomic) ──
+// 시작 시점에 blockEls + dataset 즉시 swap (sync) → 220ms 사이 다른 흐름 race 차단.
+// CSS transition은 시각 효과만 진행. 220ms 후 cleanup만.
 async function animateSwap(c1,r1,c2,r2){
   const el1=blockEls[c1]?.[r1],el2=blockEls[c2]?.[r2];
   if(!el1||!el2) return;
+  const pre1=el1.style.transition, pre2=el2.style.transition;
   const p1=getBlockPos(c1,r1),p2=getBlockPos(c2,r2);
   const adj=BLOCK_D*((CFG.blockScale||1.0)-1)/2;
+  // PRE-TRANS 강제 안착 — fill/gravity 중간 위치에서 셀 위치로 점프 → swap이 깔끔한 시작
+  if(pre1 || pre2){
+    el1.style.transition='none';
+    el1.style.left=`${p1.x-adj}px`;
+    el1.style.top=`${p1.y-adj}px`;
+    el2.style.transition='none';
+    el2.style.left=`${p2.x-adj}px`;
+    el2.style.top=`${p2.y-adj}px`;
+    el1.offsetHeight; el2.offsetHeight; // reflow
+  }
+  // ★ ATOMIC SWAP — blockEls + dataset 즉시 sync swap.
+  // 다른 흐름이 보는 blockEls는 즉시 swap 상태. 220ms race 시점 0.
+  blockEls[c1][r1]=el2;
+  blockEls[c2][r2]=el1;
+  el1.dataset.col=c2; el1.dataset.row=r2;
+  el2.dataset.col=c1; el2.dataset.row=r1;
+  // CSS transition은 시각 효과만 — element 위치 이동
   const swapT=0.2/gameSpeed;
   el1.style.transition=`left ${swapT}s ease,top ${swapT}s ease`;
   el2.style.transition=`left ${swapT}s ease,top ${swapT}s ease`;
-  el1.style.zIndex='3';el2.style.zIndex='3';
-  el1.style.left=`${p2.x-adj}px`;el1.style.top=`${p2.y-adj}px`;
-  el2.style.left=`${p1.x-adj}px`;el2.style.top=`${p1.y-adj}px`;
+  el1.style.zIndex='3'; el2.style.zIndex='3';
+  el1.style.left=`${p2.x-adj}px`; el1.style.top=`${p2.y-adj}px`;
+  el2.style.left=`${p1.x-adj}px`; el2.style.top=`${p1.y-adj}px`;
   await skippableDelay(220);
-  el1.style.zIndex='';el2.style.zIndex='';
-  el1.style.transition='';el2.style.transition='';
-  el1.dataset.col=c2;el1.dataset.row=r2;
-  el2.dataset.col=c1;el2.dataset.row=r1;
-  blockEls[c1][r1]=el2;blockEls[c2][r2]=el1;
+  // 220ms 후: transition / zIndex cleanup만. blockEls는 이미 swap됨.
+  el1.style.zIndex=''; el2.style.zIndex='';
+  el1.style.transition=''; el2.style.transition='';
 }
 
 // ── 점수 팝업 ──

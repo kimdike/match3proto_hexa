@@ -102,44 +102,119 @@ function _flowResetAll(){
   _activeFlowCount = 0;
   busy = false;
   isBusyNormal = false;
+  _lockedCells.clear();
 }
 
-// ── 애니메이션 직렬화 큐 ──
-const animQueue=[];  // [{fn, ts}, ...]
-let animRunning=false;
-let skipDelay=false; // true면 delay()가 즉시 resolve → 연출 빠르게 감기
+// v2 Phase 2 — 매치된 element를 CSS animation 끝나면 자동 detach.
+// setTimeout(matchedDelay) 패턴 폐기 — race 시간 0 (animation 완료까지 element는 그대로 DOM에 있되 blockEls는 즉시 null로 분리됨).
+// fallback timeout(500ms) — animation 안 끝나는 케이스(CSS 누락 등) 안전망.
+function _autoDetachOnAnimEnd(el){
+  if(!el) return;
+  el.addEventListener('animationend', () => { if(el.parentNode) el.remove(); }, { once: true });
+  setTimeout(() => { if(el.parentNode) el.remove(); }, 500);
+}
+
+// v2 Phase 1 — 셀 단위 lock 시스템 (race 차단).
+// lock 범위: swap한 두 셀만 (인접 셀은 자유 사용 허용 — 사용자 의도).
+// "직전에 스왑한 영역은 다른 흐름이 건드리지 못함".
+// 다른 흐름이 같은 swap 셀 진입 시 차단(swap 무시).
+// ticker fill도 lock된 셀은 skip → 흐름 처리 중인 셀에 새 element 안 만듦.
+// Map<"c,r", count> — 같은 셀이 여러 흐름 lock에 들어갈 수 있어 카운터로 관리.
+const _lockedCells = new Map();
+
+function _isLocked(c, r){
+  return _lockedCells.has(`${c},${r}`);
+}
+
+function _lockArea(cells){
+  for(const [c, r] of cells){
+    const k = `${c},${r}`;
+    _lockedCells.set(k, (_lockedCells.get(k) || 0) + 1);
+  }
+}
+
+function _unlockArea(cells){
+  for(const [c, r] of cells){
+    const k = `${c},${r}`;
+    const cur = _lockedCells.get(k) || 0;
+    if(cur <= 1) _lockedCells.delete(k);
+    else _lockedCells.set(k, cur - 1);
+  }
+}
+
+// swap한 두 셀만 lock (인접 셀은 다른 흐름의 swap에서 자유롭게 사용 가능).
+// "직전에 스왑한 영역(=두 셀)은 다른 흐름이 건드리지 못함" — 사용자 의도.
+function _getSwapLockCells(c1, r1, c2, r2){
+  return [[c1, r1], [c2, r2]];
+}
+
+// 클릭 발동 (특수블록 제자리) — 1 셀만 lock (인접 제외)
+function _getClickLockCells(col, row){
+  return [[col, row]];
+}
+
+// 영역에 lock된 셀이 하나라도 있는지 확인 — swap 차단 판정용
+function _isAreaBlocked(cells){
+  for(const [c, r] of cells){
+    if(_isLocked(c, r)) return true;
+  }
+  return false;
+}
+
+// 매치 라인 셀만 lock (인접 제외). processMatchStep 시작 시 호출 → finally에서 해제.
+// 사용자 의도: "직전 스왑한 영역 + 그 매치 라인" 보호. 인접은 자유.
+function _computeMatchLockCells(matchCells, clusters){
+  const set = new Set();
+  for(const [c, r] of matchCells) set.add(`${c},${r}`);
+  if(clusters && clusters.length > 0){
+    for(const cl of clusters){
+      for(const [c, r] of cl.cells) set.add(`${c},${r}`);
+    }
+  }
+  return [...set].map(k => k.split(',').map(Number));
+}
+
+// ── 애니메이션 큐 (v2 Phase 1 — 다중 흐름 병렬 실행) ──
+// v1: animQueue + drainAnimQueue가 await로 직렬 처리 → 한 번에 하나 흐름만 진행
+// v2: enqueueAnim이 즉시 fire-and-track → _activeFlows에 등록. 여러 흐름 동시 진행.
+//     큐(animQueue)는 사실상 불필요 — _activeFlows.size로 활성 흐름 수 추적.
+//     animQueue 변수는 main.js 리셋 호환(animQueue.length=0)을 위해 유지.
+const animQueue=[];  // (deprecated, 호환용) v2에선 거의 사용 안 함
+let animRunning=false; // (deprecated, 호환용) ui matchLog 등 잔존 참조용
+const _activeFlows = new Set(); // 동시 진행 중인 흐름 Promise들
+let skipDelay=false; // v2에서 더 이상 토글하지 않음. ui.js matchLog 호환을 위해 변수만 유지 (항상 false).
 
 // 매크로 방지 — 너무 빠른 입력 차단 (인간 손가락 클릭/스왑 평균 간격 약 150~300ms)
-const ANIM_THROTTLE_MS = 100;  // 마지막 입력 후 100ms 이내 추가 입력 무시
-const ANIM_QUEUE_MAX   = 2;    // 큐 최대 길이 (현재 진행 + 다음 1개 buffer)
+// v2 — 100ms → 30ms 단축. 매크로는 ANIM_QUEUE_MAX=4로 자연 제한. 사람 손가락 30ms 이내 swap 거의 불가.
+const ANIM_THROTTLE_MS = 30;
+const ANIM_QUEUE_MAX   = 4;    // v2 — 동시 활성 흐름 최대 4개 (v1: 큐 max 2)
 let _lastEnqueueTs = 0;
 
+// v2 — 큐 폐기. enqueueAnim 호출 즉시 흐름 시작(_activeFlows에 등록).
+// 활성 흐름이 ANIM_QUEUE_MAX 이상이면 새 입력 무시.
+// 흐름 종료 시 finally에서 _activeFlows.delete(p) 자동 호출.
 function enqueueAnim(asyncFn){
   const now = Date.now();
   // Throttle — 매크로 방지
   if(now - _lastEnqueueTs < ANIM_THROTTLE_MS) return;
+  // 활성 흐름 가득 시 무시 (오버플로우 방지)
+  if(_activeFlows.size >= ANIM_QUEUE_MAX) return;
   _lastEnqueueTs = now;
-  animQueue.push({fn:asyncFn, ts:now});
-  // 큐 길이 제한 — 너무 많이 쌓이면 가장 오래된 것 버림
-  while(animQueue.length > ANIM_QUEUE_MAX) animQueue.shift();
-  if(animRunning) skipDelay=true;
-  if(!animRunning) drainAnimQueue();
+  // 즉시 fire-and-track — drainAnimQueue 거치지 않고 바로 흐름 시작
+  animRunning = true;
+  const p = (async () => {
+    try { await asyncFn(); }
+    catch(e) { console.error('[flow]', e); }
+  })();
+  p.finally(() => {
+    _activeFlows.delete(p);
+    if(_activeFlows.size === 0) animRunning = false;
+  });
+  _activeFlows.add(p);
 }
 
-async function drainAnimQueue(){
-  animRunning=true;
-  while(animQueue.length>0){
-    const item=animQueue.shift();
-    if(Date.now()-item.ts>SWAP_EXPIRE_MS){
-      console.log('[animQueue] 만료된 입력 버림');
-      continue;
-    }
-    skipDelay=animQueue.length>0;
-    try{ await item.fn(); }catch(e){ console.error('[animQueue]',e); }
-  }
-  skipDelay=false;
-  animRunning=false;
-}
+// 호환용 — 외부에서 호출하는 곳 없음 (v1 유산). 호출되면 즉시 resolve.
+async function drainAnimQueue(){ /* v2에서 의미 없음 */ }
 
 // ── 헬퍼 ──
 // makeCell/getColor/getType/isSpecial은 board.js로 이동
@@ -237,6 +312,10 @@ function findBestSwap(){
 
 // ── 매치 1단계 처리 ──
 async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,originRow,destCol,destRow,swapDir,combo){
+  // v2 매치 라인 셀 lock (인접 X) — 처리 중 ticker fill / 다른 흐름 swap 차단
+  const matchLockCells = _computeMatchLockCells(curCells, clusters);
+  _lockArea(matchLockCells);
+  try {
   // 1) 특수볼 생성 판정
   const specialInfo=determineSpecial(curLines,curCells,clusters,isFirst,originCol,originRow,destCol,destRow,swapDir);
 
@@ -393,6 +472,7 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
       pivotEl.style.transition=`transform ${mt2}s ease-in,opacity ${mt3}s ease-in ${mt3}s`;
       pivotEl.style.transform='scale(0.3)';pivotEl.style.opacity='0';
     }
+    // delay (ticker pause) — merge 연출이 끝나고 충전 시작 (동시 충전 X, 사용자 의도)
     await delay(CFG.mergeDelay);
     for(const [c,r] of specialInfo.mergeCells){
       board[c][r]=null;if(blockEls[c][r]){blockEls[c][r].remove();blockEls[c][r]=null;}
@@ -431,7 +511,7 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
     const matchedEl = blockEls[c]?.[r];
     if(matchedEl){
       matchedEl.classList.add('matched');
-      setTimeout(()=>{ if(matchedEl.parentNode) matchedEl.remove(); }, CFG.matchedDelay);
+      _autoDetachOnAnimEnd(matchedEl);
       blockEls[c][r]=null; // 즉시 분리 — ticker가 새 element 할당해도 영향 X
     }
     onBlockDestroyedAt(c,r);
@@ -456,7 +536,7 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
           const matchedEl = blockEls[ac]?.[ar];
           if(matchedEl){
             matchedEl.classList.add('matched');
-            setTimeout(()=>{ if(matchedEl.parentNode) matchedEl.remove(); }, CFG.specialActivateDelay);
+            _autoDetachOnAnimEnd(matchedEl);
             blockEls[ac][ar]=null; // 즉시 분리
           }
           onBlockDestroyedAt(ac,ar);
@@ -464,7 +544,8 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
           score+=100;updateScoreUI();
         }
       }
-      await delay(CFG.specialActivateDelay);
+      // bgDelay — 영역 타격 후 발사 대기 동안 ticker가 빈 셀 백그라운드 충전 진행
+      await bgDelay(CFG.specialActivateDelay);
       // 스텝2: 타겟볼 1개 발사 (기믹 우선 → 랜덤)
       const hit=getTargetBallTarget(targetExclude);
       if(hit){
@@ -481,12 +562,13 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
             const arrivedEl = blockEls[rc]?.[rr];
             if(arrivedEl){
               arrivedEl.classList.add('matched');
-              setTimeout(()=>{ if(arrivedEl.parentNode) arrivedEl.remove(); }, CFG.specialActivateDelay);
+              _autoDetachOnAnimEnd(arrivedEl);
               blockEls[rc][rr]=null;
             }
             board[rc][rr]=null;
             score+=100;updateScoreUI();
-            await delay(CFG.specialActivateDelay);
+            // bgDelay — 도착 처리 후 ticker 백그라운드 충전 동시 진행
+            await bgDelay(CFG.specialActivateDelay);
           }
         }
       }
@@ -495,6 +577,9 @@ async function processMatchStep(curLines,curCells,clusters,isFirst,originCol,ori
 
   // 상자 폭발 순차 드레인 — 큐에 쌓인 폭발을 1개씩 처리 (충전 사이 끼움)
   if(typeof drainCrateExplosions==='function') await drainCrateExplosions();
+  } finally {
+    _unlockArea(matchLockCells);
+  }
 }
 
 function swapBoard(c1,r1,c2,r2){[board[c1][r1],board[c2][r2]]=[board[c2][r2],board[c1][r1]];}

@@ -3,15 +3,16 @@
 ## 🔥 진행 중 / 남은 작업
 
 ### 다음 세션 리마인드
-- [ ] **🔥 실시간 매칭 v2 — 진정한 동시 진행 (브랜치: `refactor/realtime-fill-ticker` 유지하며 디벨롭)**
-      - 현재 구현: 입력 큐(`animQueue`) buffer + 순차 실행 (입력은 받아지나 처리는 sequential)
-      - 목표: 두 매치가 시각적으로 겹쳐서 동시 진행 (로얄매치 스타일)
-      - 추정 공수: 12~16시간 = 3~5 세션
-      - **Phase 1** (5~7h): 매치 처리 step 분할 + 큐 다중 실행 (lock 없이, 자연 합쳐짐 가정) — `enqueueAnim`/`drainAnimQueue` 재설계, `processMatchStep` step 단위로 쪼개기
-      - **Phase 2** (5~7h): 영역 lock 시스템 (셀별 또는 영역별) + 시각 충돌 처리 (matched anim 겹침, 폭발+줄볼 겹침 등)
-      - **Phase 3** (3~4h): 무지개 잠금 재정의 (다중 callback 환경) + 폭발 ↔ 매치 교차 처리 + 광범위 검증
-      - **작업 시작 시**: 먼저 `DESIGN_realtime_parallel.md` 설계 문서 작성 + 사용자 검토 → 코드
-      - 위험: race condition 비결정성, 매치/특수/폭발/잔디/도감/미션/천장 전 시스템 회귀 가능성
+- [x] **실시간 매칭 v2 Phase 1 + Phase 2 코어 race 차단** (2026.05.12, 브랜치 `refactor/realtime-fill-ticker` 유지)
+      - Phase 1: 큐 동시 fire-and-track + 셀 단위 lock + 매치 라인 lock + ticker pauseCount 카운터화 + `_activeFlowCount` derived busy + 무지개 사전 차단 + throttle 30ms + queueMax 4
+      - Phase 2: 코어 재설계로 race 근본 차단
+        - 매치 `setTimeout` → `animationend` detach (`_autoDetachOnAnimEnd`)
+        - swap atomic — blockEls + dataset 즉시 sync swap, CSS transition은 시각 효과만
+        - ZOMBIE-RECOVER 안전망 — board에 cell 있는데 element 없으면 ticker가 자동 복구
+        - DOM-DUP-CLEAR 안전망 — 한 셀에 element 2+ 발견 시 orphan 자동 제거 (matched/merging 보호)
+      - HTML 비주얼 가이드 작성: `guide_realtime_visual.html` (3D plane data/visual 분리)
+      - 진단 로그 모두 정리. 핵심 메커니즘은 silent 작동
+- [ ] **실시간 매칭 v2 Phase 3** (선택) — element 모델 통합 (`blockEls` → `cell.el`). 광범위 코드 변경이라 위험도 높음. 별도 브랜치 검토
 - [ ] assets 폴더 구조 정리 (이미지/오디오/특수블록 카테고리별 분류)
 - [ ] 개발자 모드 패널 크기 축소 검토
       (현재 패널이 너무 커서 배치 공간 부족,

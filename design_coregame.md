@@ -637,25 +637,57 @@ assets/specialblock/
 
 ---
 
-## 19. 실시간 매칭 시스템
+## 19. 실시간 매칭 시스템 (v2, 2026.05.12 코어 재설계)
 
-### 구현 방식 (skipDelay)
-- 새 swap 입력 시 진행 중인 delay()를 0ms로 줄여 현재 연출을 빠르게 완료
-- 첫 매치 이후 연쇄는 skipDelay=false 강제 → 의도치 않은 대량 제거 방지
-- animQueue 최대 1개 유지 → 가장 최근 입력만 살아남음
-- skippableDelay(): swap/낙하/충전 애니메이션만 압축 대상
-- delay(): 매치 팝/콤보/특수블록 연출은 항상 정상 속도 유지
-- 완전한 로직/애니메이션 분리는 리팩토링 때 진행 예정
+### 구현 모델 — 다중 흐름 동시 진행 + ticker 백그라운드 충전
+
+#### 입력 큐
+- `enqueueAnim` 즉시 fire-and-track 모델. 큐 buffer X.
+- `_activeFlows` Set에 진행 중인 흐름 Promise들 등록. 최대 동시 4 흐름 (`ANIM_QUEUE_MAX=4`).
+- `ANIM_THROTTLE_MS=30ms` — 매크로 방지(사람 손가락 30ms 이내 swap 거의 불가).
+- 두 swap이 시각적으로 겹쳐서 동시 진행 (로얄매치 스타일).
+
+#### 흐름 카운터 (`_activeFlowCount`)
+- `busy` / `isBusyNormal`은 derived state. 흐름 시작 +1, 종료 -1. 카운터 0 도달 시에만 `busy=false`.
+- `_flowStart()` / `_flowEnd()` / `_flowResetAll()` 헬퍼로 일원화.
+
+#### 셀 단위 lock (`_lockedCells` Map<셀, count>)
+- swap 두 셀 + 매치 라인 셀(`curCells + clusters`) lock (인접 X — "직전 스왑한 영역 + 매치 라인" 보호).
+- 다른 흐름이 lock 셀 swap 시도 시 차단(무시).
+- ticker `computeFill`도 lock 셀 skip → 흐름 처리 중인 셀에 새 element 안 만듦.
+
+#### 충전 ticker (백그라운드, 어제 코어 개편)
+- 50ms 주기. board 빈 셀 발견 시 gravity/diagonalFill/fill compute + animate.
+- `pauseTicker` / `resumeTicker`는 정수 카운터 — 두 흐름이 동시 호출해도 안전.
+- 폭발 / 타겟볼 발사 비행 동안에도 백그라운드 충전 동시 진행 (`bgDelay`).
+
+### 코어 race 차단 메커니즘
+
+#### swap atomic
+- `animateSwap` 시작 시점에 `blockEls + dataset` 즉시 sync swap.
+- CSS transition은 시각 효과만 진행 (220ms). 220ms 후 cleanup만.
+- 다른 흐름이 보는 blockEls는 즉시 swap된 상태 → race 시점 0.
+
+#### 매치 element animationend detach
+- `_autoDetachOnAnimEnd(el)`: `matched` class + `animationend` 이벤트로 자동 detach. 500ms fallback.
+- `blockEls[c][r] = null` 즉시 분리. element는 `matchPop 0.28s` animation 끝나면 자동 사라짐.
+- 시간 race 0 (setTimeout 200ms 폐기).
+
+#### 안전망 (매 ticker tick 50ms)
+- **ZOMBIE-RECOVER** (`_boardSanityCheck`): `board != null && blockEls == null` 발견 시 `createBlockEl`로 자동 element 생성. board에 기록된 색/타입 그대로 복구. lock 셀은 skip.
+- **DOM-DUP-CLEAR** (`_domSanityCheck`): 한 셀에 element 2+ 발견 시 blockEls 안 가리키는 orphan 자동 제거. `matched`/`merging` class는 보호.
 
 ### 조작 가능한 상황
-- 콤보 연쇄 중
-- 블록 낙하 애니메이션 중
+- 콤보 연쇄 중 (lock 영역 외 swap)
+- 블록 낙하/충전 진행 중 (ticker 백그라운드)
 - 일반 특수블록 연출 중 (줄볼, 타겟볼, 폭탄볼)
+- 폭발 / 타겟볼 발사 비행 중 (동시 충전)
 
 ### 조작 불가능한 상황 (입력 완전 무시)
-- 무지개볼 x 특수블록 교차 연출 중
+- 무지개볼 x 특수블록 교차 연출 중 (`isBusyRainbow=true`)
 - 무지개볼 x 무지개볼 교차 연출 중
 - 단, 무지개볼 더블클릭/단독 스왑 연출 중에는 조작 가능
+- 다른 흐름의 swap lock 영역(swap 셀 + 매치 라인) 안 swap 시도 시 차단
 
 ---
 

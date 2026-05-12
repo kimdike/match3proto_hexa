@@ -140,13 +140,65 @@ async function waitForSettle(){
   }
 }
 
+// v2 Phase 2 — ZOMBIE-RECOVER: board에 cell 있지만 blockEls=null인 셀 → 자동 element 생성.
+// gravity/fill로 해결 안 되는 케이스(board != null이라 fill 트리거 X). race로 element가 잘못 사라진 셀 복구.
+// lock 셀은 다른 흐름 처리 중이라 skip — lock 풀린 후 다음 tick에서 복구.
+function _boardSanityCheck(){
+  const container = document.getElementById('grid-container');
+  for(let col=0; col<COLS_PATTERN.length; col++){
+    for(let row=0; row<COLS_PATTERN[col]; row++){
+      if(typeof isNonPlayable==='function' && isNonPlayable(col, row)) continue;
+      if(gimmick[col]?.[row]) continue;
+      if(board[col]?.[row] == null || blockEls[col]?.[row] != null) continue;
+      // lock 셀은 다른 흐름 처리 중 → 복구 skip
+      if(typeof _isLocked === 'function' && _isLocked(col, row)) continue;
+      // 자동 복구 — board cell로 element 생성
+      const cell = board[col][row];
+      const newEl = createBlockEl(col, row, cell);
+      if(newEl && container){
+        container.appendChild(newEl);
+        blockEls[col][row] = newEl;
+      }
+    }
+  }
+}
+
+// v2 Phase 2 — DOM-DUP 자동 정리: 한 셀에 element 2+ 발견 시 blockEls 안 가리키는 orphan 즉시 제거.
+// 단 matched class를 가진 element는 보호 (자체 animation으로 사라질 예정) — 시각 효과 보존.
+// lock 셀은 skip (다른 흐름 처리 중).
+function _domSanityCheck(){
+  if(typeof document==='undefined') return;
+  const counts = new Map();
+  document.querySelectorAll('.hex-block').forEach(el => {
+    const c = el.dataset.col, r = el.dataset.row;
+    if(c == null || r == null) return;
+    const k = `${c},${r}`;
+    if(!counts.has(k)) counts.set(k, []);
+    counts.get(k).push(el);
+  });
+  for(const [k, els] of counts){
+    if(els.length > 1){
+      const [c, r] = k.split(',').map(Number);
+      if(typeof _isLocked === 'function' && _isLocked(c, r)) continue;
+      const refEl = blockEls[c]?.[r];
+      for(const el of els){
+        if(el === refEl) continue; // blockEls 가리키는 element 보호
+        if(el.classList.contains('matched') || el.classList.contains('merging')) continue;
+        if(el.parentNode) el.remove();
+      }
+    }
+  }
+}
+
 function _gravityTickerLoop(){
   if(!_tickerActive){ _tickerHandle=null; return; }
   // 일시 정지 중이면 idle 대기만 (효과 처리 중)
   if(_tickerPauseCount>0){
+    _domSanityCheck(); _boardSanityCheck();
     _tickerHandle=setTimeout(_gravityTickerLoop, _TICK_IDLE_MS);
     return;
   }
+  _domSanityCheck();
   // 1 step compute (board 직접 수정)
   const moves=computeGravity();
   const diagMoves=computeDiagonalFill();
@@ -260,6 +312,9 @@ function computeFill(){
       }
       for(const row of targets){
         if(board[col][row]!==null) continue; // 다른 소스가 이미 채운 경우 스킵
+        // v2 Phase 1 lock — 흐름이 처리 중인 영역에 ticker가 새 element 생성 차단.
+        // 흐름 unlock 후 다음 tick에서 정상 fill.
+        if(typeof _isLocked === 'function' && _isLocked(col, row)) continue;
         const ci=Math.floor(Math.random()*numColors);
         board[col][row]=makeCell(ci);
         // block 필드로 셀 스냅샷 저장 → 같은 iter에서 gravity가 이동시켜도 animateFillDOM이 정확히 DOM 생성 가능

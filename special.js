@@ -140,7 +140,8 @@ async function fireTargetProjectile(fromCol,fromRow,toCol,toRow,color){
   const pt=CFG.projectileTransition/gameSpeed;
   proj.style.transition=`left ${pt}s ease-in-out,top ${pt}s cubic-bezier(0.2,-0.6,0.7,1.4)`;
   proj.style.left=`${to.x+BLOCK_D/2-6}px`;proj.style.top=`${to.y+BLOCK_D/2-6}px`;
-  await delay(pt*1000+20);proj.remove();
+  // bgDelay — 발사체 비행 동안 ticker 계속 진행 (영역 타격으로 비운 셀에 백그라운드 충전)
+  await bgDelay(pt*1000+20);proj.remove();
 }
 
 // ── mid-flight redirect 지원 발사체 (rainbow×타겟볼 전용) ──

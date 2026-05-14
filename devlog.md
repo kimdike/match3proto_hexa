@@ -23,10 +23,17 @@
 
 **자산 파일명과 코드 클래스 불일치**: 코드 클래스/타입은 `crate`인데 자산 파일명은 `box_*.png`. 코드 내부에서 `type==='crate'`면 파일 prefix를 `box`로 매핑 (board.js inline 4곳 + map_editor.html `filePrefix` 변수).
 
+### 3. stage_maps 맵 갱신
+사용자가 맵 에디터로 스테이지 맵 직접 작업 (2942줄 변경, +2287 −655). 본 세션에서는 코드 검토 없이 자산으로 그대로 반영.
+
+### 4. main 머지 + 푸시
+`refactor/realtime-fill-ticker` 브랜치에 누적된 9개 커밋(Phase 1 ticker 카운터화 + busy derived + matchStep null-skip + Phase 2 race 차단 + 비주얼 가이드 + 슬롯 swap + PNG 자산 + 맵 갱신)을 `--no-ff`로 main 머지 후 푸시. 브랜치는 보존 (향후 Phase 3 element 모델 통합 작업 시 참고).
+
 ### 💡 오늘의 교훈
 1. **메타 데이터 vs 디자인 데이터의 진실의 원천 충돌**: `monster_table.json`의 `is_starter:true` 필터(ID 오름차순)가 `DEFAULT_SLOTS`의 순서 의도를 자동 override. 메타 데이터는 "어떤 종이 starter인지"의 진실, 디자인 데이터는 "어떤 순서로 보일지"의 진실. 역할 분리 + 디자인 데이터 우선이 정답.
 2. **CSS placeholder → 실제 자산 전환은 stone 패턴 복제로 충분**: stone이 이미 PNG inline backgroundImage 패턴을 쓰고 있어, grass/crate에도 동일 패턴 복사만으로 마이그레이션 끝. 통일된 패턴 = 마이그레이션 비용 최소화.
 3. **자산 파일명과 코드 클래스 불일치는 prefix 매핑으로 격리**: rename 비용(코드 30+ 라인 vs 자산 5개)이 코드 변경이 더 크면 자산 이름 유지 + 매핑이 단순. 다만 매핑이 분산되면 향후 자산 또 바뀔 때 부담. 자주 바뀌면 헬퍼 추출 권장(향후 과제).
+4. **브랜치 보존 vs 삭제**: 머지 후에도 작업 브랜치 보존이 안전. 향후 Phase 3 작업 시 brunch에서 다시 시작 가능. 삭제는 사용자가 확실히 끝났다 판단할 때만.
 
 ---
 

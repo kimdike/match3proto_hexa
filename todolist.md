@@ -3,7 +3,7 @@
 ## 🔥 진행 중 / 남은 작업
 
 ### 다음 세션 리마인드
-- [x] **실시간 매칭 v2 Phase 1 + Phase 2 코어 race 차단** (2026.05.12, 브랜치 `refactor/realtime-fill-ticker` 유지)
+- [x] **실시간 매칭 v2 Phase 1 + Phase 2 코어 race 차단** (2026.05.12 작업, 2026.05.14 main 머지 완료)
       - Phase 1: 큐 동시 fire-and-track + 셀 단위 lock + 매치 라인 lock + ticker pauseCount 카운터화 + `_activeFlowCount` derived busy + 무지개 사전 차단 + throttle 30ms + queueMax 4
       - Phase 2: 코어 재설계로 race 근본 차단
         - 매치 `setTimeout` → `animationend` detach (`_autoDetachOnAnimEnd`)

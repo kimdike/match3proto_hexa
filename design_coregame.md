@@ -637,25 +637,57 @@ assets/specialblock/
 
 ---
 
-## 19. 실시간 매칭 시스템
+## 19. 실시간 매칭 시스템 (v2, 2026.05.12 코어 재설계)
 
-### 구현 방식 (skipDelay)
-- 새 swap 입력 시 진행 중인 delay()를 0ms로 줄여 현재 연출을 빠르게 완료
-- 첫 매치 이후 연쇄는 skipDelay=false 강제 → 의도치 않은 대량 제거 방지
-- animQueue 최대 1개 유지 → 가장 최근 입력만 살아남음
-- skippableDelay(): swap/낙하/충전 애니메이션만 압축 대상
-- delay(): 매치 팝/콤보/특수블록 연출은 항상 정상 속도 유지
-- 완전한 로직/애니메이션 분리는 리팩토링 때 진행 예정
+### 구현 모델 — 다중 흐름 동시 진행 + ticker 백그라운드 충전
+
+#### 입력 큐
+- `enqueueAnim` 즉시 fire-and-track 모델. 큐 buffer X.
+- `_activeFlows` Set에 진행 중인 흐름 Promise들 등록. 최대 동시 4 흐름 (`ANIM_QUEUE_MAX=4`).
+- `ANIM_THROTTLE_MS=30ms` — 매크로 방지(사람 손가락 30ms 이내 swap 거의 불가).
+- 두 swap이 시각적으로 겹쳐서 동시 진행 (로얄매치 스타일).
+
+#### 흐름 카운터 (`_activeFlowCount`)
+- `busy` / `isBusyNormal`은 derived state. 흐름 시작 +1, 종료 -1. 카운터 0 도달 시에만 `busy=false`.
+- `_flowStart()` / `_flowEnd()` / `_flowResetAll()` 헬퍼로 일원화.
+
+#### 셀 단위 lock (`_lockedCells` Map<셀, count>)
+- swap 두 셀 + 매치 라인 셀(`curCells + clusters`) lock (인접 X — "직전 스왑한 영역 + 매치 라인" 보호).
+- 다른 흐름이 lock 셀 swap 시도 시 차단(무시).
+- ticker `computeFill`도 lock 셀 skip → 흐름 처리 중인 셀에 새 element 안 만듦.
+
+#### 충전 ticker (백그라운드, 어제 코어 개편)
+- 50ms 주기. board 빈 셀 발견 시 gravity/diagonalFill/fill compute + animate.
+- `pauseTicker` / `resumeTicker`는 정수 카운터 — 두 흐름이 동시 호출해도 안전.
+- 폭발 / 타겟볼 발사 비행 동안에도 백그라운드 충전 동시 진행 (`bgDelay`).
+
+### 코어 race 차단 메커니즘
+
+#### swap atomic
+- `animateSwap` 시작 시점에 `blockEls + dataset` 즉시 sync swap.
+- CSS transition은 시각 효과만 진행 (220ms). 220ms 후 cleanup만.
+- 다른 흐름이 보는 blockEls는 즉시 swap된 상태 → race 시점 0.
+
+#### 매치 element animationend detach
+- `_autoDetachOnAnimEnd(el)`: `matched` class + `animationend` 이벤트로 자동 detach. 500ms fallback.
+- `blockEls[c][r] = null` 즉시 분리. element는 `matchPop 0.28s` animation 끝나면 자동 사라짐.
+- 시간 race 0 (setTimeout 200ms 폐기).
+
+#### 안전망 (매 ticker tick 50ms)
+- **ZOMBIE-RECOVER** (`_boardSanityCheck`): `board != null && blockEls == null` 발견 시 `createBlockEl`로 자동 element 생성. board에 기록된 색/타입 그대로 복구. lock 셀은 skip.
+- **DOM-DUP-CLEAR** (`_domSanityCheck`): 한 셀에 element 2+ 발견 시 blockEls 안 가리키는 orphan 자동 제거. `matched`/`merging` class는 보호.
 
 ### 조작 가능한 상황
-- 콤보 연쇄 중
-- 블록 낙하 애니메이션 중
+- 콤보 연쇄 중 (lock 영역 외 swap)
+- 블록 낙하/충전 진행 중 (ticker 백그라운드)
 - 일반 특수블록 연출 중 (줄볼, 타겟볼, 폭탄볼)
+- 폭발 / 타겟볼 발사 비행 중 (동시 충전)
 
 ### 조작 불가능한 상황 (입력 완전 무시)
-- 무지개볼 x 특수블록 교차 연출 중
+- 무지개볼 x 특수블록 교차 연출 중 (`isBusyRainbow=true`)
 - 무지개볼 x 무지개볼 교차 연출 중
 - 단, 무지개볼 더블클릭/단독 스왑 연출 중에는 조작 가능
+- 다른 흐름의 swap lock 영역(swap 셀 + 매치 라인) 안 swap 시도 시 차단
 
 ---
 
@@ -890,54 +922,34 @@ index.html에 script 태그로 로드
 
 ---
 
-## 26. 돌 기믹 (Stone Gimmick)
+## 26. 기믹 시스템
 
-### 개요
-- 퍼즐판에 배치된 미션 오브젝트
-- 타입: **고정형** (중력 영향 없음, 배치 셀 고정)
-- 스테이지 클리어 조건: 퍼즐판 내 모든 돌 기믹 제거
+> 모든 기믹(돌/잔디/상자/얼음/열쇠) 상세 스펙은 **design_gimmick.md** 단일 문서에서 관리.
+> 본 코어 문서에는 게임 흐름 레벨의 요약만 남긴다.
 
-### 단계 시스템
-- 총 5단계 (5단계가 가장 강함)
-- 기믹 셀이 효과 범위에 포함될 때 단계 -1
-- 1단계에서 타격 시 완전 제거
-
-### 미션 카운트 규칙
-- 퍼즐판에 올라가 있는 돌 기믹 셀 개수를 카운트
-- 돌의 단계(level)와 무관하게 셀 개수 기준
-- 돌 제거 시 카운트 -1, 0이 되면 클리어
-
-### 비주얼 (단계별)
-- 이미지 파일: `assets/gimmick/stone_1.png` ~ `stone_5.png`
-- image_tool.html로 이미지 편집 후 교체 가능
-
-### 배치 규칙
-- map_editor.html에서 스테이지별로 직접 배치 후 stage_maps.json으로 저장
-- 고정형 기믹 셀에는 블록형 오브젝트 올라오지 않음
-- 고정형 기믹 제거 후 해당 셀은 블록형으로 충전됨 (대각선 충전 규칙 적용)
-
-### 타격 조건 (기믹 셀이 효과 범위에 포함될 때만 단계 -1)
-- 기믹에 인접한 셀에서 3/4/5매치 발생
-- 줄볼 라인의 효과 범위에 기믹 셀 포함
-- 폭탄볼 폭발 범위 안에 기믹 셀 포함
-- 타겟볼 타격 범위 4칸 안에 기믹 셀 포함
-- 특수블록 생성 위치 인접 기믹 셀
+- 기믹 종류, 단계, 시각, 트리거, 폭발/연쇄, 데이터 모델 → **design_gimmick.md §1~5**
+- 모든 트리거 경로 체크리스트(매칭/줄볼/폭탄/타겟볼/무지개/교차) → **design_gimmick.md 부록 G**
+- 타겟볼 우선순위 (미션 모델 D) → **design_gimmick.md 부록 H**
 
 ---
 
 ## 27. 미션 시스템
 
-### 승리 조건
-- 퍼즐판 내 모든 돌 기믹 제거
+### 승리/실패 조건
+- 승리: `stage_maps.missions` 배열의 모든 카운트가 0이 되면 클리어 (모델 D)
+- 실패: Move 수가 0이 될 때까지 미션을 전부 처리하지 못한 경우
 
-### 실패 조건
-- Move 수가 0이 될 때까지 돌 기믹을 전부 제거하지 못한 경우
+### 미션 정의
+- 스테이지별 미션 = `stage_maps.missions: [{type, count}, ...]`
+- 배열 순서가 타겟볼 우선순위 (앞이 1순위)
+- 보드 배치 갯수 = 진실의 원천 (`count`는 자동 sync, 어긋남 차단)
+- 상세 → **design_gimmick.md 부록 H**
 
-### 미션 UI (좌상단)
-- 돌 기믹 아이콘 표시
-- 남은 돌 개수 실시간 표시 (단계 무관, 셀 개수 기준)
-- 돌 제거 시 즉시 카운트 감소
-- 모든 돌 제거 시 클리어 연출 발동
+### 미션 UI (좌상단 멀티 카드)
+- 1개 미션 = 정중앙 큰 카드 / 2개 = 가로 중간 / 3~4개 = 2x2 작은 카드
+- 각 카드: 미션 아이콘 + 남은 카운트 뱃지 (0 도달 시 ✅)
+- 실시간 갱신 (블록/특수효과로 기믹 처리 즉시)
+- 디테일 (`MISSION_ICONS` 매핑, `data-count` 레이아웃) → ui.js `updateMissionUI`
 
 ---
 

@@ -25,9 +25,11 @@ function onDragEnd(e){
   const pt=getPointer(e);
   const dx=pt.x-startX,dy=pt.y-startY;
   if(Math.sqrt(dx*dx+dy*dy)<DRAG_THRESHOLD){
-    if(debugPlaceType&&playing&&!busy){ placeDebugSpecial(col,row); return; }
+    if(debugPlaceType&&playing){ placeDebugSpecial(col,row); return; }
     // 클릭: 특수블록 → 제자리 발동, 일반블록 → 흔들림
-    if(playing&&!busy&&!isBusyRainbow&&board[col]?.[row]){
+    // 실시간 매칭: busy(일반 매치/특수 진행 중) 차단 X. 무지개 잠금만 유지.
+    // 큐(enqueueAnim)에 들어가서 skipDelay로 압축됨.
+    if(playing&&!isBusyRainbow&&board[col]?.[row]){
       if(isSpecial(col,row)){
         tryActivateSpecialClick(col,row);
       } else {
@@ -63,139 +65,161 @@ function findNeighborByAngle(col,row,dx,dy){
 // ── 클릭 발동 (특수블록 제자리 발동) ──
 function tryActivateSpecialClick(col,row){
   if(!isSpecial(col,row)) return;
+  // v2 lock 체크 — 이 셀 또는 인접이 다른 흐름 처리 중이면 차단
+  const lockCells = _getClickLockCells(col,row);
+  if(_isAreaBlocked(lockCells)) return;
   playSfx('swap');
+  // 무지개 클릭 발동도 즉시 차단 (enqueueAnim 큐 buffer 사이 다른 swap 차단)
+  if(getType(col,row)==='rainbow') isBusyRainbow=true;
+  _lockArea(lockCells);
   enqueueAnim(async()=>{
-    busy=true;isBusyNormal=true;
-    clearHint();
-    movesLeft--;updateMovesUI();
-    const cell=board[col][row];
-    if(cell.type==='rainbow'){
-      const tc=getMostFrequentColor();
-      if(tc!==null){
-        const cnt=await activateRainbow(col,row,tc);
-        score+=cnt*100;updateScoreUI();
+    _flowStart();
+    try {
+      clearHint();
+      movesLeft--;updateMovesUI();
+      const cell=board[col][row];
+      if(cell.type==='rainbow'){
+        const tc=getMostFrequentColor();
+        if(tc!==null){
+          const cnt=await activateRainbow(col,row,tc);
+          score+=cnt*100;updateScoreUI();
+        } else {
+          board[col][row]=null;
+          if(blockEls[col][row]){blockEls[col][row].classList.add('matched');}
+          await delay(CFG.specialActivateDelay);
+          if(blockEls[col][row]){blockEls[col][row].remove();blockEls[col][row]=null;}
+        }
       } else {
-        board[col][row]=null;
-        if(blockEls[col][row]){blockEls[col][row].classList.add('matched');}
-        await delay(CFG.specialActivateDelay);
-        if(blockEls[col][row]){blockEls[col][row].remove();blockEls[col][row]=null;}
+        await activateSpecialAt(col,row);
       }
-    } else {
-      await activateSpecialAt(col,row);
+      isBusyRainbow=false;
+      await drainCrateExplosions();await applyGravity();await fillEmpty();
+      let {lines:cl,cells:cc,clusters:ccl}=findAllMatches();
+      let combo=0;
+      while(cc.length>0||ccl.length>0){
+        combo++;
+        await processMatchStep(cl,cc,ccl,false,col,row,col,row,null,combo);
+        await drainCrateExplosions();await applyGravity();await fillEmpty();
+        const chain=findAllMatches();cl=chain.lines;cc=chain.cells;ccl=chain.clusters;
+      }
+      checkGameEnd();
+      startHintTimer();
+    } finally {
+      _unlockArea(lockCells);
+      _flowEnd();
     }
-    isBusyRainbow=false;isBusyNormal=true;
-    await applyGravity();await fillEmpty();
-    let {lines:cl,cells:cc,clusters:ccl}=findAllMatches();
-    let combo=0;
-    while(cc.length>0||ccl.length>0){
-      combo++;
-      await processMatchStep(cl,cc,ccl,false,col,row,col,row,null,combo);
-      await applyGravity();await fillEmpty();
-      const chain=findAllMatches();cl=chain.lines;cc=chain.cells;ccl=chain.clusters;
-    }
-    checkGameEnd();busy=false;isBusyNormal=false;
-    startHintTimer();
   });
 }
 
 // ── 스왑 ──
 function trySwap(c1,r1,c2,r2){
   if(isBusyRainbow) return;
+  // v2 lock 체크 — swap 두 셀 또는 인접이 다른 흐름 처리 중이면 차단
+  const lockCells = _getSwapLockCells(c1,r1,c2,r2);
+  if(_isAreaBlocked(lockCells)) return;
   playSfx('swap');
+  // 무지개 관여 swap은 enqueueAnim 큐 처리 전 즉시 입력 차단.
+  // (enqueueAnim 콜백이 실행될 때까지 isBusyRainbow=false 면 그 사이 다른 swap이 큐에 buffer됨)
+  // executeSwap에서 rainbow가 invalid한 케이스(rainbow+empty 등)는 finally의 안전망에서 복귀.
+  const willRainbow = getType(c1,r1)==='rainbow' || getType(c2,r2)==='rainbow';
+  if(willRainbow) isBusyRainbow=true;
+  _lockArea(lockCells);
   enqueueAnim(async()=>{
-    busy=true;isBusyNormal=true;
+    _flowStart();
+    try {
+      const result=executeSwap(c1,r1,c2,r2);
 
-    const result=executeSwap(c1,r1,c2,r2);
+      if(!result.valid){
+        await animateSwap(c1,r1,c2,r2);
+        await animateSwap(c1,r1,c2,r2);
+        return;
+      }
 
-    if(!result.valid){
       await animateSwap(c1,r1,c2,r2);
-      await animateSwap(c1,r1,c2,r2);
-      busy=false;isBusyNormal=false;
-      return;
-    }
+      movesLeft--;updateMovesUI();
 
-    await animateSwap(c1,r1,c2,r2);
-    movesLeft--;updateMovesUI();
+      if(result.type==='cross'){
+        await handleCrossEffect(c1,r1,c2,r2);
+        isBusyRainbow=false;
+        await drainCrateExplosions();await applyGravity();await fillEmpty();
+        let {lines:cl,cells:cc,clusters:ccl}=findAllMatches();
+        let combo=0;
+        while(cc.length>0||ccl.length>0){
+          combo++;
+          await processMatchStep(cl,cc,ccl,false,c1,r1,c2,r2,null,combo);
+          await drainCrateExplosions();await applyGravity();await fillEmpty();
+          const chain=findAllMatches();cl=chain.lines;cc=chain.cells;ccl=chain.clusters;
+        }
+        checkGameEnd();
+        startHintTimer();
+        return;
+      }
 
-    if(result.type==='cross'){
-      await handleCrossEffect(c1,r1,c2,r2);
-      isBusyRainbow=false;isBusyNormal=true;
-      await applyGravity();await fillEmpty();
-      let {lines:cl,cells:cc,clusters:ccl}=findAllMatches();
-      let combo=0;
-      while(cc.length>0||ccl.length>0){
+      if(result.type==='rainbow'){
+        const cnt=await activateRainbow(result.rainbowPos.col,result.rainbowPos.row,result.targetColor);
+        score+=cnt*100;updateScoreUI();
+        isBusyRainbow=false;
+        await drainCrateExplosions();await applyGravity();await fillEmpty();
+        let {lines:cl,cells:cc,clusters:ccl}=findAllMatches();
+        let combo=1;
+        while(cc.length>0||ccl.length>0){
+          combo++;
+          await processMatchStep(cl,cc,ccl,false,c1,r1,c2,r2,null,combo);
+          await drainCrateExplosions();await applyGravity();await fillEmpty();
+          const chain=findAllMatches();cl=chain.lines;cc=chain.cells;ccl=chain.clusters;
+        }
+        checkGameEnd();
+        startHintTimer();
+        return;
+      }
+
+      if(result.type==='special-activate'){
+        const {col,row}=result.specialPos;
+        const cell=board[col][row];
+        // 타겟볼에 스왑 방향 전달 (범위 타격 패턴용)
+        if(cell.type==='target'){
+          cell._swapDir=(col===c1&&row===r1)
+            ? getSwapDirection(c2,r2,c1,r1)
+            : getSwapDirection(c1,r1,c2,r2);
+        }
+        if(cell.type==='rainbow'){
+          const tc=getMostFrequentColor();
+          if(tc!==null){ const cnt=await activateRainbow(col,row,tc); score+=cnt*100;updateScoreUI(); }
+        } else {
+          await activateSpecialAt(col,row);
+        }
+        isBusyRainbow=false;
+        await drainCrateExplosions();await applyGravity();await fillEmpty();
+        let {lines:cl,cells:cc,clusters:ccl}=findAllMatches();
+        let combo=0;
+        while(cc.length>0||ccl.length>0){
+          combo++;
+          await processMatchStep(cl,cc,ccl,false,c1,r1,c2,r2,null,combo);
+          await drainCrateExplosions();await applyGravity();await fillEmpty();
+          const chain=findAllMatches();cl=chain.lines;cc=chain.cells;ccl=chain.clusters;
+        }
+        checkGameEnd();
+        startHintTimer();
+        return;
+      }
+
+      const {lines,cells,clusters,swapDir}=result;
+      let combo=0,curLines=lines,curCells=cells,curClusters=clusters,isFirst=true;
+      while(curCells.length>0||curClusters.length>0){
         combo++;
-        await processMatchStep(cl,cc,ccl,false,c1,r1,c2,r2,null,combo);
-        await applyGravity();await fillEmpty();
-        const chain=findAllMatches();cl=chain.lines;cc=chain.cells;ccl=chain.clusters;
+        await processMatchStep(curLines,curCells,curClusters,isFirst,c1,r1,c2,r2,swapDir,combo);
+        isFirst=false;
+        await drainCrateExplosions();await applyGravity();await fillEmpty();
+        const chain=findAllMatches();curLines=chain.lines;curCells=chain.cells;curClusters=chain.clusters;
       }
-      checkGameEnd();busy=false;isBusyNormal=false;
+      checkGameEnd();
       startHintTimer();
-      return;
+    } finally {
+      // 안전망 — invalid/throw 시에도 lock + isBusyRainbow 복귀 보장
+      if(willRainbow) isBusyRainbow=false;
+      _unlockArea(lockCells);
+      _flowEnd();
     }
-
-    if(result.type==='rainbow'){
-      const cnt=await activateRainbow(result.rainbowPos.col,result.rainbowPos.row,result.targetColor);
-      score+=cnt*100;updateScoreUI();
-      isBusyRainbow=false;isBusyNormal=true;
-      await applyGravity();await fillEmpty();
-      let {lines:cl,cells:cc,clusters:ccl}=findAllMatches();
-      let combo=1;
-      while(cc.length>0||ccl.length>0){
-        combo++;
-        await processMatchStep(cl,cc,ccl,false,c1,r1,c2,r2,null,combo);
-        await applyGravity();await fillEmpty();
-        const chain=findAllMatches();cl=chain.lines;cc=chain.cells;ccl=chain.clusters;
-      }
-      checkGameEnd();busy=false;isBusyNormal=false;
-      startHintTimer();
-      return;
-    }
-
-    if(result.type==='special-activate'){
-      const {col,row}=result.specialPos;
-      const cell=board[col][row];
-      // 타겟볼에 스왑 방향 전달 (범위 타격 패턴용)
-      // 타겟볼의 실제 이동 방향(출발→도착)을 계산해야 함:
-      // - sp1: 타겟볼이 (c2,r2)→(c1,r1)로 이동 → 방향=c2→c1
-      // - sp2: 타겟볼이 (c1,r1)→(c2,r2)로 이동 → 방향=c1→c2
-      if(cell.type==='target'){
-        cell._swapDir=(col===c1&&row===r1)
-          ? getSwapDirection(c2,r2,c1,r1)
-          : getSwapDirection(c1,r1,c2,r2);
-      }
-      if(cell.type==='rainbow'){
-        const tc=getMostFrequentColor();
-        if(tc!==null){ const cnt=await activateRainbow(col,row,tc); score+=cnt*100;updateScoreUI(); }
-      } else {
-        await activateSpecialAt(col,row);
-      }
-      isBusyRainbow=false;isBusyNormal=true;
-      await applyGravity();await fillEmpty();
-      let {lines:cl,cells:cc,clusters:ccl}=findAllMatches();
-      let combo=0;
-      while(cc.length>0||ccl.length>0){
-        combo++;
-        await processMatchStep(cl,cc,ccl,false,c1,r1,c2,r2,null,combo);
-        await applyGravity();await fillEmpty();
-        const chain=findAllMatches();cl=chain.lines;cc=chain.cells;ccl=chain.clusters;
-      }
-      checkGameEnd();busy=false;isBusyNormal=false;
-      startHintTimer();
-      return;
-    }
-
-    const {lines,cells,clusters,swapDir}=result;
-    let combo=0,curLines=lines,curCells=cells,curClusters=clusters,isFirst=true;
-    while(curCells.length>0||curClusters.length>0){
-      combo++;
-      await processMatchStep(curLines,curCells,curClusters,isFirst,c1,r1,c2,r2,swapDir,combo);
-      isFirst=false;
-      await applyGravity();await fillEmpty();
-      const chain=findAllMatches();curLines=chain.lines;curCells=chain.cells;curClusters=chain.clusters;
-    }
-    checkGameEnd();busy=false;isBusyNormal=false;
-    startHintTimer();
   });
 }
 
@@ -234,7 +258,7 @@ async function processPendingMatches(){
   while(cells.length>0||clusters.length>0){
     combo++;
     await processMatchStep(lines,cells,clusters,false,-1,-1,-1,-1,null,combo);
-    await applyGravity();await fillEmpty();
+    await drainCrateExplosions();await applyGravity();await fillEmpty();
     const next = findAllMatches();
     lines=next.lines; cells=next.cells; clusters=next.clusters;
   }
@@ -300,8 +324,10 @@ function getDeckTypeBonus(regionType){
 
 function resetToStart(){
   hideEndScreen();hideConfirm();clearHint();
-  playing=false;busy=false;isBusyRainbow=false;isBusyNormal=false;dragState=null;
-  animQueue.length=0;animRunning=false;skipDelay=false;
+  playing=false;_flowResetAll();isBusyRainbow=false;dragState=null;
+  animQueue.length=0;animRunning=false;skipDelay=false;_activeFlows.clear();
+  // 실시간 충전 ticker 정지 (게임 종료)
+  if(typeof stopGravityTicker==='function') stopGravityTicker();
   // 배치 도구 상태 초기화 (특수블록/기믹 선택 해제)
   if(typeof clearPlacementSelection==='function') clearPlacementSelection();
   document.querySelectorAll('.debug-btn').forEach(b=>{b.classList.remove('active');b.textContent=b.textContent.replace(' \u2705','');});
@@ -321,19 +347,19 @@ async function removeBlockAt(col, row) {
     blockEls[col][row] = null;
   }
   // 충전: 빈 칸 채우기 + 매치 처리
-  busy = true; isBusyNormal=true;
+  _flowStart();
   clearHint();
   await applyGravity();await fillEmpty();
   await processPendingMatches();
   updateHoveredCellFromMouse();
-  busy = false; isBusyNormal=false;
+  _flowEnd();
   startHintTimer();
 }
 
 function startGame(){
   // 상태 완전 초기화 (스테이지 건너뛰기 방지)
-  playing=false;busy=false;isBusyRainbow=false;isBusyNormal=false;
-  dragState=null;animQueue.length=0;animRunning=false;skipDelay=false;
+  playing=false;_flowResetAll();isBusyRainbow=false;
+  dragState=null;animQueue.length=0;animRunning=false;skipDelay=false;_activeFlows.clear();
   score=0;
   // 스킨 데이터 재로드 — 인트로 후 슬롯 변경 / "처음으로" 후 옛 캐시 방지
   if(typeof loadSkinData==='function') skinData=loadSkinData();
@@ -363,6 +389,8 @@ function startGame(){
   initialStones=totalStones;
   totalGrass=countGrass();
   initialGrass=totalGrass;
+  totalCrates=countCrates();
+  initialCrates=totalCrates;
   // 미션 모델 D: stage_maps.missions 명시 우선, 없으면 보드 자동 카운트
   loadStageMissions(currentStage);
   refreshBlockElsCoordinates();
@@ -370,6 +398,11 @@ function startGame(){
 
   // 매치 로그 초기화
   clearMatchLogs();
+
+  // 실시간 충전 ticker 시작 (보드 초기화 완료 후)
+  // ticker는 매 frame 빈 셀 검사 → 발견 시 자동 충전.
+  // 효과 코드는 board null만 설정하면 ticker가 알아서 충전 시작.
+  if(typeof startGravityTicker==='function') startGravityTicker();
 
   // 모든 초기화 완료 후 playing 활성화
   playing=true;

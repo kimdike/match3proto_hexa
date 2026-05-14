@@ -5,6 +5,233 @@
 
 ---
 
+## 2026.05.14 (22일차) — 스킨 슬롯 미세 조정 + 잔디/상자 PNG 자산 적용
+
+브랜치 `refactor/realtime-fill-ticker` 유지. 작은 메타 조정 한 묶음 + 사용자가 추가한 자산 코드 반영 한 묶음.
+
+### 1. 초기 슬롯 5/6 swap (구구 ↔ 피카츄)
+사용자 의도: 1레벨(colorTypes=5) 입장 시 구구 대신 피카츄가 블록으로 등장.
+- `config.js DEFAULT_UNLOCKED / DEFAULT_SLOTS`: `[1,4,7,10,16,25]` → `[1,4,7,10,25,16]`
+- `lobby.js getStarterIds`: monster_table의 `is_starter:true` 필터는 도감 ID 오름차순으로 반환 → DEFAULT_SLOTS 변경을 무시하던 버그. `DEFAULT_SLOTS`를 진실의 원천으로 우선 사용하도록 변경. monster_table은 fallback/검증용으로 후순위.
+
+### 2. 잔디/상자 PNG 자산 적용
+사용자가 `assets/gimmick/`에 `grass_1/2.png`, `box_1/2/3.png` 추가 + 돌 자산 갱신. 코드는 CSS-only placeholder를 쓰고 있어서 PNG로 통일.
+- `board.js`: `createGimmickEl(crate)` / `createTileEl(grass)` / `updateTileVisual` / `hitCrate` / `processCrateExplosionAt` 5곳에 `backgroundImage` inline 부여. stone과 동일 패턴.
+- `style.css`: `.gimmick-tile.grass-*`, `.gimmick-el.crate-el/1/2/3`, `.mission-icon.crate-icon` placeholder CSS 제거. hit/boom 애니메이션 keyframes는 유지.
+- `ui.js MISSION_ICONS`: grass/crate를 `<img>` 태그로 (각각 `grass_2.png`, `box_3.png`).
+- `map_editor.html`: CSS placeholder 제거, 도구 버튼 6종 img화, 셀 렌더링 분기 통합 (stone/grass/crate 모두 img 단일 분기).
+
+**자산 파일명과 코드 클래스 불일치**: 코드 클래스/타입은 `crate`인데 자산 파일명은 `box_*.png`. 코드 내부에서 `type==='crate'`면 파일 prefix를 `box`로 매핑 (board.js inline 4곳 + map_editor.html `filePrefix` 변수).
+
+### 3. stage_maps 맵 갱신
+사용자가 맵 에디터로 스테이지 맵 직접 작업 (2942줄 변경, +2287 −655). 본 세션에서는 코드 검토 없이 자산으로 그대로 반영.
+
+### 4. main 머지 + 푸시
+`refactor/realtime-fill-ticker` 브랜치에 누적된 9개 커밋(Phase 1 ticker 카운터화 + busy derived + matchStep null-skip + Phase 2 race 차단 + 비주얼 가이드 + 슬롯 swap + PNG 자산 + 맵 갱신)을 `--no-ff`로 main 머지 후 푸시. 브랜치는 보존 (향후 Phase 3 element 모델 통합 작업 시 참고).
+
+### 💡 오늘의 교훈
+1. **메타 데이터 vs 디자인 데이터의 진실의 원천 충돌**: `monster_table.json`의 `is_starter:true` 필터(ID 오름차순)가 `DEFAULT_SLOTS`의 순서 의도를 자동 override. 메타 데이터는 "어떤 종이 starter인지"의 진실, 디자인 데이터는 "어떤 순서로 보일지"의 진실. 역할 분리 + 디자인 데이터 우선이 정답.
+2. **CSS placeholder → 실제 자산 전환은 stone 패턴 복제로 충분**: stone이 이미 PNG inline backgroundImage 패턴을 쓰고 있어, grass/crate에도 동일 패턴 복사만으로 마이그레이션 끝. 통일된 패턴 = 마이그레이션 비용 최소화.
+3. **자산 파일명과 코드 클래스 불일치는 prefix 매핑으로 격리**: rename 비용(코드 30+ 라인 vs 자산 5개)이 코드 변경이 더 크면 자산 이름 유지 + 매핑이 단순. 다만 매핑이 분산되면 향후 자산 또 바뀔 때 부담. 자주 바뀌면 헬퍼 추출 권장(향후 과제).
+4. **브랜치 보존 vs 삭제**: 머지 후에도 작업 브랜치 보존이 안전. 향후 Phase 3 작업 시 brunch에서 다시 시작 가능. 삭제는 사용자가 확실히 끝났다 판단할 때만.
+
+---
+
+## 2026.05.12 (21일차) — 실시간 매칭 v2 코어 race 차단 (Phase 1 + 2)
+
+브랜치: `refactor/realtime-fill-ticker` 디벨롭 계속. v2 목표는 "두 swap이 시각적으로 동시 진행"이라는 로얄매치 스타일 + 어제 ticker 백그라운드 충전 유지.
+
+### 묶음 1 — Phase 1 (큐 동시 fire-and-track + lock 시스템)
+
+#### 1단계: ticker pauseCount 카운터화 (gravity.js)
+- `_tickerPaused` boolean → `_tickerPauseCount` 정수.
+- 두 흐름이 동시 pause/resume 호출해도 안전. A(+1) → B(+1)=2 → A(−1)=1 → B(−1)=0 → 그제서야 ticker 재가동.
+- start/stopGravityTicker에서 0 리셋 안전망.
+
+#### 2단계: `_activeFlowCount` derived busy state (game.js, main.js)
+- `busy` / `isBusyNormal` 직접 set → `_flowStart()` / `_flowEnd()` / `_flowResetAll()` 헬퍼로 일원화.
+- 카운터 0 도달 시에만 busy=false → 두 흐름 동시 진행 시 한쪽 끝나도 busy=true 유지.
+- main.js 14곳(흐름 시작/종료/무지개 종료/리셋) 헬퍼 호출로 교체.
+- **무지개 사전 차단 fix**: enqueueAnim 큐 buffer 사이 입력 누수 차단. trySwap/tryActivateSpecialClick 진입 시점에 rainbow 관여면 즉시 `isBusyRainbow=true`. invalid 분기/finally 안전망으로 false 복귀.
+
+#### 3단계: processMatchStep null-skip 가드 (game.js)
+- 6b 매치 제거 루프에 `if(board[c]?.[r] == null) continue;` 추가. 다른 흐름이 이미 처리한 셀 자연 skip.
+
+#### 4단계: drainAnimQueue 폐기 + enqueueAnim 즉시 fire-and-track
+- v1 직렬 큐 → v2 `_activeFlows` Set에 즉시 등록하는 fire-and-track 모델.
+- `ANIM_THROTTLE_MS` 100→30ms (사람 손가락 30ms 이내 swap 거의 불가). `ANIM_QUEUE_MAX` 2→4.
+- `skipDelay` 토글 폐기 (변수만 false 유지, matchLog UI 호환).
+- resetToStart/startGame에 `_activeFlows.clear()` 안전망.
+
+#### 셀 단위 lock 시스템 (game.js, main.js, gravity.js)
+- `_lockedCells` Map<셀, count> 카운터형 lock.
+- 진화 단계:
+  1. swap 2셀 + 인접 6×2 = 최대 14셀 lock → 너무 답답함 → 폐기
+  2. swap 2셀만 (인접 제외) — 사용자 의도 "직전 스왑한 영역만 보호"
+  3. processMatchStep 시작 시 매치 라인 셀(curCells + clusters)도 동적 lock (인접 X)
+- ticker computeFill에서 lock 셀 skip → 흐름 처리 중인 셀에 새 element 안 만듦.
+
+#### 부수 fix
+- 타겟볼 영역 타격 → 발사 비행 동안 ticker 백그라운드 충전 동시 진행: `await delay` → `await bgDelay` 3곳 (fireTargetProjectile + 6c area + 6c arrival).
+- 특수블록 merge 연출 동시 충전 시도 → 사용자가 "합쳐지면서 충전되면 안 됨" 정정 → 되돌림.
+- `gravityTransition` 0.15→0.2, `diagTransition` 0.075→0.1, `gravitySettleDelay` 200→120.
+- `getLineDirFromCells` 축 판정 버그 fix (atan2 < 0 / > 0 만 보고 dx 부호 무시 → sw/nw 시작 라인이 반대 축으로 판정되던 버그).
+- 줄볼 dir 분기에서 swap 방향 사용 의도 — 자의적 fix 시도 후 사용자 정정, 원복.
+
+### 묶음 2 — Phase 1 검증 중 race 다발 발생
+
+검증 도구 강화: DOM-DUP / ZOMBIE-CELL / GRAVITY-DIAG-FILL OVERWRITE / SWAP-RACE 진단 콘솔 로그 + `dumpCell` / `dumpAllDups` 사용자 명령어.
+
+발견 race 카테고리 4종:
+- **A. blockEls 덮어쓰기 race**: swap의 220ms 사이 blockEls 변경 → orphan
+- **B. board=null 처리 race**: 매치 setTimeout 200ms 사이 ticker fill이 새 element 만듦 → 매치 처리의 setTimeout이 새 element 죽임 위험
+- **C. fill 알고리즘이 막힌 빈 셀 못 도달**: 빈 셀이 위 row 채워진 상태 + 막힌 위치면 영구 빈 셀
+- **D. swap element 보호 부족**: SWAP-RACE 검출 시점 다른 흐름이 blockEls 변경
+
+patch 식 자동 제거(OVERWRITE/SWAP-RACE에서 orphan element를 자동 .remove()) 도입했지만 정상 element를 잘못 죽이는 부작용 발생. → **patch 누적은 근본 해결 아님** 결론.
+
+### 묶음 3 — Phase 2 코어 재설계 (race 근본 차단)
+
+`DESIGN_realtime_parallel.md` 갱신 + 5가지 코어 변경.
+
+#### 2-1. patch 식 자동 제거 폐기 (animation.js, gravity.js)
+- GRAVITY/DIAG/FILL OVERWRITE 자동 .remove() → 진단 로그만 유지(이후 0건이 목표).
+- SWAP-RACE 종료 시 orphan 자동 제거 폐기.
+
+#### 2-2. 매치 setTimeout → animationend detach (game.js)
+- `_autoDetachOnAnimEnd(el)` 헬퍼: `animationend` 이벤트 + 500ms fallback.
+- 6b 매치 셀 / 6c 타겟볼 area / 6c 타겟볼 arrival 3곳 setTimeout 폐기.
+- `blockEls[c][r] = null` 즉시 분리. element는 `matchPop 0.28s` animation 끝나면 자동 detach. race 시간 0.
+
+#### 2-3. swap atomic (animation.js animateSwap)
+- 이전: 220ms 후 blockEls swap (그 사이 race).
+- 이후: 시작 시점에 **blockEls + dataset 즉시 sync swap** (CSS transition은 시각 효과만 진행).
+- 다른 흐름이 보는 blockEls는 즉시 swap된 상태 → 220ms race 시점 자체가 사라짐.
+
+#### 2-4. ZOMBIE-RECOVER + DOM-DUP-CLEAR 안전망 (gravity.js)
+- `_boardSanityCheck()`: 매 ticker tick에 board 검사. `board != null && blockEls == null` 발견 시 createBlockEl로 자동 element 생성. **랜덤 X — board에 기록된 색/타입 그대로 복구**. lock 셀은 skip.
+- `_domSanityCheck()`: 한 셀에 element 2+ 발견 시 blockEls 안 가리키는 orphan 자동 제거. matched/merging class 가진 element는 보호. lock 셀은 skip.
+
+#### 2-5. element 모델 통합 (blockEls → cell.el)
+- 보류. Phase 3로 분리 — 광범위 코드 변경이라 위험도 높음.
+
+### 묶음 4 — HTML 비주얼 가이드 작성
+
+`guide_realtime_visual.html` 단일 파일 (CSS + JS inline, 외부 의존성 0):
+- 헥사 그리드 9-8-9 패턴 + 셀 타입 4종 시각화
+- **3D plane 분리** (CSS transform-3d) — data 층(파랑 dashed)과 visual 층(노랑 원)이 z축으로 떨어진 상태로 회전 시각화. 토글 버튼.
+- swap atomic / 매치+충전 / ZOMBIE-RECOVER 인터랙티브 시연 버튼.
+- 누구나 이해할 수 있도록 "엘리베이터" 비유 + 단계별 설명.
+
+### 묶음 5 — 진단 로그 정리
+
+검증 완료 후 17개 console.log/warn + dumpCell/dumpAllDups window 명령어 모두 제거. 핵심 메커니즘은 silent 작동.
+
+### 💡 오늘의 교훈
+
+1. **patch 식 race 차단의 한계**: race 발견 → 자동 제거 → 또 race → patch. 임시방편 누적. 근본은 안 잡힘. 어떤 patch는 정상 element를 잘못 죽이는 부작용까지. 결국 코어 재설계 필요.
+
+2. **두 정보 층의 race 본질**: `board` (데이터) + `blockEls` (시각) 분리 모델은 동기화 race의 원천. 두 시간축 (sync vs 220ms CSS transition + 200ms setTimeout + 50ms ticker tick) 차이가 race. 해결책은 (a) 모델 통합 또는 (b) 모든 변경을 atomic 시작 시점에 묶기.
+
+3. **swap atomic의 단순한 위력**: "220ms 후 blockEls swap" → "시작 시점에 즉시 blockEls swap, 시각은 별도" 한 줄 변경으로 가장 큰 race가 사라짐. CSS transition은 시각 일관성과 무관 — 시작/끝 위치만 명확하면 동기성 깨져도 시각 OK.
+
+4. **setTimeout → animationend의 가치**: 시간 기반(200ms) → 이벤트 기반(animation 끝). 시간 race가 0이 되고, animation 시간이 매개변수가 아닌 자연스러운 종료 신호. element race 차단의 핵심.
+
+5. **자동 복구 안전망의 역할**: race 시간 0이 목표지만 100% 보장 어려움. ZOMBIE-RECOVER / DOM-DUP-CLEAR가 매 tick(50ms) 보드 sanity check해서 잔여 race도 자동 복구. **사용자가 인지하기 전에 시각 정상화**. board(데이터)를 진실의 원천으로 두고 시각만 동기화하는 패턴 강력.
+
+6. **lock 영역 결정의 trade-off**: 좁으면 race ↑, 넓으면 swap 차단 잦음. swap 2셀 + 매치 라인(인접 X) 정도가 사용자 의도와 안전 사이 균형. 인접까지 lock은 사용자가 답답함 보고.
+
+7. **자의적 판단 X — 질문 먼저**: 줄볼 dir 케이스에서 swap 방향 vs 라인 방향. 기획서 명시 없는 부분을 자의적으로 결정해 잘못된 코드 변경. 사용자 정정 후 메모리화 (feedback_ask_when_unsure.md).
+
+8. **단계별 검증의 중요성**: 다중 단계 변경 시 단계마다 사용자 검증. 검증 없이 누적하면 어디서 회귀가 났는지 추적 불가. Phase 1 1~4단계 각각 commit + 검증.
+
+9. **사용자 의도 정정의 패턴**: 사용자가 처음 "동시 충전 원함" → 검증 후 "합쳐지면서 충전되면 안 됨" 정정. 비슷한 사례 누적되면 사용자 의도가 변할 수 있음을 인지. **이전 결정 그대로 유지하지 말고 매 검증마다 사용자 의견 재확인**.
+
+10. **HTML 비주얼 가이드의 디버그 가치**: 두 정보 층(data/visual) 3D 분리 시각화로 race의 본질을 직관 설명. 코드만으로는 추상적인 개념을 그림으로 이해할 수 있게 함. 향후 다른 race 문제도 비슷한 접근으로 디버깅 가능.
+
+### 다음 세션 계획
+
+- 진단 도구(`dumpCell`, OVERWRITE 로그 등) 제거 완료. 핵심 메커니즘은 silent 작동.
+- Phase 3 (element 모델 통합, `blockEls` → `cell.el`) 별도 브랜치 검토.
+- main 머지 시점 — Phase 2 안정성 충분히 검증 후 결정 (현재 브랜치 `refactor/realtime-fill-ticker` 그대로 유지).
+
+---
+
+## 2026.05.11 (20일차) — Crate Phase 2 + 코어 개편(Ticker) + 실시간 매칭 입력 큐
+
+브랜치: `refactor/realtime-fill-ticker` (main 미머지, 다음 세션에서 실시간 매칭 v2 디벨롭 예정)
+
+### 묶음 1 — Crate Phase 2 + 잔여 정리 (오전)
+- **클리어 화면 미발견 N마리** (`ui.js`): 지역 monster pool − captured 카운트 라인 추가. 도감 완성 시 별도 황금 배지(`end-undiscovered.is-complete`)
+- **상자(Crate) 기믹 Phase 2** (`board.js`/`special.js`/`map_editor.html`/`index.html`/CSS):
+  - 3단계 고정형 + 단계 0 도달 시 인접 6셀 폭발
+  - `hitStone` dispatcher 일반화 — cell이 crate면 `hitCrate`로 자동 라우팅 → special.js 30+ 호출처 마이그레이션 부담 0
+  - 가드 `?.type==='stone'` → `?.[Y]` replace_all 일반화 → 모든 효과(줄볼/폭탄/타겟/무지개/교차 10종)가 crate에 일관 작동
+  - CSS-only 3단계 비주얼 (placeholder) + boom 애니메이션
+  - 맵 에디터 도구 + missions type + 단수/복수 매핑 fix
+- **docs 이전** (`design_coregame.md` §26~27 → `design_gimmick.md`): 돌 기믹 + 미션 시스템 디테일은 design_gimmick으로, 코어 문서는 포인터만
+- **조우 BGM swap 자리** (`index.html` + `ui.js` + `encounter.js`): `encounter-bgm` audio element + SCREEN_BGM 매핑 + `wild_encounter` SFX placeholder + `hasSfx` helper + 'select' 폴백
+
+### 묶음 2 — Crate 폭발 race fix + 순차 폭발 + 가중치 시스템 (오후)
+- **폭발 셀 충전 race fix** (`board.js`): setTimeout closure에 element 참조 캡쳐 → 같은 element일 때만 remove. gravity가 새로 생성한 element는 보호됨
+- **상자 순차 폭발**: `pendingCrateExplosions` 큐 + `drainCrateExplosions()` async 드레인. hitCrate level 0 도달 시 큐 push만 (visual + 인접 처리는 drain pop에서). 각 폭발 사이 boom delay + applyGravity + fillEmpty + 호흡
+- **타겟볼 가중치 시스템** (`config.js`/`special.js`/`ui.js`):
+  - `CFG.targetWeights = {stones:50, grass:30, crates:50}` (1~100 정수, 기본 디폴트 50)
+  - `getTargetBallTarget` weighted random — 후보 남은 type 중 weight 비례 (후보 수 무관)
+  - 인스펙터 "🎯 타겟 가중치" 섹션 신설
+
+### 묶음 3 — 코어 개편: 실시간 충전 ticker (저녁)
+사용자 피드백: "1번 폭발 → 충전 → 2번 폭발 흐름이 끊겨 보임". 폭발 도중에도 충전이 진행되길 원함.
+
+- **gravity.js Ticker 시스템 신설**:
+  - 기존 batch 모델(`await applyGravity(); await fillEmpty();`) → ticker 모델
+  - `startGravityTicker` / `stopGravityTicker` / `markBoardDirty` / `waitForSettle` API
+  - 게임 시작 시 ticker 가동(`startGame`), 종료 시 정지(`resetToStart`)
+  - 매 50ms 빈 셀 검사 → 발견 시 1 step compute + animate → settled 신호 시 `settleWaiters` resolve
+  - 효과 코드는 `board[c][r]=null`만 설정 → ticker가 자동 충전
+  - 기존 `applyGravity` / `fillEmpty`는 `waitForSettle` alias로 호환 유지
+- **시각 race 완화**:
+  - Ticker delay를 transition 시간 기반 자동 산출 (`max(transition*0.95, gravityIterDelay)`)
+  - `waitForSettle` 후 20~80ms buffer (마지막 transition 시각 동기화)
+  - 폭발 stagger 150→220ms
+
+### 묶음 4 — 매치 race fix + 실시간 매칭 입력 큐 (밤)
+Ticker 모델 후 사용자 보고: "스왑하면 매칭은 잘 되는데 충전 시 빈 칸 발생".
+
+진단: game.js 매치 제거 패턴 `board[c][r]=null → await delay(matchedDelay) → blockEls.remove()` 안에서 await delay 동안 ticker가 끼어들어 fill로 새 element 생성 → 후속 remove()가 새 element를 죽임 → 빈 칸 발생.
+
+- **`delay()` ticker pause 자동 적용** (`game.js`): `await delay()` 동안 ticker 일시 정지 → 효과 처리 중 race 차단. 17곳의 `await delay(matchedDelay/specialActivateDelay/crossEffectDelay)` 자동 안전
+- **`bgDelay()` 신설**: ticker pause 안 하는 버전. `drainCrateExplosions` 폭발 stagger에서 사용 (폭발 도중 충전은 계속 진행)
+- **매치 제거 패턴 element snapshot 적용** (`game.js`): 타겟볼 area + 도착 처리도 snapshot 패턴으로 fix
+- **실시간 매칭 입력 큐** (`game.js`):
+  - 사용자 규칙: 일반/특수 진행 중 다른 입력 가능, 무지개만 잠금
+  - 클릭 핸들러 `!busy` 차단 제거 (`main.js`) — `isBusyRainbow`만 체크
+  - `enqueueAnim` throttle 100ms + 큐 max 2 — 매크로 방지
+  - 처리 속도는 압축 X — 매치/연쇄는 평소 속도로 차분히 진행 (구경 가능)
+  - 입력은 큐에 buffer → 첫 매치 끝나면 자동으로 다음 처리
+
+### 사용자 피드백 사이클 — 큰 그림 정리
+1. 폭발 동시 충전 원함 → ticker 모델 도입
+2. 충전 빨라서 빈 칸 발생 → tick rate transition 기반 자동 산출 + 시각 buffer
+3. 매치 race 발생 → delay() ticker pause 자동 적용 + element snapshot
+4. 실시간 매칭 안 됨 → 클릭 핸들러 `!busy` 차단 제거 + 큐 throttle/max
+5. 실시간 매칭에 속도 압축은 잘못된 설계 → `_scaleDelay` 제거, 매치 효과는 평소 속도
+
+### 💡 오늘의 교훈
+1. **Batch → Ticker 모델 전환의 race trap**: 기존 batch 코드의 `board=null → await → remove` 패턴은 ticker 모델에서 race vulnerable. 매번 element snapshot으로 안전화 필요. 광범위 영향.
+2. **호환 wrapper 패턴의 강력함**: `applyGravity`/`fillEmpty`를 `waitForSettle` alias로 유지 → 17곳의 호출처 코드 무변경. 마이그레이션 부담 0.
+3. **사용자 의도 확인의 중요성**: "실시간 매칭"을 응답성 우선으로 해석해 `_scaleDelay` 압축 도입 → 사용자가 "압축 필요 X, 입력 받아주기만 하면 됨"이라 정정. 설계 전에 사용자 의도 명확화 + 비유로 설명하면 오해 줄임.
+4. **dispatcher 패턴으로 마이그레이션 회피**: `hitStone(col,row)`을 내부 dispatcher로 만들어 cell이 crate면 `hitCrate` 자동 라우팅 → special.js 30+ 호출처 무변경. 단일 진입점 수정의 강력함.
+5. **풀스택 변경 시 단계적 검증**: 코어 개편 → fix → fix → fix 사이클이 짧게 반복됨. 단계마다 사용자 검증 + 추가 fix 회로가 안정적.
+
+### 다음 세션 계획
+- 현재 브랜치 `refactor/realtime-fill-ticker` 유지하며 디벨롭 (main 미머지)
+- 실시간 매칭 v2 — 진정한 동시 진행 (12~16h, 3~5 세션)
+- 단계: 설계 문서 → Phase 1 → Phase 2 → Phase 3
+- 위험성 인지: race condition 비결정성 + 전 시스템 회귀 가능성
+
+---
+
 ## 2026.05.10 (19일차 마지막+) — 사용자 피드백 4종 fix
 
 세 묶음 통합 후 사용자 검증 + 후속 피드백 반영.

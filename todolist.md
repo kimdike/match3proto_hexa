@@ -3,6 +3,16 @@
 ## 🔥 진행 중 / 남은 작업
 
 ### 다음 세션 리마인드
+- [x] **실시간 매칭 v2 Phase 1 + Phase 2 코어 race 차단** (2026.05.12 작업, 2026.05.14 main 머지 완료)
+      - Phase 1: 큐 동시 fire-and-track + 셀 단위 lock + 매치 라인 lock + ticker pauseCount 카운터화 + `_activeFlowCount` derived busy + 무지개 사전 차단 + throttle 30ms + queueMax 4
+      - Phase 2: 코어 재설계로 race 근본 차단
+        - 매치 `setTimeout` → `animationend` detach (`_autoDetachOnAnimEnd`)
+        - swap atomic — blockEls + dataset 즉시 sync swap, CSS transition은 시각 효과만
+        - ZOMBIE-RECOVER 안전망 — board에 cell 있는데 element 없으면 ticker가 자동 복구
+        - DOM-DUP-CLEAR 안전망 — 한 셀에 element 2+ 발견 시 orphan 자동 제거 (matched/merging 보호)
+      - HTML 비주얼 가이드 작성: `guide_realtime_visual.html` (3D plane data/visual 분리)
+      - 진단 로그 모두 정리. 핵심 메커니즘은 silent 작동
+- [ ] **실시간 매칭 v2 Phase 3** (선택) — element 모델 통합 (`blockEls` → `cell.el`). 광범위 코드 변경이라 위험도 높음. 별도 브랜치 검토
 - [ ] assets 폴더 구조 정리 (이미지/오디오/특수블록 카테고리별 분류)
 - [ ] 개발자 모드 패널 크기 축소 검토
       (현재 패널이 너무 커서 배치 공간 부족,
@@ -27,7 +37,7 @@
 - [x] **맵 에디터 미션 설정 UI + 자동 sync** — count = 보드 배치 갯수 자동 (readonly), type 순서만 사용자 결정 (2026.05.10)
 - [x] **잔디 도구 + 잔디 셀 렌더링** (map_editor.html) (2026.05.10)
 - [x] **design_gimmick.md v0.2** — 부록 G 트리거 체크리스트, 부록 H 우선순위 룰 (2026.05.10)
-- [ ] **상자(Crate) Phase 2** — 3단계 + 인접 6셀 폭발 (design_gimmick.md §4)
+- [x] **상자(Crate) Phase 2** — 3단계 + 인접 6셀 폭발 + `triggerCrateExplosion`/`drainCrateExplosions` (2026.05.11, `refactor/realtime-fill-ticker` 브랜치)
 - [ ] **얼음(Ice) Phase 3** — 2단계 + swap·매칭 차단 + 해방 (§3)
 - [ ] **열쇠(Key) Phase 4** — 무색 블록형 + 최하단 도달 제거 (§5)
 - [ ] **잔디 + 위 기믹 (above 조합)** — 잔디 셀 위에 돌/상자 올라가는 케이스 (Phase 1에서 미룸)

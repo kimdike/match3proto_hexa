@@ -56,11 +56,21 @@ function getPerpDirs(dir){
 }
 
 // ── 라인 방향 판별 ──
+// 헥사 3축:
+//   • 수직 (up-down): dx=0
+//   • 우상-좌하 ("/" ne-sw 축): dx, dy 부호 반대 (ne=dx>0&dy<0 / sw=dx<0&dy>0)
+//   • 우하-좌상 ("\" nw-se 축): dx, dy 부호 같음 (se=dx>0&dy>0 / nw=dx<0&dy<0)
+// 이전 버그: atan2(dy,dx)<0만 보면 dy<0 케이스 (ne/nw 모두 < 0)에서 nw를 ne로 잘못 판정.
+//            findAllMatches는 시작 셀에서 dirA/dirB로 양방향 push하므로 line[1]이 sw/nw 방향일 수 있어
+//            라인이 sw/nw 시작이면 줄볼 방향(getStripeAxis)이 반대 축으로 결정되는 버그.
 function getLineDirFromCells(line){
   const [c0,r0]=line[0],[c1,r1]=line[1];
   if(c1-c0===0) return 'up';
   const p0=getBlockPos(c0,r0),p1=getBlockPos(c1,r1);
-  return Math.atan2(p1.y-p0.y,p1.x-p0.x)<0?'ne':'se';
+  const dx=p1.x-p0.x, dy=p1.y-p0.y;
+  // 부호가 반대면 ne-sw 축, 같으면 nw-se 축. getStripeAxis가 양 끝 모두 같은 축으로 매핑하므로 'ne'/'se' 대표값만 반환.
+  if((dx>0&&dy<0)||(dx<0&&dy>0)) return 'ne';
+  return 'se';
 }
 
 // ── 셀 범위 쿼리 ──

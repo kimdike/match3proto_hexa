@@ -98,9 +98,9 @@ function clearMatchLogs(){
 // 미션 type별 아이콘 HTML — 향후 ice/crates/keys 추가 시 자리만 추가
 const MISSION_ICONS={
   stones: '<img class="mission-icon" src="assets/gimmick/stone_1.png" alt="stone">',
-  grass:  '<span class="mission-icon grass-icon" aria-label="grass"></span>',
+  grass:  '<img class="mission-icon" src="assets/gimmick/grass_2.png" alt="grass">',
+  crates: '<img class="mission-icon" src="assets/gimmick/box_3.png" alt="crate">',
   // ice:    '<span class="mission-icon ice-icon" aria-label="ice"></span>',
-  // crates: '<img class="mission-icon" src="assets/gimmick/crate_1.png" alt="crate">',
   // keys:   '<img class="mission-icon" src="assets/gimmick/key.png" alt="key">',
 };
 
@@ -168,6 +168,19 @@ function showEndScreen(cleared){
     }
     if(typeof _lastClearDiamond !== 'undefined' && _lastClearDiamond){
       rewardHTML += `<br>\uD83D\uDC8E \uB2E4\uC774\uC544 +1`;
+    }
+    // \uBBF8\uBC1C\uACAC N\uB9C8\uB9AC \u2014 \uD574\uB2F9 \uC9C0\uC5ED monster pool\uC5D0\uC11C \uB3C4\uAC10 captured/evolved \uC548 \uB41C \uC218
+    if(region && typeof getMonstersByRegion === 'function' && typeof getCapturedIds === 'function'){
+      const pool = getMonstersByRegion(region.type) || [];
+      if(pool.length > 0){
+        const captured = new Set(getCapturedIds());
+        const undiscovered = pool.filter(m => !captured.has(m.id)).length;
+        if(undiscovered > 0){
+          rewardHTML += `<br><span class="end-undiscovered">\uD83D\uDCD6 ${region.name_ko} \uBBF8\uBC1C\uACAC ${undiscovered}\uB9C8\uB9AC</span>`;
+        } else {
+          rewardHTML += `<br><span class="end-undiscovered is-complete">\u2728 ${region.name_ko} \uB3C4\uAC10 \uC644\uC131!</span>`;
+        }
+      }
     }
     sc.innerHTML = rewardHTML;
     sc.classList.remove('hidden');
@@ -344,6 +357,7 @@ function devForceClear(){
   // 글로벌 카운터 0 (legacy 호환)
   totalStones=0;
   totalGrass=0;
+  totalCrates=0;
   // 미션 모델 D: currentMissions 카운트도 모두 0으로 강제 (isMissionCleared 통과 조건)
   if(Array.isArray(currentMissions)){
     for(const m of currentMissions) m.count=0;
@@ -516,6 +530,8 @@ function showInspConfirm(onConfirm){
 }
 
 // ── 인스펙터 UI 빌드 ──
+const TARGET_WEIGHT_LABELS={ stones:'돌', grass:'잔디', crates:'상자', ice:'얼음', keys:'열쇠' };
+
 function buildInspector(){
   const container=document.getElementById('dev-inspector');
   const groups={speed:'⚡ 속도',timing:'✨ 연출 타이밍',score:'🎯 점수',visual:'🎨 비주얼'};
@@ -539,11 +555,46 @@ function buildInspector(){
       container.appendChild(row);
     }
   }
+
+  // 🎯 타겟 가중치 섹션 — CFG.targetWeights (1~100 정수, type별)
+  // 신규 기믹 추가 시 CFG.targetWeights에 키 추가하면 자동 렌더
+  if(CFG.targetWeights){
+    const wHeader=document.createElement('div');
+    wHeader.className='insp-group-header';
+    wHeader.innerHTML=`<span class="insp-group-title">🎯 타겟 가중치</span><button class="insp-reset-btn" data-group="targetWeights">초기화</button>`;
+    container.appendChild(wHeader);
+    const wDesc=document.createElement('div');
+    wDesc.className='insp-weight-desc';
+    wDesc.style.cssText='font-size:11px;color:#aaa;padding:2px 6px 6px;line-height:1.4;';
+    wDesc.textContent='타겟볼이 이동할 미션 type 선택 가중치 (1~100). 후보가 남은 type 중 weight 비례로 random.';
+    container.appendChild(wDesc);
+    for(const type of Object.keys(CFG.targetWeights)){
+      const label=TARGET_WEIGHT_LABELS[type]||type;
+      const row=document.createElement('div');row.className='insp-item';
+      row.innerHTML=
+        `<span class="insp-label">${label}</span>`+
+        `<input class="insp-input" type="number" min="1" max="100" step="1" value="${CFG.targetWeights[type]}" data-weight-type="${type}">`+
+        `<span class="insp-unit"></span>`;
+      container.appendChild(row);
+    }
+  }
+
   // 카테고리 초기화 버튼
   container.querySelectorAll('.insp-reset-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
       showInspConfirm(()=>{
         const grp=btn.dataset.group;
+        if(grp==='targetWeights'){
+          // 가중치 디폴트 복원
+          if(CFG_DEFAULTS.targetWeights){
+            for(const t of Object.keys(CFG.targetWeights)){
+              CFG.targetWeights[t]=CFG_DEFAULTS.targetWeights[t] ?? TARGET_WEIGHT_DEFAULT;
+              const inp=container.querySelector(`.insp-input[data-weight-type="${t}"]`);
+              if(inp) inp.value=CFG.targetWeights[t];
+            }
+          }
+          return;
+        }
         for(const m of CFG_META){
           if(m.group!==grp) continue;
           CFG[m.key]=CFG_DEFAULTS[m.key];
@@ -557,6 +608,15 @@ function buildInspector(){
   // 값 변경 이벤트
   container.addEventListener('input',e=>{
     if(!e.target.classList.contains('insp-input')) return;
+    // 가중치 분기
+    const wType=e.target.dataset.weightType;
+    if(wType && CFG.targetWeights){
+      let v=parseInt(e.target.value,10);
+      if(isNaN(v)) return;
+      v=Math.max(1, Math.min(100, v));
+      CFG.targetWeights[wType]=v;
+      return;
+    }
     const key=e.target.dataset.key;
     const val=parseFloat(e.target.value);
     if(!isNaN(val)&&key in CFG){
@@ -1361,12 +1421,13 @@ function resetNicknameUI(){
 // 재생 시 createBufferSource로 즉시 트리거 (첫 재생 딜레이 최소화 + 중첩 재생 자연 지원).
 const SFX_VOLUME=0.5;
 const SFX_FILES={
-  match_pop:   'assets/sfx/sfx_match_pop.wav',
-  stone_hit:   'assets/sfx/sfx_stone_hit.wav',
-  stone_break: 'assets/sfx/sfx_stone_break.wav',
-  btn_click:   'assets/sfx/sfx_btn_click.wav',
-  select:      'assets/sfx/sfx_select.wav',
-  swap:        'assets/sfx/sfx_swap.wav',
+  match_pop:      'assets/sfx/sfx_match_pop.wav',
+  stone_hit:      'assets/sfx/sfx_stone_hit.wav',
+  stone_break:    'assets/sfx/sfx_stone_break.wav',
+  btn_click:      'assets/sfx/sfx_btn_click.wav',
+  select:         'assets/sfx/sfx_select.wav',
+  swap:           'assets/sfx/sfx_swap.wav',
+  wild_encounter: 'assets/sfx/sfx_wild_encounter.wav', // "띠로리" 야생 조우 (자산 미준비 시 자동 무음)
 };
 const sfxBuffers={}; // name → AudioBuffer
 let sfxCtx=null;
@@ -1407,16 +1468,20 @@ function playSfx(name){
   src.start(0);
 }
 
+// SFX buffer 존재 여부 (자산 누락 시 폴백 결정용)
+function hasSfx(name){ return !!sfxBuffers[name]; }
+
 // ── BGM 시스템 (화면별 자동 교체) ──
 // 화면 ID → { 오디오 엘리먼트 ID, 볼륨 }
 // 캐릭터 선택/닉네임은 온보딩 연속감을 위해 main BGM 유지
 const SCREEN_BGM={
-  'main-screen':             { id:'main-bgm',   volume:0.8  },
-  'character-select-screen': { id:'main-bgm',   volume:0.8  },
-  'nickname-screen':         { id:'main-bgm',   volume:0.8  },
-  'lobby-screen':            { id:'lobby-bgm',  volume:0.06 },
-  'skin-screen':             { id:'lobby-bgm',  volume:0.06 },
-  'game-container':          { id:'ingame-bgm', volume:0.12 },
+  'main-screen':             { id:'main-bgm',      volume:0.8  },
+  'character-select-screen': { id:'main-bgm',      volume:0.8  },
+  'nickname-screen':         { id:'main-bgm',      volume:0.8  },
+  'lobby-screen':            { id:'lobby-bgm',     volume:0.06 },
+  'skin-screen':             { id:'lobby-bgm',     volume:0.06 },
+  'game-container':          { id:'ingame-bgm',    volume:0.12 },
+  'encounter-screen':        { id:'encounter-bgm', volume:0.18 }, // 자산 미준비 시 자동 무음 (포켓몬 GO 식 dramatic pause)
 };
 
 let currentBgmId=null;
@@ -1830,7 +1895,11 @@ function setupPlacementPanel(){
     if(placementGimmickType.type==='clear'){
       removeGimmickEl(bestCol,bestRow);
       totalStones=countStones();initialStones=totalStones;
+      totalCrates=countCrates();initialCrates=totalCrates;
       updateMissionUI();
+    } else if(placementGimmickType.type==='crate'){
+      placeCrate(bestCol,bestRow,placementGimmickType.level);
+      initialCrates=countCrates();
     } else {
       placeStone(bestCol,bestRow,placementGimmickType.level);
       initialStones=countStones();

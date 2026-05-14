@@ -194,38 +194,7 @@
       object-fit: contain;
     }
 
-    /* 잔디 (타일형) — 셀 바닥. CSS 헥사 도형 (인게임 .gimmick-tile과 동일 톤) */
-    .grass-tile {
-      position: absolute;
-      z-index: 1;
-      pointer-events: none;
-      clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
-    }
-    .grass-tile.grass-2 {
-      background:
-        repeating-linear-gradient(45deg, rgba(0,0,0,0.18) 0 2px, transparent 2px 6px),
-        #2c5a2c;
-    }
-    .grass-tile.grass-1 {
-      background:
-        repeating-linear-gradient(45deg, rgba(0,0,0,0.10) 0 2px, transparent 2px 8px),
-        #79c95c;
-    }
-    .tool-btn .grass-icon {
-      display: inline-block;
-      width: 24px; height: 24px;
-      clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
-    }
-    .tool-btn .grass-icon.grass-1 {
-      background:
-        repeating-linear-gradient(45deg, rgba(0,0,0,0.10) 0 2px, transparent 2px 8px),
-        #79c95c;
-    }
-    .tool-btn .grass-icon.grass-2 {
-      background:
-        repeating-linear-gradient(45deg, rgba(0,0,0,0.18) 0 2px, transparent 2px 6px),
-        #2c5a2c;
-    }
+    /* 잔디/상자 타일 — PNG 자산은 .gimmick-img와 동일 처리. 별도 CSS 불필요. */
 
     /* ── 미션 에디터 ── */
     .missions-editor {
@@ -431,10 +400,19 @@
         <img src="assets/gimmick/stone_5.png"> 돌 5
       </button>
       <button class="tool-btn" data-tool="grass" data-level="1">
-        <span class="grass-icon grass-1"></span> 잔디 1
+        <img src="assets/gimmick/grass_1.png"> 잔디 1
       </button>
       <button class="tool-btn" data-tool="grass" data-level="2">
-        <span class="grass-icon grass-2"></span> 잔디 2
+        <img src="assets/gimmick/grass_2.png"> 잔디 2
+      </button>
+      <button class="tool-btn" data-tool="crate" data-level="1">
+        <img src="assets/gimmick/box_1.png"> 상자 1
+      </button>
+      <button class="tool-btn" data-tool="crate" data-level="2">
+        <img src="assets/gimmick/box_2.png"> 상자 2
+      </button>
+      <button class="tool-btn" data-tool="crate" data-level="3">
+        <img src="assets/gimmick/box_3.png"> 상자 3
       </button>
       <button class="tool-btn eraser" data-tool="eraser">✕ 지우기</button>
     </div>
@@ -503,8 +481,8 @@ function createDefaultStage() {
 const MISSION_TYPES = [
   { val: 'stones', label: '돌' },
   { val: 'grass',  label: '잔디' },
+  { val: 'crates', label: '상자' },
   // { val: 'ice',    label: '얼음' },
-  // { val: 'crates', label: '상자' },
   // { val: 'keys',   label: '열쇠' },
 ];
 const MAX_MISSIONS = 4;
@@ -675,28 +653,19 @@ function renderCell(container, col, row) {
     label.textContent = `${col},${row}`;
   }
 
-  // 기믹 (normal 셀만): stone=이미지 / grass=CSS 타일 / 향후 crate/ice 분기 추가
+  // 기믹 (normal 셀만): 모두 PNG. crate는 파일명만 box_*.png (클래스명 crate-*와 다름)
   const gimmick = working.gimmicks[key];
   if (gimmick && type === 'normal') {
     cell.classList.add('has-gimmick');
-    if (gimmick.type === 'grass') {
-      const tile = document.createElement('div');
-      tile.className = `grass-tile grass-${gimmick.level}`;
-      tile.style.left = `${pos.x}px`;
-      tile.style.top = `${pos.y}px`;
-      tile.style.width = `${HEX_W}px`;
-      tile.style.height = `${HEX_H}px`;
-      container.appendChild(tile);
-    } else {
-      const img = document.createElement('img');
-      img.className = 'gimmick-img';
-      img.src = `assets/gimmick/${gimmick.type}_${gimmick.level}.png`;
-      img.style.left = `${pos.x}px`;
-      img.style.top = `${pos.y}px`;
-      img.style.width = `${HEX_W}px`;
-      img.style.height = `${HEX_H}px`;
-      container.appendChild(img);
-    }
+    const filePrefix = gimmick.type === 'crate' ? 'box' : gimmick.type;
+    const img = document.createElement('img');
+    img.className = 'gimmick-img';
+    img.src = `assets/gimmick/${filePrefix}_${gimmick.level}.png`;
+    img.style.left = `${pos.x}px`;
+    img.style.top = `${pos.y}px`;
+    img.style.width = `${HEX_W}px`;
+    img.style.height = `${HEX_H}px`;
+    container.appendChild(img);
   }
 
   cell.addEventListener('click', () => onCellClick(col, row));
@@ -741,7 +710,7 @@ function onCellClick(col, row) {
       }
       markDirty();
     }
-  } else if (tool === 'stone' || tool === 'grass') {
+  } else if (tool === 'stone' || tool === 'grass' || tool === 'crate') {
     if (row >= 0 && getCellType(col, row) === 'normal') {
       working.gimmicks[key] = { col, row, type: tool, level: currentTool.level };
       markDirty();
@@ -791,10 +760,20 @@ function updateSettingsUI() {
 // ── 미션 에디터 ──
 // 미션 count는 보드 배치 갯수와 자동 동기화 (readonly 표시)
 // 사용자는 type 순서만 결정 (= 타겟볼 우선순위), count는 항상 보드 = 진실
-function countTypeOnBoard(type) {
+// 미션 type(복수형) → 기믹 type(단수형) 매핑
+//   stones → stone / grass → grass / crates → crate / ice → ice / keys → key
+function getMissionGimmickType(missionType) {
+  if (missionType === 'stones') return 'stone';
+  if (missionType === 'crates') return 'crate';
+  if (missionType === 'keys')   return 'key';
+  return missionType; // grass / ice 는 그대로
+}
+
+function countTypeOnBoard(missionType) {
+  const target = getMissionGimmickType(missionType);
   let cnt = 0;
   for (const g of Object.values(working.gimmicks)) {
-    if (g && g.type === type) cnt++;
+    if (g && g.type === target) cnt++;
   }
   return cnt;
 }

@@ -237,16 +237,26 @@ h1 {
   clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
   transition: background 0.2s ease, opacity 0.2s ease;
 }
-.gimmick-tile.grass-2 {
-  background:
-    repeating-linear-gradient(45deg, rgba(0,0,0,0.18) 0 2px, transparent 2px 6px),
-    #2c5a2c;
+/* 잔디 / 상자 / 돌 시각: backgroundImage는 board.js에서 inline 부여 (PNG 자산) */
+.gimmick-el.crate-hit {
+  animation: crateHit 0.3s ease-out;
 }
-.gimmick-tile.grass-1 {
-  background:
-    repeating-linear-gradient(45deg, rgba(0,0,0,0.10) 0 2px, transparent 2px 8px),
-    #79c95c;
+@keyframes crateHit {
+  0%   { filter: brightness(2); transform: scale(1.1) rotate(-3deg); }
+  50%  { transform: scale(1.0) rotate(3deg); }
+  100% { filter: brightness(1); transform: scale(1) rotate(0); }
 }
+.gimmick-el.crate-boom {
+  animation: crateBoom 0.4s ease-out forwards;
+  z-index: 5;
+}
+@keyframes crateBoom {
+  0%   { transform: scale(1);   filter: brightness(1)   drop-shadow(0 0 0 #ff9d3a); opacity: 1; }
+  40%  { transform: scale(1.6); filter: brightness(2.5) drop-shadow(0 0 18px #ffd34d); opacity: 0.9; }
+  100% { transform: scale(0.3); filter: brightness(3)   drop-shadow(0 0 28px #ff6b3a); opacity: 0; }
+}
+
+/* 미션 아이콘 — 잔디/상자: img 태그 사용 (ui.js MISSION_ICONS) */
 
 /* ── 설정 바 ── */
 
@@ -2551,6 +2561,27 @@ h1 {
   letter-spacing: 0.3px;
   vertical-align: middle;
   box-shadow: 0 2px 6px rgba(255, 157, 58, 0.4);
+}
+
+/* 클리어 화면 — 미발견 N마리 인라인 표시 (수집 동기) */
+.end-undiscovered {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 3px 12px;
+  background: linear-gradient(135deg, #fff4d2, #ffe49a);
+  color: #6a4a14;
+  border: 1.5px solid #e6b85e;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  box-shadow: 0 2px 5px rgba(214, 152, 50, 0.25);
+}
+.end-undiscovered.is-complete {
+  background: linear-gradient(135deg, #ffe27a, #ffb83a);
+  color: #5e2e00;
+  border-color: #d99020;
+  box-shadow: 0 2px 8px rgba(255, 184, 58, 0.5);
 }
 
 .lobby-reset-btn {

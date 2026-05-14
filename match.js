@@ -200,6 +200,9 @@ function determineSpecial(curLines,curCells,clusters,isFirst,originCol,originRow
   }
 
   // 3순위: 줄볼 (직선4+)
+  // 줄볼 방향 = swap 방향 (기획서 §17 의도): 사용자가 swap한 방향대로 stripe 생성.
+  //   세로 swap → 세로 줄볼 / 사선 swap → 그 사선 줄볼.
+  // 연쇄 콤보(isFirst=false)는 swap 없이 낙하로 매치 형성되므로 라인 방향에서 추출.
   if(bestLine4){
     const pivot=choosePivot(bestLine4);
     const dir=isFirst?swapDir:getLineDirFromCells(bestLine4);

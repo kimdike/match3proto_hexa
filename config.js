@@ -83,10 +83,10 @@ const ALL_COLORS = [
 
 // ── 조절 가능한 설정값 (인스펙터에서 수정) ──
 const CFG = {
-  gravityTransition: 0.15,
-  gravityIterDelay: 70,     gravitySettleDelay: 200,
+  gravityTransition: 0.2,
+  gravityIterDelay: 70,     gravitySettleDelay: 120,
   fillTransition: 0.18,
-  diagTransition: 0.075,
+  diagTransition: 0.1,
   projectileTransition: 0.45,
   matchedDelay: 200,         mergeDelay: 130,
   explosionLifetime: 400,
@@ -94,8 +94,19 @@ const CFG = {
   score3match: 300, score4match: 500, score5match: 800,
   combo2bonus: 500, combo3bonus: 1000, combo4bonus: 2000,
   blockScale: 1.1,
+  // 타겟볼 미션 가중치 (1~100). 신규 기믹은 TARGET_WEIGHT_DEFAULT(50) 자동 사용.
+  // type 단위 가중치 — 후보가 있는 type 중 weight 비례 random 선택 (후보 수 무관).
+  targetWeights: { stones: 50, grass: 30, crates: 50 },
 };
-const CFG_DEFAULTS = {...CFG};
+const CFG_DEFAULTS = {...CFG, targetWeights:{...CFG.targetWeights}};
+const TARGET_WEIGHT_DEFAULT = 50;
+function getTargetWeight(type){
+  if(CFG.targetWeights && Object.prototype.hasOwnProperty.call(CFG.targetWeights, type)){
+    const v = CFG.targetWeights[type] | 0;
+    return Math.max(1, Math.min(100, v));
+  }
+  return TARGET_WEIGHT_DEFAULT;
+}
 const CFG_META = [
   {key:'gravityTransition',label:'gravity transition',desc:'매치 후 블록이 아래로 떨어지는 애니메이션 시간. 낮을수록 빠르게 착지 (권장: 0.1s ~ 0.5s)',unit:'s',step:0.05,group:'speed'},
   {key:'gravityIterDelay',label:'gravity iter delay',desc:'블록이 여러 칸 떨어질 때 단계 사이 페이싱(iter 사이 대기). transition보다 작으면 블록이 점프하듯 빠르게 보임 (권장: 80ms ~ 150ms)',unit:'ms',step:10,group:'speed'},
@@ -120,9 +131,9 @@ const CFG_META = [
 // ── 스킨/스프라이트 시트 ──
 const SPRITE_SHEET='pokemon_sprites_1.png';
 const SPRITE_COLS=15, SPRITE_SIZE=215, SHEET_W=3228, SHEET_H=2375;
-// v0.5 인트로 6종: 이상해씨 / 파이리 / 꼬부기 / 캐터피 / 구구 / 피카츄
-const DEFAULT_UNLOCKED=[1,4,7,10,16,25];
-const DEFAULT_SLOTS=[1,4,7,10,16,25];
+// v0.5 인트로 6종: 이상해씨 / 파이리 / 꼬부기 / 캐터피 / 피카츄 / 구구
+const DEFAULT_UNLOCKED=[1,4,7,10,25,16];
+const DEFAULT_SLOTS=[1,4,7,10,25,16];
 const DEX_TOTAL=151;
 
 // ── 입력/힌트/로그 ──

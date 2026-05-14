@@ -450,11 +450,13 @@ function stopLobbyMeadow(){
 // ── 오박사 인트로 시퀀스 ──
 // 캐릭터 생성 + 닉네임 직후 1회 진행. 6종 자동 등장 → 도감 등록 + 덱 자동 장착.
 function getStarterIds(){
+  // DEFAULT_SLOTS가 슬롯 순서의 진실의 원천 — monster_table은 검증용으로만 사용
+  if(typeof DEFAULT_SLOTS!=='undefined' && DEFAULT_SLOTS.length>=6) return [...DEFAULT_SLOTS];
   if(typeof MONSTER_TABLE_DATA!=='undefined'&&MONSTER_TABLE_DATA.monsters){
     const filtered=MONSTER_TABLE_DATA.monsters.filter(m=>m.is_starter).map(m=>m.id);
     if(filtered.length>=6) return filtered.slice(0,6);
   }
-  return [1,4,7,10,16,25]; // 디자인 사양 fallback (이상해씨/파이리/꼬부기/캐터피/구구/피카츄)
+  return [1,4,7,10,25,16]; // 디자인 사양 fallback (이상해씨/파이리/꼬부기/캐터피/피카츄/구구)
 }
 
 function runIntroSequence(){

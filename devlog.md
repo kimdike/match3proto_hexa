@@ -5,6 +5,31 @@
 
 ---
 
+## 2026.05.14 (22일차) — 스킨 슬롯 미세 조정 + 잔디/상자 PNG 자산 적용
+
+브랜치 `refactor/realtime-fill-ticker` 유지. 작은 메타 조정 한 묶음 + 사용자가 추가한 자산 코드 반영 한 묶음.
+
+### 1. 초기 슬롯 5/6 swap (구구 ↔ 피카츄)
+사용자 의도: 1레벨(colorTypes=5) 입장 시 구구 대신 피카츄가 블록으로 등장.
+- `config.js DEFAULT_UNLOCKED / DEFAULT_SLOTS`: `[1,4,7,10,16,25]` → `[1,4,7,10,25,16]`
+- `lobby.js getStarterIds`: monster_table의 `is_starter:true` 필터는 도감 ID 오름차순으로 반환 → DEFAULT_SLOTS 변경을 무시하던 버그. `DEFAULT_SLOTS`를 진실의 원천으로 우선 사용하도록 변경. monster_table은 fallback/검증용으로 후순위.
+
+### 2. 잔디/상자 PNG 자산 적용
+사용자가 `assets/gimmick/`에 `grass_1/2.png`, `box_1/2/3.png` 추가 + 돌 자산 갱신. 코드는 CSS-only placeholder를 쓰고 있어서 PNG로 통일.
+- `board.js`: `createGimmickEl(crate)` / `createTileEl(grass)` / `updateTileVisual` / `hitCrate` / `processCrateExplosionAt` 5곳에 `backgroundImage` inline 부여. stone과 동일 패턴.
+- `style.css`: `.gimmick-tile.grass-*`, `.gimmick-el.crate-el/1/2/3`, `.mission-icon.crate-icon` placeholder CSS 제거. hit/boom 애니메이션 keyframes는 유지.
+- `ui.js MISSION_ICONS`: grass/crate를 `<img>` 태그로 (각각 `grass_2.png`, `box_3.png`).
+- `map_editor.html`: CSS placeholder 제거, 도구 버튼 6종 img화, 셀 렌더링 분기 통합 (stone/grass/crate 모두 img 단일 분기).
+
+**자산 파일명과 코드 클래스 불일치**: 코드 클래스/타입은 `crate`인데 자산 파일명은 `box_*.png`. 코드 내부에서 `type==='crate'`면 파일 prefix를 `box`로 매핑 (board.js inline 4곳 + map_editor.html `filePrefix` 변수).
+
+### 💡 오늘의 교훈
+1. **메타 데이터 vs 디자인 데이터의 진실의 원천 충돌**: `monster_table.json`의 `is_starter:true` 필터(ID 오름차순)가 `DEFAULT_SLOTS`의 순서 의도를 자동 override. 메타 데이터는 "어떤 종이 starter인지"의 진실, 디자인 데이터는 "어떤 순서로 보일지"의 진실. 역할 분리 + 디자인 데이터 우선이 정답.
+2. **CSS placeholder → 실제 자산 전환은 stone 패턴 복제로 충분**: stone이 이미 PNG inline backgroundImage 패턴을 쓰고 있어, grass/crate에도 동일 패턴 복사만으로 마이그레이션 끝. 통일된 패턴 = 마이그레이션 비용 최소화.
+3. **자산 파일명과 코드 클래스 불일치는 prefix 매핑으로 격리**: rename 비용(코드 30+ 라인 vs 자산 5개)이 코드 변경이 더 크면 자산 이름 유지 + 매핑이 단순. 다만 매핑이 분산되면 향후 자산 또 바뀔 때 부담. 자주 바뀌면 헬퍼 추출 권장(향후 과제).
+
+---
+
 ## 2026.05.12 (21일차) — 실시간 매칭 v2 코어 race 차단 (Phase 1 + 2)
 
 브랜치: `refactor/realtime-fill-ticker` 디벨롭 계속. v2 목표는 "두 swap이 시각적으로 동시 진행"이라는 로얄매치 스타일 + 어제 ticker 백그라운드 충전 유지.

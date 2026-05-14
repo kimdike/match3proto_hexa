@@ -98,8 +98,8 @@ function clearMatchLogs(){
 // 미션 type별 아이콘 HTML — 향후 ice/crates/keys 추가 시 자리만 추가
 const MISSION_ICONS={
   stones: '<img class="mission-icon" src="assets/gimmick/stone_1.png" alt="stone">',
-  grass:  '<span class="mission-icon grass-icon" aria-label="grass"></span>',
-  crates: '<span class="mission-icon crate-icon" aria-label="crate"></span>',
+  grass:  '<img class="mission-icon" src="assets/gimmick/grass_2.png" alt="grass">',
+  crates: '<img class="mission-icon" src="assets/gimmick/box_3.png" alt="crate">',
   // ice:    '<span class="mission-icon ice-icon" aria-label="ice"></span>',
   // keys:   '<img class="mission-icon" src="assets/gimmick/key.png" alt="key">',
 };

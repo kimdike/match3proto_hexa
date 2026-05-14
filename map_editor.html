@@ -194,83 +194,7 @@
       object-fit: contain;
     }
 
-    /* 잔디 (타일형) — 셀 바닥. CSS 헥사 도형 (인게임 .gimmick-tile과 동일 톤) */
-    .grass-tile {
-      position: absolute;
-      z-index: 1;
-      pointer-events: none;
-      clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
-    }
-    .grass-tile.grass-2 {
-      background:
-        repeating-linear-gradient(45deg, rgba(0,0,0,0.18) 0 2px, transparent 2px 6px),
-        #2c5a2c;
-    }
-    .grass-tile.grass-1 {
-      background:
-        repeating-linear-gradient(45deg, rgba(0,0,0,0.10) 0 2px, transparent 2px 8px),
-        #79c95c;
-    }
-    .tool-btn .grass-icon {
-      display: inline-block;
-      width: 24px; height: 24px;
-      clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
-    }
-    .tool-btn .grass-icon.grass-1 {
-      background:
-        repeating-linear-gradient(45deg, rgba(0,0,0,0.10) 0 2px, transparent 2px 8px),
-        #79c95c;
-    }
-    .tool-btn .grass-icon.grass-2 {
-      background:
-        repeating-linear-gradient(45deg, rgba(0,0,0,0.18) 0 2px, transparent 2px 6px),
-        #2c5a2c;
-    }
-
-    /* 상자 (CSS-only placeholder, 향후 PNG 자산 교체 가능) */
-    .crate-tile {
-      position: absolute;
-      z-index: 1;
-      pointer-events: none;
-      clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
-      border-radius: 6px;
-    }
-    .crate-tile.crate-3 {
-      background-color: #a78050;
-      background-image:
-        repeating-linear-gradient(45deg, rgba(0,0,0,0.32) 0 3px, transparent 3px 8px),
-        repeating-linear-gradient(-45deg, rgba(0,0,0,0.18) 0 2px, transparent 2px 7px);
-      border: 2px solid #6a4d24;
-    }
-    .crate-tile.crate-2 {
-      background-color: #b89366;
-      background-image: repeating-linear-gradient(45deg, rgba(0,0,0,0.20) 0 2px, transparent 2px 9px);
-      border: 2px solid #7a5a30;
-    }
-    .crate-tile.crate-1 {
-      background-color: transparent;
-      border: 2.5px dashed #7a5a30;
-      background-image: repeating-linear-gradient(45deg, rgba(122, 90, 48, 0.18) 0 2px, transparent 2px 12px);
-    }
-    .tool-btn .crate-icon {
-      display: inline-block;
-      width: 24px; height: 24px;
-      border-radius: 4px;
-      box-sizing: border-box;
-    }
-    .tool-btn .crate-icon.crate-3 {
-      background-color: #a78050;
-      background-image: repeating-linear-gradient(45deg, rgba(0,0,0,0.32) 0 2px, transparent 2px 6px);
-      border: 2px solid #6a4d24;
-    }
-    .tool-btn .crate-icon.crate-2 {
-      background-color: #b89366;
-      border: 2px solid #7a5a30;
-    }
-    .tool-btn .crate-icon.crate-1 {
-      background-color: transparent;
-      border: 2px dashed #7a5a30;
-    }
+    /* 잔디/상자 타일 — PNG 자산은 .gimmick-img와 동일 처리. 별도 CSS 불필요. */
 
     /* ── 미션 에디터 ── */
     .missions-editor {
@@ -476,19 +400,19 @@
         <img src="assets/gimmick/stone_5.png"> 돌 5
       </button>
       <button class="tool-btn" data-tool="grass" data-level="1">
-        <span class="grass-icon grass-1"></span> 잔디 1
+        <img src="assets/gimmick/grass_1.png"> 잔디 1
       </button>
       <button class="tool-btn" data-tool="grass" data-level="2">
-        <span class="grass-icon grass-2"></span> 잔디 2
+        <img src="assets/gimmick/grass_2.png"> 잔디 2
       </button>
       <button class="tool-btn" data-tool="crate" data-level="1">
-        <span class="crate-icon crate-1"></span> 상자 1
+        <img src="assets/gimmick/box_1.png"> 상자 1
       </button>
       <button class="tool-btn" data-tool="crate" data-level="2">
-        <span class="crate-icon crate-2"></span> 상자 2
+        <img src="assets/gimmick/box_2.png"> 상자 2
       </button>
       <button class="tool-btn" data-tool="crate" data-level="3">
-        <span class="crate-icon crate-3"></span> 상자 3
+        <img src="assets/gimmick/box_3.png"> 상자 3
       </button>
       <button class="tool-btn eraser" data-tool="eraser">✕ 지우기</button>
     </div>
@@ -729,36 +653,19 @@ function renderCell(container, col, row) {
     label.textContent = `${col},${row}`;
   }
 
-  // 기믹 (normal 셀만): stone=이미지 / grass·crate=CSS 타일 / 향후 ice 분기 추가
+  // 기믹 (normal 셀만): 모두 PNG. crate는 파일명만 box_*.png (클래스명 crate-*와 다름)
   const gimmick = working.gimmicks[key];
   if (gimmick && type === 'normal') {
     cell.classList.add('has-gimmick');
-    if (gimmick.type === 'grass') {
-      const tile = document.createElement('div');
-      tile.className = `grass-tile grass-${gimmick.level}`;
-      tile.style.left = `${pos.x}px`;
-      tile.style.top = `${pos.y}px`;
-      tile.style.width = `${HEX_W}px`;
-      tile.style.height = `${HEX_H}px`;
-      container.appendChild(tile);
-    } else if (gimmick.type === 'crate') {
-      const tile = document.createElement('div');
-      tile.className = `crate-tile crate-${gimmick.level}`;
-      tile.style.left = `${pos.x}px`;
-      tile.style.top = `${pos.y}px`;
-      tile.style.width = `${HEX_W}px`;
-      tile.style.height = `${HEX_H}px`;
-      container.appendChild(tile);
-    } else {
-      const img = document.createElement('img');
-      img.className = 'gimmick-img';
-      img.src = `assets/gimmick/${gimmick.type}_${gimmick.level}.png`;
-      img.style.left = `${pos.x}px`;
-      img.style.top = `${pos.y}px`;
-      img.style.width = `${HEX_W}px`;
-      img.style.height = `${HEX_H}px`;
-      container.appendChild(img);
-    }
+    const filePrefix = gimmick.type === 'crate' ? 'box' : gimmick.type;
+    const img = document.createElement('img');
+    img.className = 'gimmick-img';
+    img.src = `assets/gimmick/${filePrefix}_${gimmick.level}.png`;
+    img.style.left = `${pos.x}px`;
+    img.style.top = `${pos.y}px`;
+    img.style.width = `${HEX_W}px`;
+    img.style.height = `${HEX_H}px`;
+    container.appendChild(img);
   }
 
   cell.addEventListener('click', () => onCellClick(col, row));

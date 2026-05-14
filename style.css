@@ -237,43 +237,7 @@ h1 {
   clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
   transition: background 0.2s ease, opacity 0.2s ease;
 }
-.gimmick-tile.grass-2 {
-  background:
-    repeating-linear-gradient(45deg, rgba(0,0,0,0.18) 0 2px, transparent 2px 6px),
-    #2c5a2c;
-}
-.gimmick-tile.grass-1 {
-  background:
-    repeating-linear-gradient(45deg, rgba(0,0,0,0.10) 0 2px, transparent 2px 8px),
-    #79c95c;
-}
-
-/* 상자 (3단계) — CSS-only placeholder, 향후 PNG 자산 교체 가능 */
-.gimmick-el.crate-el {
-  border-radius: 6px;
-  background-image: none;
-  box-shadow: inset 0 -3px 0 rgba(0,0,0,0.18), inset 0 2px 0 rgba(255,255,255,0.18);
-}
-.gimmick-el.crate-3 {
-  background-color: #a78050;
-  background-image:
-    repeating-linear-gradient(45deg, rgba(0,0,0,0.32) 0 3px, transparent 3px 8px),
-    repeating-linear-gradient(-45deg, rgba(0,0,0,0.18) 0 2px, transparent 2px 7px);
-  border: 2px solid #6a4d24;
-}
-.gimmick-el.crate-2 {
-  background-color: #b89366;
-  background-image:
-    repeating-linear-gradient(45deg, rgba(0,0,0,0.20) 0 2px, transparent 2px 9px);
-  border: 2px solid #7a5a30;
-  filter: drop-shadow(2px 2px 0 rgba(60, 30, 0, 0.18));
-}
-.gimmick-el.crate-1 {
-  background-color: transparent;
-  border: 2.5px dashed #7a5a30;
-  background-image:
-    repeating-linear-gradient(45deg, rgba(122, 90, 48, 0.18) 0 2px, transparent 2px 12px);
-}
+/* 잔디 / 상자 / 돌 시각: backgroundImage는 board.js에서 inline 부여 (PNG 자산) */
 .gimmick-el.crate-hit {
   animation: crateHit 0.3s ease-out;
 }
@@ -292,16 +256,7 @@ h1 {
   100% { transform: scale(0.3); filter: brightness(3)   drop-shadow(0 0 28px #ff6b3a); opacity: 0; }
 }
 
-/* 미션 아이콘 — 상자 (CSS-only) */
-.mission-icon.crate-icon {
-  display: inline-block;
-  border-radius: 4px;
-  background-color: #a78050;
-  background-image:
-    repeating-linear-gradient(45deg, rgba(0,0,0,0.32) 0 2px, transparent 2px 6px);
-  border: 2px solid #6a4d24;
-  box-sizing: border-box;
-}
+/* 미션 아이콘 — 잔디/상자: img 태그 사용 (ui.js MISSION_ICONS) */
 
 /* ── 설정 바 ── */
 

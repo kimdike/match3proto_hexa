@@ -202,15 +202,16 @@ function createGimmickEl(col,row,g){
   el.style.left=`${pos.x}px`;el.style.top=`${pos.y}px`;
   el.style.width=`${HEX_W}px`;el.style.height=`${HEX_H}px`;
   if(g.type==='crate'){
-    // 상자: CSS-only 비주얼 (placeholder, 향후 PNG 자산 교체 가능)
+    // 상자: PNG 자산 (파일명은 box_*.png — 클래스명 crate-*와 다름에 주의)
     el.classList.add('crate-el',`crate-${g.level}`);
+    el.style.backgroundImage=`url(assets/gimmick/box_${g.level}.png)`;
   } else {
     // 돌: PNG 자산
     el.style.backgroundImage=`url(assets/gimmick/stone_${g.level}.png)`;
-    el.style.backgroundSize='contain';
-    el.style.backgroundPosition='center';
-    el.style.backgroundRepeat='no-repeat';
   }
+  el.style.backgroundSize='contain';
+  el.style.backgroundPosition='center';
+  el.style.backgroundRepeat='no-repeat';
   return el;
 }
 
@@ -331,6 +332,7 @@ function hitCrate(col,row,exploded){
       const el=gimmickEls[col][row];
       el.classList.remove('crate-3','crate-2','crate-1');
       el.classList.add(`crate-${g.level}`,'crate-hit');
+      el.style.backgroundImage=`url(assets/gimmick/box_${g.level}.png)`;
       setTimeout(()=>el?.classList.remove('crate-hit'),300);
     }
     updateMissionUI();
@@ -355,6 +357,7 @@ function processCrateExplosionAt(col,row,exploded){
           const e=gimmickEls[nc][nr];
           e.classList.remove('crate-3','crate-2','crate-1');
           e.classList.add(`crate-${ng.level}`,'crate-hit');
+          e.style.backgroundImage=`url(assets/gimmick/box_${ng.level}.png)`;
           setTimeout(()=>e?.classList.remove('crate-hit'),300);
         }
       } else if(ng.type==='stone'){
@@ -456,6 +459,10 @@ function createTileEl(col,row,t){
   el.classList.add(`grass-${t.level}`);
   el.style.left=`${pos.x}px`;el.style.top=`${pos.y}px`;
   el.style.width=`${HEX_W}px`;el.style.height=`${HEX_H}px`;
+  el.style.backgroundImage=`url(assets/gimmick/grass_${t.level}.png)`;
+  el.style.backgroundSize='contain';
+  el.style.backgroundPosition='center';
+  el.style.backgroundRepeat='no-repeat';
   return el;
 }
 function placeGrass(col,row,level){
@@ -483,6 +490,7 @@ function updateTileVisual(col,row){
   if(!t||!el) return;
   el.classList.remove('grass-1','grass-2');
   el.classList.add(`grass-${t.level}`);
+  el.style.backgroundImage=`url(assets/gimmick/grass_${t.level}.png)`;
 }
 function spawnTiles(){
   const container=document.getElementById('grid-container');

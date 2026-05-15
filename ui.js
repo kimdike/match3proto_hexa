@@ -665,7 +665,10 @@ function resizeGrid(){
   wrapper.style.minHeight=`${totalH*gridScale}px`;
 
   // 2) 프레임 scale: 390×844 박스를 뷰포트에 맞춤 (작을 때만 축소, 큰 화면에서는 1배 유지)
-  const frameScale=Math.min(window.innerWidth/FRAME_W, window.innerHeight/FRAME_H, 1);
+  //    모바일 동적 toolbar 고려: visualViewport.height가 visible 영역 정확히 추적
+  const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+  const vw = (window.visualViewport && window.visualViewport.width)  || window.innerWidth;
+  const frameScale=Math.min(vw/FRAME_W, vh/FRAME_H, 1);
   gameContainer.style.transform=`scale(${frameScale})`;
   gameContainer.style.transformOrigin='center center';
 

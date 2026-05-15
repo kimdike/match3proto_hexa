@@ -429,5 +429,29 @@ function startGame(){
   if(hasPlayerProfile()) updateLobbyProfile();
   resizeGrid();
   window.addEventListener('resize',resizeGrid);
+  // 모바일 동적 toolbar 펼침/접힘 + 회전 시 다시 scale 계산
+  if(window.visualViewport) window.visualViewport.addEventListener('resize',resizeGrid);
+  window.addEventListener('orientationchange',()=>setTimeout(resizeGrid,100));
+
+  // 모바일 오디오 unlock — 첫 user gesture 시 AudioContext.resume() + BGM 재시도
+  // iOS Safari / Android Chrome autoplay 정책: user gesture 핸들러 안에서 동기 resume 필요
+  (function bindAudioUnlock(){
+    function unlock(){
+      try {
+        const ctx = (typeof getSfxCtx==='function') ? getSfxCtx() : null;
+        if(ctx && ctx.state==='suspended') ctx.resume().catch(()=>{});
+        if(typeof currentBgmId!=='undefined' && currentBgmId){
+          const a=document.getElementById(currentBgmId);
+          if(a && a.paused) a.play().catch(()=>{});
+        }
+      } catch {}
+      document.removeEventListener('pointerdown',unlock);
+      document.removeEventListener('touchstart',unlock);
+      document.removeEventListener('keydown',unlock);
+    }
+    document.addEventListener('pointerdown',unlock,{passive:true});
+    document.addEventListener('touchstart',unlock,{passive:true});
+    document.addEventListener('keydown',unlock);
+  })();
 })();
 

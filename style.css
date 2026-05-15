@@ -51,7 +51,9 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
+  /* 모바일 동적 toolbar 고려: dvh가 visible viewport 추적. vh는 fallback. */
   min-height: 100vh;
+  min-height: 100dvh;
   font-family: 'Segoe UI', sans-serif;
   user-select: none;
   touch-action: none;

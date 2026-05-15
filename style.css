@@ -1841,7 +1841,6 @@ h1 {
   flex-direction: column;
   margin: 0;
   padding: 0;
-  max-width: none;
   min-height: 0;
 }
 
@@ -2103,7 +2102,6 @@ h1 {
   flex-direction: column;
   margin: 0;
   padding: 0;
-  max-width: none;
 }
 
 #intro-screen.hidden { display: none; }
@@ -4215,7 +4213,6 @@ h1 {
   box-shadow: var(--frame-shadow);
   margin: 0;
   padding: 0;
-  max-width: none;
   min-height: 0;
 }
 #encounter-screen.hidden { display: none; }

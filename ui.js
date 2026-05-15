@@ -651,12 +651,14 @@ function resizeGrid(){
   const container=document.getElementById('grid-container');
   const wrapper=document.getElementById('grid-wrapper');
 
-  // 1) 그리드 scale: 9열 전체가 잘림 없이 390 프레임 너비에 꽉 차도록
-  //    상단 HUD(120px + 캐릭터 돌출 10px) + 하단 STOP 영역(~130px) 제외한 공간 활용
+  // 1) 그리드 scale: 9열 전체가 잘림 없이 게임 컨테이너 너비에 꽉 차도록
+  //    상단 HUD + 하단 STOP 영역 제외한 공간 활용. viewport 단위 컨테이너 대응.
   const totalW=(COLS_PATTERN.length-1)*COL_SPACING+HEX_W;
   const totalH=9*ROW_SPACING+HEX_H*0.5;
-  const gridAvailW=FRAME_W;        // 전체 폭 활용
-  const gridAvailH=FRAME_H-260;    // 상단 확장 HUD + 하단 STOP/버튼 영역
+  const cw = gameContainer.clientWidth || FRAME_W;
+  const ch = gameContainer.clientHeight || FRAME_H;
+  const gridAvailW = cw;
+  const gridAvailH = ch - 260; // 상단 확장 HUD + 하단 STOP/버튼 영역
   const gridScale=Math.min(gridAvailW/totalW, gridAvailH/totalH, 1);
   container.style.transform=`scale(${gridScale})`;
   container.style.transformOrigin='top center';
@@ -664,23 +666,13 @@ function resizeGrid(){
   container.style.height=`${totalH}px`;
   wrapper.style.minHeight=`${totalH*gridScale}px`;
 
-  // 2) 프레임 scale: 390×844 박스를 뷰포트에 맞춤
-  //    양쪽 fit (잘림 X) — 비율 차이로 인한 여백은 외곽 배경(media query 그라디언트)이 처리
-  const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-  const vw = (window.visualViewport && window.visualViewport.width)  || window.innerWidth;
-  const frameScale = Math.min(vw/FRAME_W, vh/FRAME_H, 1);
-  const origin = 'center center';
-  gameContainer.style.transform=`scale(${frameScale})`;
-  gameContainer.style.transformOrigin=origin;
-
-  // 그 외 프레임 기반 화면들(메인/캐릭터 선택/닉네임/로비)도 동일 스케일 + origin
+  // 2) 프레임 scale 제거됨 (viewport 단위 + max로 CSS가 fit 처리)
+  //    transform: none 강제 — 옛 inline style 잔재 청소
+  gameContainer.style.transform='none';
   FRAME_SCREEN_IDS.forEach(id=>{
     if(id==='game-container') return;
     const el=document.getElementById(id);
-    if(el){
-      el.style.transform=`scale(${frameScale})`;
-      el.style.transformOrigin=origin;
-    }
+    if(el) el.style.transform='none';
   });
 }
 

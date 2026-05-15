@@ -71,10 +71,12 @@ body {
   }
 }
 
-/* 390×844 모바일 프레임 — 화면 중앙 배치, 뷰포트가 작으면 JS에서 scale로 축소 */
+/* 390×844 디자인 기준 프레임. 모바일에선 viewport 채움, PC에선 max로 박스 유지. */
 #game-container {
-  width: 390px;
-  height: 844px;
+  width: 100vw;
+  height: 100dvh;
+  max-width: 390px;
+  max-height: 844px;
   flex-shrink: 0;
   background-color: #fff8e7;
   background-image:
@@ -1704,8 +1706,10 @@ h1 {
 
 #main-screen {
   position: relative;
-  width: 390px;
-  height: 844px;
+  width: 100vw;
+  height: 100dvh;
+  max-width: 390px;
+  max-height: 844px;
   flex-shrink: 0;
   overflow: hidden;
   background: #000;
@@ -1823,8 +1827,10 @@ h1 {
 #nickname-screen,
 #lobby-screen {
   position: relative;
-  width: 390px;
-  height: 844px;
+  width: 100vw;
+  height: 100dvh;
+  max-width: 390px;
+  max-height: 844px;
   flex-shrink: 0;
   overflow: hidden;
   background: linear-gradient(180deg, #fff4d6 0%, #ffe7a3 100%);
@@ -2083,8 +2089,10 @@ h1 {
 /* ── 오박사 인트로 화면 ── */
 #intro-screen {
   position: relative;
-  width: 390px;
-  height: 844px;
+  width: 100vw;
+  height: 100dvh;
+  max-width: 390px;
+  max-height: 844px;
   flex-shrink: 0;
   overflow: hidden;
   background: linear-gradient(180deg, #fff4d6 0%, #ffe7a3 100%);
@@ -2861,8 +2869,10 @@ h1 {
 
 /* ── 스킨 화면 (도감 톤 일관) ── */
 #skin-screen {
-  width: 390px;
-  height: 844px;
+  width: 100vw;
+  height: 100dvh;
+  max-width: 390px;
+  max-height: 844px;
   flex-shrink: 0;
   background-color: #fff8e7;
   background-image:
@@ -3463,8 +3473,10 @@ h1 {
    합성 탭: 진행률 바 + 합성 버튼 / 골드 구매 탭: placeholder */
 
 #shop-screen {
-  width: 390px;
-  height: 844px;
+  width: 100vw;
+  height: 100dvh;
+  max-width: 390px;
+  max-height: 844px;
   flex-shrink: 0;
   background-color: #fff8e7;
   background-image:
@@ -3794,8 +3806,10 @@ h1 {
    리스트형 카드 + 상세 모달 + 카드 bounce + 모달 idle bob */
 
 #bag-screen {
-  width: 390px;
-  height: 844px;
+  width: 100vw;
+  height: 100dvh;
+  max-width: 390px;
+  max-height: 844px;
   flex-shrink: 0;
   background-color: #fff8e7;
   background-image:
@@ -4187,8 +4201,10 @@ h1 {
 /* ── 야생 조우 화면 (포켓몬 GO 스타일 리디자인) ── */
 #encounter-screen {
   position: relative;
-  width: 390px;
-  height: 844px;
+  width: 100vw;
+  height: 100dvh;
+  max-width: 390px;
+  max-height: 844px;
   flex-shrink: 0;
   overflow: hidden;
   /* 기본(타입 미지정) — 부드러운 캐주얼 톤 */
@@ -5113,8 +5129,10 @@ h1 {
 
 /* ── 도감 화면 ── */
 #dex-screen {
-  width: 390px;
-  height: 844px;
+  width: 100vw;
+  height: 100dvh;
+  max-width: 390px;
+  max-height: 844px;
   flex-shrink: 0;
   background-color: #fff8e7;
   background-image:

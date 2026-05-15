@@ -669,7 +669,7 @@ function resizeGrid(){
   const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
   const vw = (window.visualViewport && window.visualViewport.width)  || window.innerWidth;
   const frameScale = Math.min(vw/FRAME_W, vh/FRAME_H, 1);
-  const origin = (vw < 480) ? 'top center' : 'center center';
+  const origin = 'center center';
   gameContainer.style.transform=`scale(${frameScale})`;
   gameContainer.style.transformOrigin=origin;
 

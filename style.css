@@ -1724,8 +1724,22 @@ h1 {
   height: 100%;
   object-fit: cover;
   filter: blur(2px);
-  transform: scale(1.05);  /* blur 가장자리 비침 방지 */
   z-index: 0;
+  /* Ken Burns 스타일 — 천천히 대각선 panning + 미세 zoom (살아있는 느낌) */
+  /* scale 1.08~1.12로 살짝 더 확대 (blur 가장자리 + translate 시 빈공간 방지) */
+  animation: mainBgDrift 40s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@keyframes mainBgDrift {
+  0%   { transform: scale(1.08) translate(0, 0); }
+  50%  { transform: scale(1.12) translate(-12px, -8px); }
+  100% { transform: scale(1.08) translate(12px, 8px); }
+}
+
+/* 접근성 — 모션 감소 선호 시 애니메이션 정지 */
+@media (prefers-reduced-motion: reduce) {
+  .main-bg { animation: none; transform: scale(1.05); }
 }
 
 .main-scrim {

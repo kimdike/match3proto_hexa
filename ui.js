@@ -664,21 +664,31 @@ function resizeGrid(){
   container.style.height=`${totalH}px`;
   wrapper.style.minHeight=`${totalH*gridScale}px`;
 
-  // 2) 프레임 scale: 390×844 박스를 뷰포트에 맞춤 (작을 때만 축소, 큰 화면에서는 1배 유지)
-  //    모바일 동적 toolbar 고려: visualViewport.height가 visible 영역 정확히 추적
+  // 2) 프레임 scale: 390×844 박스를 뷰포트에 맞춤
+  //    모바일 (좁은 화면): 너비 기준으로 scale + 위 정렬 — 동적 toolbar로 vh 부족해도 게임 위쪽부터 fit
+  //    데스크탑 (큰 화면): 1배 유지
   const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
   const vw = (window.visualViewport && window.visualViewport.width)  || window.innerWidth;
-  const frameScale=Math.min(vw/FRAME_W, vh/FRAME_H, 1);
+  const isMobile = vw < 480;
+  let frameScale, origin;
+  if(isMobile){
+    // 모바일: 너비 기준 fit. 비율이 비슷하면 거의 1배. 높이 부족하면 약간 잘릴 수 있으나 위쪽 우선
+    frameScale = Math.min(vw/FRAME_W, 1);
+    origin = 'top center';
+  } else {
+    frameScale = Math.min(vw/FRAME_W, vh/FRAME_H, 1);
+    origin = 'center center';
+  }
   gameContainer.style.transform=`scale(${frameScale})`;
-  gameContainer.style.transformOrigin='center center';
+  gameContainer.style.transformOrigin=origin;
 
-  // 그 외 프레임 기반 화면들(메인/캐릭터 선택/닉네임/로비)도 동일 스케일
+  // 그 외 프레임 기반 화면들(메인/캐릭터 선택/닉네임/로비)도 동일 스케일 + origin
   FRAME_SCREEN_IDS.forEach(id=>{
     if(id==='game-container') return;
     const el=document.getElementById(id);
     if(el){
       el.style.transform=`scale(${frameScale})`;
-      el.style.transformOrigin='center center';
+      el.style.transformOrigin=origin;
     }
   });
 }

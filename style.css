@@ -61,6 +61,14 @@ body {
   transition: background 0.3s ease;
 }
 
+/* 모바일 (좁은 화면): 프레임이 가운데 정렬 안 되고 위에서부터 꽉 차도록 */
+@media (max-width: 480px) {
+  body {
+    align-items: flex-start;
+    background: #000;
+  }
+}
+
 /* 390×844 모바일 프레임 — 화면 중앙 배치, 뷰포트가 작으면 JS에서 scale로 축소 */
 #game-container {
   width: 390px;

@@ -299,6 +299,8 @@ function onStageCleared(){
       _lastClearDiamond = true;
     }
   }
+  // 로그인 상태면 서버 동기화 (디바운스 1.5s, 게스트는 no-op)
+  if(window.gameSync) window.gameSync.syncToServer();
 }
 
 // 덱 타입 보너스 — 지역 타입과 같은 타입 마리수에 따라 골드 배율

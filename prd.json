@@ -1,0 +1,146 @@
+{
+  "task": "S25 모바일 + 외부 호스팅 + 계정/DB 기반 진행상황 동기화 풀스택 개발",
+  "createdAt": "2026-05-14",
+  "branch": "feature/backend-server",
+  "infrastructure": {
+    "stack": "Node.js + Express + better-sqlite3 (개발) / PostgreSQL (운영 시)",
+    "auth": "JWT + bcrypt (cost 10)",
+    "hosting": "Render free tier (서버) + 정적 클라이언트 (Render Static 또는 GitHub Pages)",
+    "client_strategy": "localStorage + 서버 sync 어댑터 (점진 마이그레이션, 오프라인 graceful degrade)"
+  },
+  "scope_notes": [
+    "본 PRD는 한 세션 내 완성 보장 X. 외부 서비스 의존성(Render 계정, npm registry, S25 디바이스 테스트)이 있어 호스팅 배포는 사용자 직접 작업 필요.",
+    "각 스토리 검증 후 사용자가 매번 시각/기능 테스트해야 함."
+  ],
+  "stories": [
+    {
+      "id": "US-001",
+      "title": "모바일 터치 검증 (이미 구현됨, 확인만)",
+      "priority": 1,
+      "passes": true,
+      "verified_at": "2026-05-14",
+      "verified_by": "code review (board.js 128-130 + main.js getPointer e2e 검토). S25 디바이스 테스트는 사용자 별도 진행.",
+      "acceptanceCriteria": [
+        "board.js 124-130에 touchstart/touchmove/touchend 이벤트 리스너 등록 확인",
+        "main.js getPointer(e)가 touches/changedTouches/mouse 모두 처리 확인",
+        "S25 Chrome에서 드래그 swap 정상 (사용자 시각 테스트)",
+        "S25 Chrome에서 탭(특수블록 발동) 정상 (사용자 시각 테스트)",
+        "기존 데스크탑 마우스 회귀 X (사용자 시각 테스트)"
+      ],
+      "notes": "코드는 이미 mouse+touch 동시 지원. 별도 변경 없이 사용자 디바이스 테스트만 필요. 문제 발생 시 보강."
+    },
+    {
+      "id": "US-002",
+      "title": "백엔드 스켈레톤 — Express 서버 + healthcheck",
+      "priority": 2,
+      "passes": true,
+      "verified_at": "2026-05-14",
+      "verified_by": "사용자 검증: server 기동 → DATABASE_URL 연결 → register/login token 정상 반환",
+      "acceptanceCriteria": [
+        "server/ 디렉토리 신설",
+        "server/package.json에 express, cors, dotenv, better-sqlite3, bcrypt, jsonwebtoken 의존성",
+        "server/index.js에 Express 앱 + GET /api/health → 200 {ok:true}",
+        "server/.env.example 작성 (PORT, JWT_SECRET, ALLOWED_ORIGINS)",
+        "CORS 미들웨어 (env.ALLOWED_ORIGINS 분리)",
+        "npm install + npm start 동작 (사용자 검증)"
+      ]
+    },
+    {
+      "id": "US-003",
+      "title": "DB 스키마 + 마이그레이션 헬퍼",
+      "priority": 3,
+      "passes": true,
+      "verified_at": "2026-05-14",
+      "verified_by": "사용자 검증: 서버 기동 시 마이그레이션 자동 적용 + register 성공(users/player_profiles INSERT 동작)",
+      "acceptanceCriteria": [
+        "server/db.js — better-sqlite3 connect + migrations 자동 실행",
+        "users 테이블 (id PK, email UNIQUE, password_hash, created_at)",
+        "player_profiles 테이블 (user_id PK FK, character, nickname, stage, gold, diamond, candy, hearts, heart_charge_at, balls JSON, materials JSON, pity_main, pity_repeat, auto_flee, dark_mode, intro_done, updated_at)",
+        "dex_entries 테이블 (user_id, dex_id, state, capture_count, fail_stack, biggest JSON, smallest JSON, first_caught, PRIMARY KEY (user_id, dex_id))",
+        "skin_slots 테이블 (user_id, slot_index 0~5, dex_id)",
+        "skin_unlocked 테이블 (user_id, dex_id, PK)",
+        "서버 기동 시 자동 마이그레이션 + 멱등성 (CREATE TABLE IF NOT EXISTS)"
+      ]
+    },
+    {
+      "id": "US-004",
+      "title": "인증 API — register/login",
+      "priority": 4,
+      "passes": true,
+      "verified_at": "2026-05-14",
+      "verified_by": "사용자 검증: register/login token + user 정상 반환",
+      "acceptanceCriteria": [
+        "POST /api/auth/register: {email, password} → 201 {token, user:{id,email}}",
+        "이메일 중복 시 409 반환",
+        "비밀번호 < 8자 또는 비어있으면 400 반환",
+        "POST /api/auth/login: {email, password} → 200 {token, user:{id,email}}",
+        "잘못된 자격증명 시 401 반환",
+        "JWT 미들웨어 (Authorization: Bearer ...) 보호 라우트 인증",
+        "비밀번호 bcrypt 해시 cost 10+",
+        "curl로 register → login → 보호 라우트 e2e 동작"
+      ]
+    },
+    {
+      "id": "US-005",
+      "title": "진행상황 API — GET/PUT /api/profile",
+      "priority": 5,
+      "passes": false,
+      "status": "code_complete",
+      "notes": "GET/PUT 코드 작성 완료. PUT은 transaction + sanitize 포함. e2e 검증은 US-007 sync 어댑터 + 클라이언트 통합 후 진행 예정.",
+      "acceptanceCriteria": [
+        "GET /api/profile (JWT 필수) → 200 {profile, dex, skinSlots, skinUnlocked}",
+        "PUT /api/profile (JWT 필수) → 200 {ok:true}, 전체 일괄 upsert",
+        "프로필 없으면 GET이 빈 기본값 반환 (200, profile:null)",
+        "잘못된 페이로드는 400 반환 (간단한 shape 검증만)",
+        "curl로 register → put → get e2e 라운드트립 검증"
+      ]
+    },
+    {
+      "id": "US-006",
+      "title": "클라이언트 인증 흐름",
+      "priority": 6,
+      "passes": false,
+      "status": "code_complete",
+      "notes": "메인화면 로그인/회원가입 모달 + 로비 로그아웃 버튼 + email 표시 완료. auth-ui.js, sync.js, CSS, index.html 통합. e2e 검증은 사용자가 register → fetchServerState → syncToServer 흐름 테스트 필요.",
+      "acceptanceCriteria": [
+        "메인화면에 '로그인 / 회원가입' 버튼 추가 (게스트로 계속도 가능)",
+        "register 폼: email + password + 확인 → POST /api/auth/register",
+        "login 폼: email + password → POST /api/auth/login",
+        "토큰 localStorage 저장 (hexPuzzleAuthToken)",
+        "로비 헤더에 로그인 상태 + 로그아웃 버튼 (토큰 + sync 데이터 청소 → 메인)",
+        "기존 게스트 플레이도 그대로 동작"
+      ]
+    },
+    {
+      "id": "US-007",
+      "title": "localStorage ↔ 서버 sync 어댑터",
+      "priority": 7,
+      "passes": false,
+      "status": "code_complete",
+      "notes": "sync.js 작성 완료: apiRegister/apiLogin/fetchServerState/applyServerState/collectLocalState/syncToServer/logout. 디바운스 1.5s + 오프라인 graceful degrade. main.js onStageCleared에 syncToServer hook 추가. 추가 hook(포획/진화/하트/사탕 변경 시)은 follow-up.",
+      "acceptanceCriteria": [
+        "client/sync.js (또는 sync.js 루트) — collectLocalState() / applyServerState() 헬퍼",
+        "로그인 직후: GET /api/profile → 로컬에 없는 키만 채움 + 충돌 시 사용자 confirm (서버 vs 로컬)",
+        "주요 상태 변경 시 (stage 클리어, 포획, 진화, 구매 등) 디바운스 syncToServer() 호출",
+        "오프라인 또는 토큰 없음 시 syncToServer() no-op (로컬만 유지)",
+        "네트워크 에러 시 콘솔 경고만, 게임은 정상 진행",
+        "동기화 키 명세 문서화 (sync_keys.md)"
+      ]
+    },
+    {
+      "id": "US-008",
+      "title": "호스팅 배포 가이드 + 셋업",
+      "priority": 8,
+      "passes": false,
+      "status": "guide_complete",
+      "notes": "DEPLOYMENT.md 작성 완료 (Render 백엔드 + GitHub Pages 정적 + CORS allowlist + 트러블슈팅). 실제 배포는 사용자가 Render 가입 + 환경변수 입력 + Pages 활성화 직접 수행해야 mark passes.",
+      "acceptanceCriteria": [
+        "deployment.md 작성 (Render 셋업 단계별 가이드)",
+        "server/Dockerfile 또는 Procfile (선택)",
+        "정적 클라이언트 호스팅 옵션 2가지 비교 (Render Static vs GitHub Pages)",
+        "production CORS allowlist 환경변수 사용 예시",
+        "사용자가 직접 Render 계정 생성 + 배포 + 외부 URL 확보 (검증)"
+      ]
+    }
+  ]
+}

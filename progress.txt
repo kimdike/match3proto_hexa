@@ -1,0 +1,109 @@
+============================================
+ralph progress log
+task: S25 모바일 + 외부 호스팅 + 계정/DB 백엔드 풀스택
+branch: feature/backend-server
+created: 2026-05-14
+============================================
+
+[2026-05-14 / 세션 1 시작]
+- 인프라 결정 (사용자 합의):
+  * 백엔드: Node.js + Express + better-sqlite3 (개발), PostgreSQL (운영 시)
+  * 인증: JWT + bcrypt (cost 10)
+  * 호스팅: Render free tier (서버 + DB) + 정적 클라이언트
+  * 클라이언트 전략: localStorage + 서버 sync 어댑터 (점진 마이그레이션)
+- PRD 작성 완료 (prd.json, 8 stories)
+- 신규 브랜치: feature/backend-server
+- main 직전 머지(13f0934)에서 분기
+
+[US-001 모바일 터치 — 사전 분석]
+- 코드 검토 결과 이미 구현됨:
+  * board.js 128-130: touchstart/touchmove/touchend 등록 (passive:false → preventDefault 가능)
+  * main.js 6-10: getPointer(e) 헬퍼가 touches/changedTouches/mouse 모두 처리
+  * main.js onDragStart/Move/End는 mouse + touch 통합 처리
+- 별도 코드 변경 없이 사용자가 S25 Chrome에서 시각 테스트해야 함
+- 더블탭(특수블록 발동)은 현재 단일 탭으로 처리 — 기획서 17-1 "더블클릭"과 차이 (단일 탭이 더 모바일 친화적, 유지 권장)
+
+[학습된 패턴]
+- 이 프로젝트는 바닐라 JS (Node 빌드 도구 없음). 서버는 별도 디렉토리(server/)로 격리.
+- 클라이언트는 현재 localStorage 키 14개 사용 (CLAUDE.md "처음으로" 키 목록 참고).
+- "처음으로" 버튼 = 14개 키 일괄 청소 → 로그아웃도 비슷한 청소 흐름 가능.
+- 사용자 메모리 "feedback_ask_when_unsure": 의심 시 자의적 판단 X 질문 먼저.
+- 사용자 메모리 "feedback_post_work_concerns": 작업 후 우려사항 함께 보고.
+
+[다음 단계]
+- US-002: 백엔드 스켈레톤 — server/package.json, server/index.js, .env.example
+- US-001 시각 검증은 사용자가 S25에서 진행하는 동안 백엔드 작업 병행
+
+[중간 사건: better-sqlite3 + bcrypt native build 실패]
+- Node v24 + Visual Studio Build Tools 미설치 → 모든 패키지 롤백
+- 해결: 사용자 합의로 PostgreSQL(Supabase) + pg + bcryptjs(순수 JS)로 스택 변경
+- npm install 재시도 성공 (127 패키지, 0 vulnerabilities)
+
+[코드 작성 완료 (사용자 검증 대기)]
+- US-002 백엔드 스켈레톤: server/index.js (Express + CORS + healthcheck)
+- US-003 DB 스키마: server/db.js (pg Pool + 5 테이블 자동 마이그레이션)
+- US-004 인증 API: server/auth.js (POST /register, /login + requireAuth 미들웨어)
+- US-005 진행상황 API: server/profile.js (GET/PUT /api/profile + sanitize + transaction)
+- server/SETUP_SUPABASE.md 가이드 작성
+
+[다음 사용자 액션 (fundamental blocker)]
+1. Supabase 가입 + 프로젝트 생성 (server/SETUP_SUPABASE.md 참고, ~5분)
+2. Connection string 복사 → server/.env 작성 (DATABASE_URL=...)
+3. cd server && npm start → [db] migrations applied + [server] listening 확인
+4. e2e 검증: curl /api/health → register → login
+
+[검증 후 진행 (남은 슬라이스)]
+- US-006: 클라이언트 register/login UI (메인화면 수정)
+- US-007: localStorage ↔ 서버 sync 어댑터
+- US-008: Render 호스팅 배포
+
+[Phase 2: US-006/007 클라이언트 통합 + US-008 배포 가이드]
+2026-05-14 세션 후반:
+
+[US-006 클라이언트 UI - code_complete]
+- index.html 메인화면: PRESS TO START 아래 "로그인 / 회원가입" 링크 + 인증 모달 추가
+- index.html 로비: 헤더에 로그아웃 버튼 + email 표시 영역 추가
+- style.css: 인증 모달 + 로비 로그아웃 CSS (크림/옐로우 톤앤매너 통일)
+- auth-ui.js 신규: 모달 핸들러 + 로그아웃 + UI 상태 동기화
+
+[US-007 sync 어댑터 - code_complete]
+- sync.js 신규: apiRegister/apiLogin/fetchServerState/applyServerState/
+  collectLocalState/syncToServer (1.5s 디바운스)/logout
+- localStorage 14개 키 ↔ 서버 schema 양방향 매핑
+- 로그인 직후: 서버 상태 → 로컬 적용 (자동)
+- 회원가입 직후: 게스트 진행상황 → 서버 push (자동)
+- 오프라인/토큰 없음: graceful degrade (no-op, 로컬만 유지)
+- index.html script 통합: sync.js (config.js 전), auth-ui.js (main.js 전)
+- main.js onStageCleared 끝에 syncToServer hook 추가
+- 추가 hook(포획/진화/하트 변경)은 follow-up
+
+[US-008 배포 가이드 - guide_complete]
+- DEPLOYMENT.md 신규: Render + GitHub Pages + CORS + 트러블슈팅 + 비용
+- 실제 배포는 사용자가 Render 가입 + 환경변수 + Pages 활성화 직접
+
+[다음 사용자 검증 액션]
+1. 서버 재기동: cd server && npm start
+2. http://localhost:8080/index.html (또는 npx serve .)
+3. 메인화면에서 "회원가입" 클릭 → 모달 → 새 계정 생성
+4. 모달 자동 닫힘 → 메인 status에 "✓ 로그인됨: email"
+5. PRESS TO START → 로비 진입 → 헤더에 로그아웃 버튼 + email
+6. 게임 1스테이지 클리어 → 1.5초 후 sync 발동
+7. Supabase Dashboard → Table Editor → player_profiles에 데이터 확인
+
+[남은 follow-up (별도 세션)]
+- US-001 S25 디바이스 시각 테스트 (드래그 + 탭)
+- 포획/진화/하트 변경 시 추가 sync hook
+- Render 실제 배포 + production CORS 설정
+- 로그인 상태에서 "처음으로" 버튼 동작 검토 (서버 데이터는 유지)
+
+[작성된 파일 목록 (Phase 1 + 2 합계)]
+서버:
+- server/package.json, index.js, db.js, auth.js, profile.js
+- server/.env.example, .gitignore, SETUP_SUPABASE.md
+클라이언트:
+- sync.js, auth-ui.js
+- index.html (수정: 모달 + 로비 헤더 + script 태그)
+- style.css (수정: 인증 모달 CSS 약 110줄 추가)
+- main.js (수정: onStageCleared sync hook 1줄)
+문서:
+- prd.json (8 stories), progress.txt, DEPLOYMENT.md

@@ -19,6 +19,29 @@
       <img class="main-logo-img" src="assets/main_logo.png" alt="Pokémon Match-3">
       <p class="main-subtitle">A PUZZLE ADVENTURE</p>
       <button id="main-start-btn" class="main-press-start">PRESS TO START</button>
+      <div class="main-auth-links">
+        <button class="main-auth-link" id="main-auth-login" type="button">로그인</button>
+        <span class="main-auth-sep">•</span>
+        <button class="main-auth-link" id="main-auth-register" type="button">회원가입</button>
+      </div>
+      <div class="main-auth-status" id="main-auth-status"></div>
+    </div>
+
+    <!-- 로그인/회원가입 모달 -->
+    <div id="auth-modal" class="auth-modal hidden">
+      <div class="auth-modal-backdrop" id="auth-modal-backdrop"></div>
+      <div class="auth-modal-card">
+        <button class="auth-modal-close" id="auth-modal-close" type="button" aria-label="닫기">✕</button>
+        <h2 class="auth-modal-title" id="auth-modal-title">로그인</h2>
+        <p class="auth-modal-subtitle">계정으로 진행상황을 다른 기기와 동기화하세요</p>
+        <div class="auth-modal-fields">
+          <input type="email" id="auth-email" class="auth-input" placeholder="이메일" autocomplete="email" inputmode="email">
+          <input type="password" id="auth-password" class="auth-input" placeholder="비밀번호 (8자 이상)" autocomplete="current-password">
+        </div>
+        <div class="auth-modal-error" id="auth-modal-error"></div>
+        <button class="auth-modal-submit" id="auth-modal-submit" type="button">로그인</button>
+        <button class="auth-modal-switch" id="auth-modal-switch" type="button">계정이 없으신가요? 회원가입</button>
+      </div>
     </div>
     <audio id="main-bgm" src="assets/main_bgm.mp3" loop preload="auto"></audio>
     <audio id="lobby-bgm" src="assets/lobby_bgm.mp3" loop preload="auto"></audio>
@@ -91,9 +114,13 @@
           <div class="lobby-profile-info">
             <div class="lobby-league-label" id="lobby-region-label">KANTO LEAGUE</div>
             <div class="lobby-player-name" id="lobby-player-name">PlayerName</div>
+            <div class="lobby-account-email hidden" id="lobby-account-email"></div>
           </div>
         </div>
-        <button id="lobby-reset-btn" class="lobby-reset-btn" type="button" aria-label="처음으로">처음으로</button>
+        <div class="lobby-top-actions">
+          <button id="lobby-logout-btn" class="lobby-logout-btn hidden" type="button" aria-label="로그아웃">로그아웃</button>
+          <button id="lobby-reset-btn" class="lobby-reset-btn" type="button" aria-label="처음으로">처음으로</button>
+        </div>
       </div>
       <div class="lobby-top-row lobby-top-row-meta">
         <div class="lobby-meta lobby-meta-gold" aria-label="보유 골드">
@@ -619,6 +646,14 @@
     <div id="theme-toggle" class="theme-btn">🌙</div>
     <div id="dev-mode-btn">개발자 모드</div>
   </div>
+  <!-- 서버 URL: 같은 호스트 8080 포트 자동 감지 (로컬/사내망/모바일 공유 호환).
+       운영 배포 시 production URL로 교체. -->
+  <script>
+    window.SERVER_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(location.hostname))
+      ? `http://${location.hostname}:8080`
+      : 'https://match3proto-hexa.onrender.com';
+  </script>
+  <script src="sync.js"></script>
   <script src="config.js"></script>
   <script src="grid.js"></script>
   <script src="board.js"></script>
@@ -637,6 +672,7 @@
   <script src="encounter.js"></script>
   <script src="lobby.js"></script>
   <script src="game.js"></script>
+  <script src="auth-ui.js"></script>
   <script src="main.js"></script>
 </body>
 </html>

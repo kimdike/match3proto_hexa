@@ -5,6 +5,127 @@
 
 ---
 
+## 2026.05.15 (23일차) — 백엔드 풀스택 + Render/Pages 배포 + 모바일 viewport 리팩토링
+
+사용자가 ralph로 풀스택 백엔드 + 외부 호스팅 + 모바일 대응을 한 세션에 통합 진행. 작업 분량이 가장 큰 날.
+
+### 1. 백엔드 풀스택 구축 (server/ 신설)
+인프라 결정 (사용자 합의):
+- **Node.js + Express + Supabase PostgreSQL** + `pg` (순수 JS, native build X)
+- **JWT + bcryptjs** (cost 10, 30d 토큰)
+- **클라이언트 점진 마이그레이션**: localStorage + 서버 sync 어댑터
+
+**중간 사건 — better-sqlite3 native build 실패**
+- 초기 결정은 better-sqlite3 + bcrypt. Node v24 + Visual Studio Build Tools 미설치 환경에서 native build 실패 → npm install이 모든 패키지 롤백
+- 사용자에게 옵션 제시 후 `pg + bcryptjs` (순수 JS)로 스택 변경. 운영 시 Supabase PostgreSQL 그대로 사용 → 로컬↔운영 마이그레이션 0
+- 교훈: native module은 Windows 개발자 환경에서 위험. 처음부터 순수 JS 우선 선택이 안전.
+
+**작성 파일**:
+- `server/index.js`: Express + CORS + JWT + healthcheck
+- `server/db.js`: pg Pool + 5 테이블 자동 마이그레이션 (users, player_profiles, dex_entries, skin_slots, skin_unlocked)
+- `server/auth.js`: POST /api/auth/register, /login + requireAuth 미들웨어
+- `server/profile.js`: GET/PUT /api/profile (transaction + sanitize)
+- `server/.env.example`, `server/.gitignore`, `server/SETUP_SUPABASE.md`
+
+### 2. 클라이언트 ↔ 서버 sync 어댑터 + 인증 UI
+- `sync.js`: localStorage 14개 키 ↔ 서버 schema 양방향 매핑 + 1.5s 디바운스 PUT + 오프라인 graceful degrade
+- `auth-ui.js`: 메인화면 로그인/회원가입 모달 + 로비 헤더 로그아웃 버튼 + email 표시
+- `index.html`: 메인 "로그인 / 회원가입" 텍스트 링크 + 인증 모달 + 로비 헤더 로그아웃 UI
+- `style.css`: 인증 모달 + 로비 로그아웃 CSS (크림/옐로우 톤)
+- `main.js onStageCleared`: syncToServer() hook 추가 (디바운스라 game flow 영향 X)
+
+### 3. Supabase 셋업 + 로컬 e2e 검증
+- 사용자가 Supabase 프로젝트 생성 (hexapuz, ap-southeast-1)
+- DB 비밀번호 재설정 (특수문자 URL encoding 이슈로 단순화)
+- 로컬 server/.env 작성 → npm start → register/login/profile 라운드트립 검증 ✅
+
+### 4. Render 백엔드 배포
+- render.com 가입 (GitHub OAuth)
+- Web Service 생성:
+  - Root Directory: `server`
+  - Build: `npm install`, Start: `node index.js`, Plan: Free
+  - Environment Variables: PORT, JWT_SECRET, ALLOWED_ORIGINS, DATABASE_URL
+- **첫 배포 실패**: main 브랜치에 server 폴더 없었음 (feature/backend-server 브랜치에만)
+  - 해결: feature/backend-server → main `--no-ff` 머지 후 자동 재배포
+- 발급 URL: `https://match3proto-hexa.onrender.com` ✅
+- `/api/health` 응답 확인
+
+### 5. GitHub Pages 활성화
+- repo private → public 변경
+- Settings → Pages → main / (root)
+- 발급 URL: `https://kimdike.github.io/match3proto_hexa/` ✅
+- `index.html`의 SERVER_URL 자동 감지 패턴 도입:
+  - localhost / 127.0.0.1 / 사내 IP → `http://hostname:8080`
+  - 외부 도메인 (GitHub Pages) → Render production URL
+- Render `ALLOWED_ORIGINS`에 `https://kimdike.github.io` 추가
+
+### 6. S25 모바일 첫 접속 + 이슈 발견
+- 모바일 viewport 잘림 + BGM 미재생 발견
+- 5~6번 시행착오 거친 끝에 viewport 단위 리팩토링으로 해결
+
+### 7. 모바일 viewport 리팩토링 (Phase 1)
+**시행착오 흐름**:
+1. `100dvh` + `visualViewport.height` + viewport-fit=cover → 부분 개선
+2. width 기준 scale (height 무시) → 가로 fit OK / **세로 잘림** (사용자 거부)
+3. align-items: flex-start → game-container layout 박스(844px)가 viewport보다 커서 캐릭터 선택의 confirm 버튼 잘림 (사용자 거부)
+4. 양쪽 fit + 외곽 그라디언트 → 박스 작아짐 + 여백 거슬림 (사용자 거부)
+5. **최종**: `width: 100vw`, `height: 100dvh`, `max-width: 390px`, `max-height: 844px` + transform: scale 제거 ✅
+
+**결과**: 모든 frame-screen 컨테이너(game/main/character/nickname/intro/lobby/encounter/skin/dex/bag/shop)가 모바일은 viewport 채움, PC는 max로 박스 유지. 내부 layout이 flex 1 기반이라 자동 fit.
+
+**한계**: 디자인 비율(390:844) ≠ 디바이스 비율이면 내부 컨텐츠 살짝 늘어남. 진짜 답은 px → vw/vh 단위 광범위 리팩토링 (Phase 2, 향후 작업).
+
+### 8. 모바일 오디오 unlock (autoplay 정책 대응)
+- iOS Safari / Android Chrome autoplay 차단 → 페이지 로드 즉시 BGM 자동재생 불가능
+- `main.js` 첫 user gesture 핸들러: `AudioContext.resume()` + 현재 BGM `play()` 재시도
+- document level + #main-screen level 이중 등록 (안전망)
+- PRESS TO START click handler에 명시 BGM play() (user gesture 안 동기 호출)
+
+### 9. PRESS TO START 2단계 진입 흐름
+사용자 제안: BGM이 잠시 들리고 사용자가 의식적으로 시작하는 UX.
+1. PRESS TO START 클릭 → BGM unlock + 버튼 "🎵 리소스 활성화 중..." (2.5초, 빠른 깜빡임)
+2. 버튼 자동 변환 → "시작하기 ▶" (노란 피지컬 버튼 + idle pulse)
+3. 시작하기 클릭 → 캐릭터 선택 or 로비 (기존 흐름)
+
+### 10. 인게임 settings 메뉴 통합
+**문제**: 모바일 #dev-mode-btn 비정상적으로 크게 + 화면 밖 잘림. STOP 버튼 브라우저 하단 바에 걸침.
+
+**fix** (사용자 제안):
+- 우상단 작은 ⚙️ 톱니바퀴 버튼 (40x40 원형) + 드롭다운
+- 메뉴 항목: 🚪 나가기 / 🛠️ 개발자 모드
+- 외부 클릭 시 자동 닫힘
+- 기존 #stop-btn, #dev-mode-btn은 HTML hidden + 핸들러는 click 트리거로 재사용
+- 메뉴 위치: top: max(10px, safe-area-inset-top), right: 10px
+
+### 11. 현재 인프라 상태
+| 컴포넌트 | URL | 상태 |
+|---|---|---|
+| Supabase DB | ap-southeast-1 | ✅ |
+| Render 백엔드 | https://match3proto-hexa.onrender.com | ✅ |
+| GitHub Pages 클라이언트 | https://kimdike.github.io/match3proto_hexa/ | ✅ |
+| S25 모바일 검증 | (사용자 직접) | ✅ |
+
+로컬 PC 켜지 않아도 클라우드만으로 완전 동작.
+
+### 💡 오늘의 교훈
+1. **native module은 Windows 개발자 환경에서 큰 리스크**: better-sqlite3 처음 선택했다가 Visual Studio Build Tools 없어 실패 → 모든 패키지 롤백. 처음부터 순수 JS(pg + bcryptjs) 우선이 안전. Node 버전(v24)이 너무 최신이면 prebuilt binary도 없음.
+2. **localStorage → 서버 마이그레이션의 점진 전략**: localStorage 키 그대로 유지 + sync 어댑터로 양방향 매핑. 게스트 모드 그대로 동작 + 로그인 시 서버 동기화. 한 번에 다 바꾸지 않고 디바운스로 game flow 영향 X.
+3. **모바일 viewport는 진짜 어려움**: 5번 시행착오 끝에 viewport 단위 컨테이너 + flex 1 자동 fit으로 정착. **transform: scale은 layout에 영향 안 줌** 핵심 — 시각만 줄어들고 layout 박스는 그대로라 viewport 넘기면 잘림. 진짜 답은 width: 100vw / height: 100dvh + flex.
+4. **모바일 autoplay 정책 우회는 user gesture 핸들러 안 동기 호출**: 비동기 또는 늦은 시점 play()는 reject. user gesture 시점에 즉시 호출 + 명시적 ctx.resume()이 핵심. 모바일 정책상 페이지 로드 즉시 자동재생은 기술적으로 불가능 — UX 흐름으로 우회(2단계 진입).
+5. **GitHub Pages 캐시 1~2분**: push 후 즉시 모바일에서 안 보임. 사용자에게 시크릿 탭/하드 리로드 권장. 빠른 iteration 위해 PC Chrome Device Toolbar로 1차 검증 + 모바일은 진짜 차이만.
+6. **버튼 통합의 영역 절약 효과**: STOP + 개발자 모드 두 버튼이 모바일에서 viewport 영역 잠식 → 우상단 ⚙️ + 드롭다운 한 곳으로 통합 → 플레이 영역 깨끗 + UX 일관.
+7. **민감 정보 채팅 노출 위험**: Supabase 비밀번호가 채팅에 노출됐던 사례. URL-encoding으로 일단 사용은 가능하지만 보안 위험. 다음 진행 시 Supabase Dashboard에서 비밀번호 재설정 권장.
+
+### 다음 작업 후보
+- Phase 2 viewport 리팩토링: px → vw/vh 단위 일괄 변환 (디바이스 비율 차이 해결)
+- 추가 sync hook: 포획/진화/하트/사탕 변경 시 자동 동기화
+- "시작하기" 버튼 시각 추가 폴리싱
+- BGM 페이드 인/아웃
+- Render Free tier sleep 대응 (15분 무요청 시 30초 지연)
+- production JWT_SECRET 분리
+
+---
+
 ## 2026.05.14 (22일차) — 스킨 슬롯 미세 조정 + 잔디/상자 PNG 자산 적용
 
 브랜치 `refactor/realtime-fill-ticker` 유지. 작은 메타 조정 한 묶음 + 사용자가 추가한 자산 코드 반영 한 묶음.

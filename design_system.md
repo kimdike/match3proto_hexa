@@ -919,3 +919,52 @@ MonsterDex {
 - 이벤트 시스템 (마스터볼 이벤트, 시즌 이벤트, 블루하트 활용)
 - 상성 패널티 도입 여부 (현재 보류)
 - 이로치 시스템 디테일
+
+---
+
+## 18. 계정 + 서버 동기화 시스템 (v0.7 — 2026.05.15)
+
+### 18-1. 인프라 스택
+| 컴포넌트 | 기술 | URL |
+|---|---|---|
+| DB | Supabase PostgreSQL (ap-southeast-1, Free) | (connection string) |
+| 백엔드 | Node.js + Express + `pg` + bcryptjs + jsonwebtoken | https://match3proto-hexa.onrender.com |
+| 클라이언트 | GitHub Pages (정적) | https://kimdike.github.io/match3proto_hexa/ |
+
+- 로컬 PC 없이 클라우드만으로 완전 동작
+- Render Free tier: 15분 무요청 시 sleep → 첫 요청 30~50초 지연
+
+### 18-2. 인증 흐름
+- **회원가입 / 로그인**: 메인화면 "로그인 / 회원가입" 텍스트 링크 → 모달
+  - 이메일 + 비밀번호(8자+)
+  - POST /api/auth/register or /login → JWT 토큰 발급 (30일)
+  - 토큰 localStorage 저장 (`hexPuzzleAuthToken`)
+- **게스트 모드**: PRESS TO START → 시작하기 → 게스트로 계속 가능 (로그인 없이도 동작)
+- **로그아웃**: 로비 헤더 "로그아웃" 버튼 → confirm → 로컬 청소 + 메인 복귀 (서버 데이터는 유지)
+
+### 18-3. DB 스키마 (5 테이블)
+| 테이블 | 목적 |
+|---|---|
+| `users` | id, email UNIQUE, password_hash (bcrypt cost 10), created_at |
+| `player_profiles` | character, nickname, stage, gold, diamond, candy, hearts, balls JSON, materials JSON, pity, intro_done, etc |
+| `dex_entries` | (user_id, dex_id) PK + state, capture_count, fail_stack, biggest/smallest JSON, first_caught |
+| `skin_slots` | (user_id, slot_index 0~5) PK + dex_id |
+| `skin_unlocked` | (user_id, dex_id) PK |
+
+- 서버 기동 시 자동 마이그레이션 (CREATE TABLE IF NOT EXISTS)
+
+### 18-4. 클라이언트 sync 어댑터 (sync.js)
+- localStorage 14개 키 ↔ 서버 schema 양방향 매핑
+- 디바운스 1.5s `syncToServer()` — game flow 영향 X
+- 로그인 직후: `fetchServerState()` → 로컬 적용
+- 회원가입 직후: 게스트 진행상황 → 서버 push
+- 오프라인/토큰 없음: graceful degrade (no-op, 로컬만 유지)
+- 현재 sync hook: `onStageCleared` (스테이지 클리어 시)
+- 향후 hook 후보: 포획/진화/하트/사탕/볼 변경 시
+
+### 18-5. 보안
+- 비밀번호 bcrypt 해시 (cost 10+)
+- JWT 30일 유효 (Authorization: Bearer ...)
+- CORS allowlist (Render 환경변수 `ALLOWED_ORIGINS`)
+- DATABASE_URL, JWT_SECRET 등 민감 정보는 Render 환경변수 + server/.env (gitignored)에서만 관리
+- 채팅/로그에 비밀번호 노출 X (메모리 `feedback_post_work_concerns` 참고)

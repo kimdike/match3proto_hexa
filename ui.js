@@ -349,6 +349,36 @@ function setupUI(){
     hoveredCell = mouseCell;
     removeBlockAt(mouseCell.col, mouseCell.row).catch(err => console.error('removeBlockAt error', err));
   });
+
+  // 인게임 settings 메뉴 (우상단 톱니바퀴 → 드롭다운: 나가기 / 개발자모드)
+  const settingsBtn = document.getElementById('ingame-settings-btn');
+  const settingsMenu = document.getElementById('ingame-settings-menu');
+  if(settingsBtn && settingsMenu){
+    settingsBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      playSfx('btn_click');
+      settingsMenu.classList.toggle('hidden');
+    });
+    settingsMenu.querySelectorAll('.ingame-menu-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const action = item.dataset.action;
+        settingsMenu.classList.add('hidden');
+        if(action === 'exit'){
+          document.getElementById('stop-btn')?.click(); // 기존 STOP 핸들러 트리거 (confirm + 로비)
+        } else if(action === 'dev'){
+          document.getElementById('dev-mode-btn')?.click(); // 기존 개발자모드 핸들러 트리거
+        }
+      });
+    });
+    // 외부 클릭 시 닫기
+    document.addEventListener('click', e => {
+      if(!settingsMenu.classList.contains('hidden')
+         && !settingsMenu.contains(e.target)
+         && e.target !== settingsBtn){
+        settingsMenu.classList.add('hidden');
+      }
+    });
+  }
 }
 
 // DEV 즉시 클리어 — 돌 미션/점수 양쪽 충족시켜 cleared=true 분기 트리거
@@ -1575,7 +1605,7 @@ function setupScreenNav(){
         btn.classList.remove('loading');
         btn.classList.add('ready');
         _mainStartStage = 1;
-      }, 1500);
+      }, 2500);
       return;
     }
     // 2단계: 실제 진행

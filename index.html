@@ -459,8 +459,17 @@
       </div>
     </div>
 
-    <!-- STOP 버튼 (하단 중앙 고정) -->
-    <button id="stop-btn">STOP</button>
+    <!-- STOP 버튼 (구버전, settings 메뉴로 통합되어 숨김) -->
+    <button id="stop-btn" class="hidden">STOP</button>
+
+    <!-- 인게임 설정 버튼 (우상단 톱니바퀴 → 드롭다운) -->
+    <div id="ingame-settings" class="ingame-settings">
+      <button id="ingame-settings-btn" class="ingame-settings-btn" type="button" aria-label="설정">⚙️</button>
+      <div id="ingame-settings-menu" class="ingame-settings-menu hidden" role="menu">
+        <button class="ingame-menu-item" data-action="exit" type="button">🚪 나가기</button>
+        <button class="ingame-menu-item" data-action="dev" type="button">🛠️ 개발자 모드</button>
+      </div>
+    </div>
 
     <!-- DEV 즉시 클리어 버튼 (개발자 모드 인증 후 노출, 단축키 C) -->
     <button id="dev-clear-btn" class="hidden" type="button" title="C 키로도 클리어 가능">⚡ 클리어! (C)</button>
@@ -642,9 +651,9 @@
       </div>
     </div>
 
-    <!-- 하단 고정 버튼: 좌하단=테마 / 우하단=개발자 모드 -->
+    <!-- 하단 고정 버튼: 좌하단=테마. 개발자 모드는 settings 메뉴로 통합 (숨김) -->
     <div id="theme-toggle" class="theme-btn">🌙</div>
-    <div id="dev-mode-btn">개발자 모드</div>
+    <div id="dev-mode-btn" class="hidden">개발자 모드</div>
   </div>
   <!-- 서버 URL: 같은 호스트 8080 포트 자동 감지 (로컬/사내망/모바일 공유 호환).
        운영 배포 시 production URL로 교체. -->

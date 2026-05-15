@@ -1550,6 +1550,16 @@ function setupScreenNav(){
   // 메인 → 로비 or 캐릭터 선택 (프로필 유무에 따라)
   // BGM은 showScreen 내부 switchBgmForScreen에서 자동 처리
   document.getElementById('main-start-btn').addEventListener('click',()=>{
+    // 모바일 autoplay 정책 우회: 첫 user gesture 안 동기 play() 호출
+    // 첫 메인 진입 시 자동재생 차단으로 main-bgm.play()가 reject됐어도 여기서 재시도하면 unlock
+    const mainBgm = document.getElementById('main-bgm');
+    if(mainBgm && mainBgm.paused){
+      mainBgm.volume = 0.8;
+      mainBgm.play().catch(()=>{});
+    }
+    // SFX AudioContext도 동시에 resume
+    const ctx = getSfxCtx();
+    if(ctx && ctx.state === 'suspended') ctx.resume().catch(()=>{});
     playSfx('btn_click');
     if(hasPlayerProfile()){
       updateLobbyProfile();

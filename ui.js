@@ -665,20 +665,11 @@ function resizeGrid(){
   wrapper.style.minHeight=`${totalH*gridScale}px`;
 
   // 2) 프레임 scale: 390×844 박스를 뷰포트에 맞춤
-  //    모바일 (좁은 화면): 너비 기준으로 scale + 위 정렬 — 동적 toolbar로 vh 부족해도 게임 위쪽부터 fit
-  //    데스크탑 (큰 화면): 1배 유지
+  //    양쪽 fit (잘림 X) — 비율 차이로 인한 여백은 외곽 배경(media query 그라디언트)이 처리
   const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
   const vw = (window.visualViewport && window.visualViewport.width)  || window.innerWidth;
-  const isMobile = vw < 480;
-  let frameScale, origin;
-  if(isMobile){
-    // 모바일: 너비 기준 fit. 비율이 비슷하면 거의 1배. 높이 부족하면 약간 잘릴 수 있으나 위쪽 우선
-    frameScale = Math.min(vw/FRAME_W, 1);
-    origin = 'top center';
-  } else {
-    frameScale = Math.min(vw/FRAME_W, vh/FRAME_H, 1);
-    origin = 'center center';
-  }
+  const frameScale = Math.min(vw/FRAME_W, vh/FRAME_H, 1);
+  const origin = (vw < 480) ? 'top center' : 'center center';
   gameContainer.style.transform=`scale(${frameScale})`;
   gameContainer.style.transformOrigin=origin;
 

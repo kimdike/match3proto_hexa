@@ -61,11 +61,13 @@ body {
   transition: background 0.3s ease;
 }
 
-/* 모바일 (좁은 화면): 프레임이 가운데 정렬 안 되고 위에서부터 꽉 차도록 */
+/* 모바일 (좁은 화면): 프레임은 상단 정렬 + 외곽 여백을 게임 톤 그라디언트로 (검은색 X) */
 @media (max-width: 480px) {
   body {
     align-items: flex-start;
-    background: #000;
+    background:
+      radial-gradient(ellipse at top, rgba(255, 200, 100, 0.18) 0%, transparent 60%),
+      linear-gradient(180deg, #2a2030 0%, #1a1424 60%, #0d0a14 100%);
   }
 }
 

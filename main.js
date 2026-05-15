@@ -435,23 +435,35 @@ function startGame(){
 
   // 모바일 오디오 unlock — 첫 user gesture 시 AudioContext.resume() + BGM 재시도
   // iOS Safari / Android Chrome autoplay 정책: user gesture 핸들러 안에서 동기 resume 필요
+  // document level + main-screen 직접 핸들러 이중 안전망 (어디 탭이든 BGM 시작)
   (function bindAudioUnlock(){
-    function unlock(){
+    let unlocked = false;
+    function doUnlock(){
+      if(unlocked) return;
+      unlocked = true;
       try {
         const ctx = (typeof getSfxCtx==='function') ? getSfxCtx() : null;
         if(ctx && ctx.state==='suspended') ctx.resume().catch(()=>{});
-        if(typeof currentBgmId!=='undefined' && currentBgmId){
-          const a=document.getElementById(currentBgmId);
-          if(a && a.paused) a.play().catch(()=>{});
-        }
+        // 현재 화면 BGM 또는 메인 BGM 강제 play (paused 체크 X — autoplay 차단 후 재시도)
+        const bgmId = (typeof currentBgmId!=='undefined' && currentBgmId) || 'main-bgm';
+        const a = document.getElementById(bgmId);
+        if(a) a.play().catch(()=>{});
       } catch {}
-      document.removeEventListener('pointerdown',unlock);
-      document.removeEventListener('touchstart',unlock);
-      document.removeEventListener('keydown',unlock);
+      document.removeEventListener('pointerdown',doUnlock);
+      document.removeEventListener('touchstart',doUnlock);
+      document.removeEventListener('keydown',doUnlock);
+      const ms = document.getElementById('main-screen');
+      if(ms){ ms.removeEventListener('pointerdown',doUnlock); ms.removeEventListener('touchstart',doUnlock); }
     }
-    document.addEventListener('pointerdown',unlock,{passive:true});
-    document.addEventListener('touchstart',unlock,{passive:true});
-    document.addEventListener('keydown',unlock);
+    document.addEventListener('pointerdown',doUnlock,{passive:true});
+    document.addEventListener('touchstart',doUnlock,{passive:true});
+    document.addEventListener('keydown',doUnlock);
+    // 메인화면 자체에도 명시 등록 (document level이 작동 안 하는 케이스 안전망)
+    const ms = document.getElementById('main-screen');
+    if(ms){
+      ms.addEventListener('pointerdown',doUnlock,{passive:true});
+      ms.addEventListener('touchstart',doUnlock,{passive:true});
+    }
   })();
 })();
 

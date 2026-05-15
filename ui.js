@@ -1549,18 +1549,41 @@ function setupScreenNav(){
 
   // 메인 → 로비 or 캐릭터 선택 (프로필 유무에 따라)
   // BGM은 showScreen 내부 switchBgmForScreen에서 자동 처리
+  // 2단계 흐름: PRESS TO START → BGM unlock + "리소스 활성화 중..." → "시작하기" → 다음 화면
+  // 모바일에서 첫 user gesture로 BGM이 들리는 시간을 확보 + 사용자가 의식적으로 시작
+  let _mainStartStage = 0; // 0: PRESS TO START, 1: 시작하기
   document.getElementById('main-start-btn').addEventListener('click',()=>{
-    // 모바일 autoplay 정책 우회: 첫 user gesture 안 동기 play() 호출
-    // 첫 메인 진입 시 자동재생 차단으로 main-bgm.play()가 reject됐어도 여기서 재시도하면 unlock
-    const mainBgm = document.getElementById('main-bgm');
-    if(mainBgm && mainBgm.paused){
-      mainBgm.volume = 0.8;
-      mainBgm.play().catch(()=>{});
+    const btn = document.getElementById('main-start-btn');
+    if(_mainStartStage === 0){
+      // 1단계: BGM unlock + 안내 표시
+      const mainBgm = document.getElementById('main-bgm');
+      if(mainBgm){
+        mainBgm.volume = 0.8;
+        mainBgm.play().catch(()=>{});
+      }
+      const ctx = getSfxCtx();
+      if(ctx && ctx.state === 'suspended') ctx.resume().catch(()=>{});
+      playSfx('btn_click');
+
+      btn.textContent = '🎵 리소스 활성화 중...';
+      btn.disabled = true;
+      btn.classList.add('loading');
+
+      setTimeout(() => {
+        btn.textContent = '시작하기 ▶';
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        btn.classList.add('ready');
+        _mainStartStage = 1;
+      }, 1500);
+      return;
     }
-    // SFX AudioContext도 동시에 resume
-    const ctx = getSfxCtx();
-    if(ctx && ctx.state === 'suspended') ctx.resume().catch(()=>{});
+    // 2단계: 실제 진행
     playSfx('btn_click');
+    // 메인 진입 시 다음 사용자를 위해 상태 초기화
+    btn.textContent = 'PRESS TO START';
+    btn.classList.remove('ready');
+    _mainStartStage = 0;
     if(hasPlayerProfile()){
       updateLobbyProfile();
       showScreen('lobby-screen');

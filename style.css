@@ -1732,9 +1732,11 @@ h1 {
 }
 
 @keyframes mainBgDrift {
-  0%   { transform: scale(1.08) translate(0, 0); }
-  50%  { transform: scale(1.12) translate(-12px, -8px); }
-  100% { transform: scale(1.08) translate(12px, 8px); }
+  0%   { transform: scale(1.10) translate(0, 0); }
+  25%  { transform: scale(1.16) translate(-28px, -18px); }
+  50%  { transform: scale(1.20) translate(0, -10px); }
+  75%  { transform: scale(1.16) translate(28px, -18px); }
+  100% { transform: scale(1.10) translate(0, 18px); }
 }
 
 /* 접근성 — 모션 감소 선호 시 애니메이션 정지 */

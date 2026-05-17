@@ -97,7 +97,37 @@
 - 기존 #stop-btn, #dev-mode-btn은 HTML hidden + 핸들러는 click 트리거로 재사용
 - 메뉴 위치: top: max(10px, safe-area-inset-top), right: 10px
 
-### 11. 현재 인프라 상태
+### 11. PC 회귀 fix + UI 폴리싱 (저녁/심야)
+
+**PC 회귀 — 화면 viewport 채우는 버그**
+- 증상: PC에서 캐릭터 선택/닉네임/로비/인트로/조우 화면이 viewport 전체로 늘어남 (390x844 박스 X)
+- 원인: 어제 viewport refactor에서 `max-width: 390px` 추가했는데 같은 셀렉터에 옛 `max-width: none` 선언이 그대로 남아 override
+- 영향 셀렉터: `#character-select-screen`, `#nickname-screen`, `#lobby-screen` (그룹) / `#intro-screen` / `#encounter-screen`
+- fix: 잔재 `max-width: none` 모두 제거
+
+**ADVENTURE START 버튼 디자인 통합**
+- 천장(조우) 게이지 칩이 absolute로 버튼 위에 떠 있던 "버튼 위에 버튼" 어색 → flex item으로 인라인 통합
+- 사용자 옵션 A 선택: `[⭐ 4/5 칩] [ADVENTURE START / LEVEL N] [▶]` 가로 3분할
+- 버튼 width 240 → 290px (콘텐츠 공간 확보)
+
+**ADVENTURE START 닌텐도풍 리디자인**
+- pill (border-radius: 999px) → 둥근 사각 (22px) — 닌텐도 게임 메뉴 톤
+- 높이 64 → 70px
+- 인너 하이라이트 (위 흰빛 + 아래 dark line) + 깊은 피지컬 그림자
+- 그라디언트 부드럽게 (#ffd84d → #ffba1a + 상단 white sheen)
+- 텍스트 가운데 정렬 (left → center) + uppercase + letter-spacing 4px
+- LEVEL 숫자에 미세 text-shadow (가독성)
+- ▶ 화살표 원형 + inset shadow (입체감)
+- 호버: brightness 1.04 / 액티브: translateY 4px (피지컬 press)
+
+**메인화면 배경 Ken Burns 미세 panning**
+- 사용자 아이디어: 배경이 살아있는 느낌
+- 5-keyframe loop (0→25→50→75→100), `ease-in-out infinite alternate`
+- scale 1.10↔1.20 + 대각선 ±28px/±18px (다이나믹)
+- `prefers-reduced-motion: reduce` 시 자동 정지 (접근성)
+- 닌텐도/모바일 게임 메뉴 흔한 기법 — 시각 피로 X, 머무는 시간 인상적
+
+### 12. 현재 인프라 상태
 | 컴포넌트 | URL | 상태 |
 |---|---|---|
 | Supabase DB | ap-southeast-1 | ✅ |
